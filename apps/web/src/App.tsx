@@ -95,14 +95,15 @@ export function App() {
 
               <div className="form-grid">
                 {step.fields.map((field) => {
-                  const value = (form as Record<string, unknown>)[field.key];
+                  const fieldKey = field.key as keyof QuestionnaireAnswers;
+                  const value = form[fieldKey];
                   if (field.type === "boolean") {
                     return (
                       <label key={field.key} className="checkbox-card">
                         <input
                           type="checkbox"
                           checked={Boolean(value)}
-                          onChange={(event) => onChange(field.key as keyof QuestionnaireAnswers, event.target.checked)}
+                          onChange={(event) => onChange(fieldKey, event.target.checked)}
                         />
                         <div>
                           <strong>{field.label}</strong>
@@ -118,7 +119,7 @@ export function App() {
                         <span>{field.label}</span>
                         <select
                           value={String(value ?? "")}
-                          onChange={(event) => onChange(field.key as keyof QuestionnaireAnswers, event.target.value)}
+                          onChange={(event) => onChange(fieldKey, event.target.value)}
                         >
                           <option value="">Select…</option>
                           {field.options?.map((option) => (
@@ -137,7 +138,7 @@ export function App() {
                       <span>{field.label}</span>
                       <input
                         value={String(value ?? "")}
-                        onChange={(event) => onChange(field.key as keyof QuestionnaireAnswers, event.target.value)}
+                        onChange={(event) => onChange(fieldKey, event.target.value)}
                         placeholder={field.help}
                       />
                       <small>{field.help}</small>
