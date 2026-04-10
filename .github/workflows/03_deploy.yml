@@ -71,6 +71,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
           touch ~/.ssh/known_hosts
           if [ -n "$DEPLOY_KNOWN_HOSTS_CONTENT" ]; then
             printf '%s' "$DEPLOY_KNOWN_HOSTS_CONTENT" > ~/.ssh/known_hosts
@@ -78,6 +79,16 @@ jobs:
             ssh-keyscan -H "$SERVER_IP" >> ~/.ssh/known_hosts 2>/dev/null
           fi
           chmod 600 ~/.ssh/known_hosts
+
+      - name: Verify SSH access
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/deploy_key \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o BatchMode=yes \
+            "$SSH_USER@$SERVER_IP" 'true'
 
       - name: Encode runtime env
         env:
@@ -94,12 +105,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/deploy_key "$SSH_USER@$SERVER_IP" "mkdir -p '$APP_ROOT/releases/$RELEASE_NAME'"
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$SSH_USER@$SERVER_IP" "mkdir -p '$APP_ROOT/releases/$RELEASE_NAME'"
 
       - name: Upload release
         shell: bash
         run: |
           set -euo pipefail
+          export RSYNC_RSH="ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
           rsync -az \
             --delete \
             --exclude '.git/' \
@@ -114,14 +126,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          printf '%s' "$APP_ROOT" | ssh -i ~/.ssh/deploy_key "$SSH_USER@$SERVER_IP" 'cat > /tmp/app_root.txt'
-          printf '%s' "$SERVICE_NAME" | ssh -i ~/.ssh/deploy_key "$SSH_USER@$SERVER_IP" 'cat > /tmp/service_name.txt'
-          printf '%s' "$APP_ROOT/releases/$RELEASE_NAME/infra/deploy/templates/app.service.template" | ssh -i ~/.ssh/deploy_key "$SSH_USER@$SERVER_IP" 'cat > /tmp/service_template.txt'
+          printf '%s' "$APP_ROOT" | ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$SSH_USER@$SERVER_IP" 'cat > /tmp/app_root.txt'
+          printf '%s' "$SERVICE_NAME" | ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$SSH_USER@$SERVER_IP" 'cat > /tmp/service_name.txt'
+          printf '%s' "$APP_ROOT/releases/$RELEASE_NAME/infra/deploy/templates/app.service.template" | ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$SSH_USER@$SERVER_IP" 'cat > /tmp/service_template.txt'
 
       - name: Activate release
         shell: bash
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/deploy_key "$SSH_USER@$SERVER_IP" \
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$SSH_USER@$SERVER_IP" \
             "DOMAIN='$DOMAIN' APP_ROOT='$APP_ROOT' WEB_ROOT='$WEB_ROOT' API_PORT='$API_PORT' SERVICE_NAME='$SERVICE_NAME' RELEASE_NAME='$RELEASE_NAME' RUNTIME_ENV_B64='${RUNTIME_ENV_B64:-}' bash -s" \
             < scripts/deploy/deploy_remote.sh

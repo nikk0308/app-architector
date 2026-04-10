@@ -50,6 +50,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
           touch ~/.ssh/known_hosts
           if [ -n "$DEPLOY_KNOWN_HOSTS_CONTENT" ]; then
             printf '%s' "$DEPLOY_KNOWN_HOSTS_CONTENT" > ~/.ssh/known_hosts
@@ -62,16 +63,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat infra/deploy/templates/bootstrap.index.template | ssh -i ~/.ssh/deploy_key "$SSH_USER@$SERVER_IP" 'cat > /tmp/bootstrap.index.template'
-          cat infra/deploy/templates/nginx.http.template | ssh -i ~/.ssh/deploy_key "$SSH_USER@$SERVER_IP" 'cat > /tmp/nginx.http.template'
-          printf '%s' "$DOMAIN" | ssh -i ~/.ssh/deploy_key "$SSH_USER@$SERVER_IP" 'cat > /tmp/domain.txt'
-          printf '%s' "$WEB_ROOT" | ssh -i ~/.ssh/deploy_key "$SSH_USER@$SERVER_IP" 'cat > /tmp/web_root.txt'
-          printf '%s' "$API_PORT" | ssh -i ~/.ssh/deploy_key "$SSH_USER@$SERVER_IP" 'cat > /tmp/api_port.txt'
+          cat infra/deploy/templates/bootstrap.index.template | ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$SSH_USER@$SERVER_IP" 'cat > /tmp/bootstrap.index.template'
+          cat infra/deploy/templates/nginx.http.template | ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$SSH_USER@$SERVER_IP" 'cat > /tmp/nginx.http.template'
+          printf '%s' "$DOMAIN" | ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$SSH_USER@$SERVER_IP" 'cat > /tmp/domain.txt'
+          printf '%s' "$WEB_ROOT" | ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$SSH_USER@$SERVER_IP" 'cat > /tmp/web_root.txt'
+          printf '%s' "$API_PORT" | ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$SSH_USER@$SERVER_IP" 'cat > /tmp/api_port.txt'
 
       - name: Bootstrap server
         shell: bash
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/deploy_key "$SSH_USER@$SERVER_IP" \
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$SSH_USER@$SERVER_IP" \
             "DOMAIN='$DOMAIN' APP_ROOT='$APP_ROOT' WEB_ROOT='$WEB_ROOT' API_PORT='$API_PORT' bash -s" \
             < scripts/deploy/bootstrap_remote.sh

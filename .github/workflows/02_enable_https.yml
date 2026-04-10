@@ -44,6 +44,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
           touch ~/.ssh/known_hosts
           if [ -n "$DEPLOY_KNOWN_HOSTS_CONTENT" ]; then
             printf '%s' "$DEPLOY_KNOWN_HOSTS_CONTENT" > ~/.ssh/known_hosts
@@ -56,6 +57,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/deploy_key "$SSH_USER@$SERVER_IP" \
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$SSH_USER@$SERVER_IP" \
             "DOMAIN='$DOMAIN' LETSENCRYPT_EMAIL='$LETSENCRYPT_EMAIL' bash -s" \
             < scripts/deploy/enable_https_remote.sh
