@@ -1,0 +1,8 @@
+Prefab: AppRoot
+Project: Starter Quest
+Architecture: manager-driven
+Hierarchy:
+- AppManager
+- NavigationManager
+- AnalyticsManager
+- LocalizationManager

@@ -1,0 +1,3 @@
+class AppState {
+  String currentRoute = '/';
+}

@@ -1,0 +1,22 @@
+[Unit]
+Description=__SERVICE_NAME__
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=__APP_ROOT__/current/apps/api
+Environment=MAG_ENV_FILE=__APP_ROOT__/shared/runtime.env
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=2
+User=root
+Group=root
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=__APP_ROOT__/shared
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

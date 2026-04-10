@@ -1,0 +1,58 @@
+name: 02 enable https
+
+on:
+  workflow_dispatch:
+
+jobs:
+  https:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Resolve deploy config
+        shell: bash
+        run: |
+          set -euo pipefail
+          DOMAIN='${{ vars.DEPLOY_DOMAIN }}'
+          SERVER_IP='${{ vars.DEPLOY_SERVER_IP }}'
+          SSH_USER='${{ vars.DEPLOY_SSH_USER }}'
+          LETSENCRYPT_EMAIL='${{ vars.LETSENCRYPT_EMAIL }}'
+
+          [ -n "$DOMAIN" ] || { echo 'DEPLOY_DOMAIN is required'; exit 1; }
+          [ -n "$SERVER_IP" ] || { echo 'DEPLOY_SERVER_IP is required'; exit 1; }
+
+          SSH_USER=${SSH_USER:-root}
+          LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL:-admin@$DOMAIN}
+
+          echo "DOMAIN=$DOMAIN" >> "$GITHUB_ENV"
+          echo "SERVER_IP=$SERVER_IP" >> "$GITHUB_ENV"
+          echo "SSH_USER=$SSH_USER" >> "$GITHUB_ENV"
+          echo "LETSENCRYPT_EMAIL=$LETSENCRYPT_EMAIL" >> "$GITHUB_ENV"
+
+      - name: Prepare SSH key
+        env:
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+        run: python3 scripts/deploy/prepare_ssh_key.py
+
+      - name: Trust server host key
+        env:
+          DEPLOY_KNOWN_HOSTS_CONTENT: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          touch ~/.ssh/known_hosts
+          if [ -n "$DEPLOY_KNOWN_HOSTS_CONTENT" ]; then
+            printf '%s' "$DEPLOY_KNOWN_HOSTS_CONTENT" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -H "$SERVER_IP" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Enable HTTPS
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/deploy_key "$SSH_USER@$SERVER_IP" \
+            "DOMAIN='$DOMAIN' LETSENCRYPT_EMAIL='$LETSENCRYPT_EMAIL' bash -s" \
+            < scripts/deploy/enable_https_remote.sh
