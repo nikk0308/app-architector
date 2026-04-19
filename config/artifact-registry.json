@@ -505,5 +505,395 @@
         }
       ]
     }
+  },
+  {
+    "id": "sample.home-screen",
+    "description": "Example screen scaffold.",
+    "outputs": {
+      "ios": [
+        {
+          "path": "Sources/Features/Home/HomeView.swift",
+          "template": "ios/HomeView.swift.tpl"
+        }
+      ],
+      "flutter": [
+        {
+          "path": "lib/features/home/home_screen.dart",
+          "template": "flutter/home_screen.dart.tpl"
+        }
+      ],
+      "react-native": [
+        {
+          "path": "src/screens/HomeScreen.tsx",
+          "template": "react-native/HomeScreen.tsx.tpl"
+        }
+      ],
+      "unity": [
+        {
+          "path": "Assets/Scripts/UI/HomeViewPlaceholder.txt",
+          "literal": "Home screen placeholder for baseline generation.\n"
+        }
+      ]
+    }
+  },
+  {
+    "id": "profile.ios.foundation",
+    "description": "iOS foundation files.",
+    "outputs": {
+      "ios": [
+        {
+          "path": "project.yml",
+          "template": "ios/project.yml.tpl"
+        },
+        {
+          "path": "Config/Debug.xcconfig",
+          "template": "ios/Debug.xcconfig.tpl"
+        },
+        {
+          "path": "Config/Release.xcconfig",
+          "template": "ios/Release.xcconfig.tpl"
+        },
+        {
+          "path": "Sources/App/AppCoordinator.swift",
+          "template": "ios/AppCoordinator.swift.tpl"
+        },
+        {
+          "path": "Sources/App/AppEnvironment.swift",
+          "template": "ios/AppEnvironment.swift.tpl"
+        },
+        {
+          "path": "Sources/App/AppState.swift",
+          "template": "ios/AppState.swift.tpl"
+        },
+        {
+          "path": "Sources/App/NavigationRoute.swift",
+          "template": "ios/NavigationRoute.swift.tpl"
+        },
+        {
+          "path": "Sources/App/LaunchScreenView.swift",
+          "template": "ios/LaunchScreenView.swift.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "module.auth.service",
+    "description": "Authentication module scaffold.",
+    "outputs": {
+      "ios": [
+        {
+          "path": "Sources/Modules/Auth/AuthService.swift",
+          "template": "ios/AuthService.swift.tpl"
+        }
+      ],
+      "flutter": [
+        {
+          "path": "lib/features/auth/auth_gate.dart",
+          "template": "flutter/auth_gate.dart.tpl"
+        }
+      ],
+      "react-native": [
+        {
+          "path": "src/screens/AuthScreen.tsx",
+          "template": "react-native/AuthScreen.tsx.tpl"
+        }
+      ],
+      "unity": [
+        {
+          "path": "Assets/Scripts/Modules/Auth/AuthManager.cs",
+          "template": "unity/AuthManager.cs.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "module.analytics.service",
+    "description": "Analytics module scaffold.",
+    "outputs": {
+      "ios": [
+        {
+          "path": "Sources/Modules/Analytics/AnalyticsService.swift",
+          "template": "ios/AnalyticsService.swift.tpl"
+        }
+      ],
+      "flutter": [
+        {
+          "path": "lib/services/analytics_service.dart",
+          "template": "flutter/analytics_service.dart.tpl"
+        }
+      ],
+      "react-native": [
+        {
+          "path": "src/services/analyticsService.ts",
+          "template": "react-native/analyticsService.ts.tpl"
+        }
+      ],
+      "unity": [
+        {
+          "path": "Assets/Scripts/Modules/Analytics/AnalyticsManager.cs",
+          "template": "unity/AnalyticsManager.cs.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "module.localization.config",
+    "description": "Localization scaffold.",
+    "outputs": {
+      "ios": [
+        {
+          "path": "Resources/Localizable.xcstrings",
+          "template": "ios/Localizable.xcstrings.tpl"
+        }
+      ],
+      "flutter": [
+        {
+          "path": "lib/services/localization_service.dart",
+          "template": "flutter/localization_service.dart.tpl"
+        },
+        {
+          "path": "lib/l10n/app_en.arb",
+          "template": "flutter/app_en.arb.tpl"
+        },
+        {
+          "path": "lib/l10n/app_uk.arb",
+          "template": "flutter/app_uk.arb.tpl"
+        }
+      ],
+      "react-native": [
+        {
+          "path": "src/services/localization.ts",
+          "template": "react-native/localization.ts.tpl"
+        }
+      ],
+      "unity": [
+        {
+          "path": "Assets/Scripts/Modules/Localization/LocalizationManager.cs",
+          "template": "unity/LocalizationManager.cs.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "module.push.service",
+    "description": "Push notifications placeholder.",
+    "outputs": {
+      "ios": [
+        {
+          "path": "Sources/Modules/Push/PushService.swift",
+          "template": "ios/PushService.swift.tpl"
+        }
+      ],
+      "flutter": [
+        {
+          "path": "lib/services/push_service.dart",
+          "template": "flutter/push_service.dart.tpl"
+        }
+      ],
+      "react-native": [
+        {
+          "path": "src/services/pushService.ts",
+          "template": "react-native/pushService.ts.tpl"
+        }
+      ],
+      "unity": [
+        {
+          "path": "Assets/Scripts/Modules/Push/PushManager.cs",
+          "template": "unity/PushManager.cs.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "module.networking.client",
+    "description": "Networking client scaffold.",
+    "outputs": {
+      "ios": [
+        {
+          "path": "Sources/Modules/Networking/NetworkClient.swift",
+          "template": "ios/NetworkClient.swift.tpl"
+        }
+      ],
+      "flutter": [
+        {
+          "path": "lib/services/network_client.dart",
+          "template": "flutter/network_client.dart.tpl"
+        }
+      ],
+      "react-native": [
+        {
+          "path": "src/services/apiClient.ts",
+          "template": "react-native/apiClient.ts.tpl"
+        }
+      ],
+      "unity": [
+        {
+          "path": "Assets/Scripts/Modules/Networking/NetworkService.cs",
+          "template": "unity/NetworkService.cs.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "module.storage.service",
+    "description": "Persistence/storage scaffold.",
+    "outputs": {
+      "ios": [
+        {
+          "path": "Sources/Modules/Persistence/PersistenceService.swift",
+          "template": "ios/PersistenceService.swift.tpl"
+        }
+      ],
+      "flutter": [
+        {
+          "path": "lib/services/persistence_service.dart",
+          "template": "flutter/persistence_service.dart.tpl"
+        }
+      ],
+      "react-native": [
+        {
+          "path": "src/services/storageService.ts",
+          "template": "react-native/storageService.ts.tpl"
+        }
+      ],
+      "unity": [
+        {
+          "path": "Assets/Scripts/Modules/Persistence/PersistenceService.cs",
+          "template": "unity/PersistenceService.cs.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "entry.flutter.main",
+    "description": "Flutter application entry point.",
+    "outputs": {
+      "flutter": [
+        {
+          "path": "lib/main.dart",
+          "template": "flutter/main.dart.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "profile.flutter.foundation",
+    "description": "Flutter application shell.",
+    "outputs": {
+      "flutter": [
+        {
+          "path": "pubspec.yaml",
+          "template": "flutter/pubspec.yaml.tpl"
+        },
+        {
+          "path": "lib/app.dart",
+          "template": "flutter/app.dart.tpl"
+        },
+        {
+          "path": "lib/router.dart",
+          "template": "flutter/router.dart.tpl"
+        },
+        {
+          "path": "lib/app_state.dart",
+          "template": "flutter/app_state.dart.tpl"
+        },
+        {
+          "path": "lib/env.dart",
+          "template": "flutter/env.dart.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "entry.rn.app",
+    "description": "React Native application entry point.",
+    "outputs": {
+      "react-native": [
+        {
+          "path": "App.tsx",
+          "template": "react-native/App.tsx.tpl"
+        },
+        {
+          "path": "index.js",
+          "template": "react-native/index.js.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "profile.rn.foundation",
+    "description": "React Native shell.",
+    "outputs": {
+      "react-native": [
+        {
+          "path": "package.json",
+          "template": "react-native/package.json.tpl"
+        },
+        {
+          "path": "src/navigation/AppNavigator.tsx",
+          "template": "react-native/AppNavigator.tsx.tpl"
+        },
+        {
+          "path": "src/state/appState.ts",
+          "template": "react-native/appState.ts.tpl"
+        },
+        {
+          "path": "src/config/env.ts",
+          "template": "react-native/env.ts.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "entry.unity.bootstrap",
+    "description": "Unity bootstrap scene.",
+    "outputs": {
+      "unity": [
+        {
+          "path": "Assets/Scenes/Bootstrap.unity",
+          "template": "unity/Bootstrap.unity.tpl"
+        },
+        {
+          "path": "Assets/Scripts/Bootstrap/BootSceneController.cs",
+          "template": "unity/BootSceneController.cs.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "profile.unity.foundation",
+    "description": "Unity application shell.",
+    "outputs": {
+      "unity": [
+        {
+          "path": "Assets/Scripts/Core/AppManager.cs",
+          "template": "unity/AppManager.cs.tpl"
+        },
+        {
+          "path": "Assets/Scripts/Core/AppConfig.cs",
+          "template": "unity/AppConfig.cs.tpl"
+        },
+        {
+          "path": "Assets/Scripts/Core/GameFlowController.cs",
+          "template": "unity/GameFlowController.cs.tpl"
+        },
+        {
+          "path": "Assets/Scripts/Core/NavigationManager.cs",
+          "template": "unity/NavigationManager.cs.tpl"
+        },
+        {
+          "path": "Assets/Scripts/Core/StateStore.cs",
+          "template": "unity/StateStore.cs.tpl"
+        },
+        {
+          "path": "Assets/Prefabs/AppRoot.prefab",
+          "template": "unity/AppRoot.prefab.tpl"
+        },
+        {
+          "path": "ProjectSettings/ProjectVersion.txt",
+          "template": "unity/ProjectVersion.txt.tpl"
+        }
+      ]
+    }
   }
 ]

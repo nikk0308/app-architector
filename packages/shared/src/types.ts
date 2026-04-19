@@ -1,9 +1,57 @@
-export type ProfileId = "unity" | "ios" | "flutter" | "react-native";
+export const PROFILE_IDS = ["unity", "ios", "flutter", "react-native"] as const;
+export type ProfileId = typeof PROFILE_IDS[number];
+
+export const GENERATION_MODES = ["baseline", "hf-open", "commercial", "hybrid"] as const;
+export type GenerationMode = typeof GENERATION_MODES[number];
+
+export const UNIVERSAL_FEATURES = [
+  "entry-point",
+  "navigation",
+  "auth",
+  "analytics",
+  "localization",
+  "push",
+  "networking",
+  "storage",
+  "environment-config",
+  "state-management",
+  "dependency-injection",
+  "testing-skeleton"
+] as const;
+export type UniversalFeatureId = typeof UNIVERSAL_FEATURES[number];
+
+export type ArchitectureFeatureId =
+  | "auth"
+  | "analytics"
+  | "localization"
+  | "push"
+  | "networking"
+  | "persistence"
+  | "exampleScreen"
+  | "llmNotes";
+
+
+export interface QuestionnaireField {
+  key: string;
+  label: string;
+  type: "text" | "select" | "boolean";
+  help: string;
+  required?: boolean;
+  options?: Array<{ label: string; value: string }>;
+}
+
+export interface QuestionnaireSection {
+  id: string;
+  title: string;
+  description: string;
+  fields: QuestionnaireField[];
+}
 
 export interface QuestionnaireAnswers {
   projectName: string;
   appDisplayName: string;
   profile: ProfileId;
+  generationMode?: GenerationMode;
   packageId?: string;
   architectureStyle?: string;
   stateManagement?: string;
@@ -19,60 +67,174 @@ export interface QuestionnaireAnswers {
   includeLLMNotes?: boolean;
 }
 
+export type QuestionnaireAnswerSet = QuestionnaireAnswers;
+
+export interface ProfileCapability {
+  supported: boolean;
+  defaultEnabled: boolean;
+  required: boolean;
+  notes?: string[];
+}
+
+export interface ProfileNamingRules {
+  packagePrefix: string;
+  rootFolderPattern: "slug" | "pascal";
+  sourceFolder: string;
+}
+
+export interface ProjectProfileDefinition {
+  id: ProfileId;
+  label: string;
+  language: string;
+  runtime: string;
+  description: string;
+  naming: ProfileNamingRules;
+  entryArtifactId: string;
+  baseArtifactId: string;
+  capabilities: Record<UniversalFeatureId, ProfileCapability>;
+  requiredArtifactIds: string[];
+  featureArtifacts: Partial<Record<UniversalFeatureId, string[]>>;
+  platformNotes: string[];
+}
+
 export interface NormalizedProfile {
   profile: ProfileId;
+  generationMode: GenerationMode;
   projectName: string;
+  appDisplayName: string;
   projectSlug: string;
   projectPascal: string;
-  appDisplayName: string;
   packageId: string;
   architectureStyle: string;
   stateManagement: string;
   navigationStyle: string;
   environmentMode: "single" | "multi";
-  includeExampleScreen: boolean;
-  includeLLMNotes: boolean;
-  modules: {
+  features: {
     auth: boolean;
     analytics: boolean;
     localization: boolean;
     push: boolean;
     networking: boolean;
     persistence: boolean;
-    navigation: boolean;
-    stateLayer: boolean;
-    configFiles: boolean;
-    readme: boolean;
-    entryPoint: boolean;
   };
   entryPoint: string;
-  rootFolderName: string;
   explanation: string;
 }
 
-export interface PlannedArtifact {
-  id: string;
+export interface ModuleSelection {
+  featureId: UniversalFeatureId;
+  enabled: boolean;
+  supported: boolean;
+  required: boolean;
+  source: "mandatory" | "profile-default" | "answer" | "derived";
+  artifactIds: string[];
+  notes: string[];
+}
+
+export interface DependencyRelationship {
+  from: UniversalFeatureId;
+  to: UniversalFeatureId;
   reason: string;
-  category: "core" | "module" | "profile";
+}
+
+export interface DependencyPlan {
+  requiredFeatures: UniversalFeatureId[];
+  optionalFeatures: UniversalFeatureId[];
+  relationships: DependencyRelationship[];
+  warnings: string[];
+}
+
+export interface ArchitectureSpec {
+  version: string;
+  profileId: ProfileId;
+  generationMode: GenerationMode;
+  projectName: string;
+  appDisplayName: string;
+  naming: {
+    projectSlug: string;
+    projectPascal: string;
+    packageId: string;
+    rootDirectoryName: string;
+  };
+  architecture: {
+    style: string;
+    stateManagement: string;
+    navigationStyle: string;
+    environmentMode: "single" | "multi";
+    entryPoint: string;
+  };
+  features: Record<ArchitectureFeatureId, boolean>;
+  modules: ModuleSelection[];
+  dependencyPlan: DependencyPlan;
+  explanation: string;
+}
+
+export interface GenerationPlanItem {
+  id: string;
+  title: string;
+  reason: string;
+  required: boolean;
 }
 
 export interface GenerationPlan {
   profile: ProfileId;
-  artifacts: PlannedArtifact[];
-  summary: string[];
+  generationMode: GenerationMode;
+  rootFolderName: string;
+  artifacts: GenerationPlanItem[];
+  notes: string[];
+}
+
+export interface ArtifactDefinition {
+  id: string;
+  title: string;
+  reason: string;
+  required: boolean;
+  category: "core" | "profile" | "feature" | "metadata";
+  source: "baseline";
+}
+
+export interface ArtifactManifest {
+  version: string;
+  profileId: ProfileId;
+  generationMode: GenerationMode;
+  rootFolderName: string;
+  artifacts: ArtifactDefinition[];
+  summary: {
+    totalArtifacts: number;
+    requiredArtifacts: number;
+    featureArtifacts: number;
+  };
+  notes: string[];
+}
+
+export interface ValidationIssue {
+  code: string;
+  message: string;
+  level: "error" | "warning";
+  path?: string;
+}
+
+export interface ValidationReport {
+  status: "passed" | "failed";
+  issues: ValidationIssue[];
+  metrics: {
+    missingRequiredArtifacts: number;
+    unsupportedEnabledFeatures: number;
+    duplicateArtifacts: number;
+  };
 }
 
 export interface RegistryOutputDefinition {
   path: string;
-  template: string;
-  executable?: boolean;
+  template?: string;
+  literal?: string;
 }
 
 export interface ArtifactRegistryEntry {
   id: string;
   title: string;
-  description: string;
-  outputs: Partial<Record<ProfileId, RegistryOutputDefinition[]>>;
+  profiles: ProfileId[];
+  outputs: Record<string, RegistryOutputDefinition[]>;
 }
 
 export interface TreeNode {
@@ -83,6 +245,7 @@ export interface TreeNode {
 export interface GenerationMetadata {
   id: string;
   profile: ProfileId;
+  generationMode?: GenerationMode;
   projectName: string;
   status: "completed" | "failed";
   createdAt: string;
@@ -91,4 +254,7 @@ export interface GenerationMetadata {
   fileTree?: TreeNode[];
   profileJson?: string;
   planJson?: string;
+  specJson?: string;
+  manifestJson?: string;
+  validationJson?: string;
 }

@@ -1,143 +1,173 @@
-import type { ProfileId } from "./types.js";
-
-export interface QuestionnaireFieldOption {
-  value: string | boolean;
-  label: string;
-}
-
-export interface QuestionnaireField {
-  key: string;
-  label: string;
-  type: "text" | "select" | "boolean";
-  help: string;
-  required?: boolean;
-  options?: QuestionnaireFieldOption[];
-}
-
-export interface QuestionnaireSection {
-  title: string;
-  description: string;
-  fields: QuestionnaireField[];
-}
-
-export const profileDefaults: Record<ProfileId, {
-  architectureStyle: string;
-  stateManagement: string;
-  navigationStyle: string;
-  entryPoint: string;
-}> = {
-  unity: {
-    architectureStyle: "manager-driven",
-    stateManagement: "scriptable-store",
-    navigationStyle: "scene-flow",
-    entryPoint: "Assets/Scenes/Bootstrap.unity"
-  },
-  ios: {
-    architectureStyle: "mvvm-coordinator",
-    stateManagement: "observable-object",
-    navigationStyle: "coordinator",
-    entryPoint: "ios/<Project>/Sources/App/<Project>App.swift"
-  },
-  flutter: {
-    architectureStyle: "feature-first",
-    stateManagement: "provider",
-    navigationStyle: "router",
-    entryPoint: "lib/main.dart"
-  },
-  "react-native": {
-    architectureStyle: "feature-first",
-    stateManagement: "zustand-like-store",
-    navigationStyle: "stack-navigation",
-    entryPoint: "index.js"
-  }
-};
+import type { QuestionnaireSection } from "./types.js";
 
 export const questionnaireSchema: QuestionnaireSection[] = [
   {
+    id: "project-basics",
     title: "Базові параметри",
-    description: "Ці поля формують універсальний профіль генерації.",
+    description: "Назва проєкту, профіль платформи і режим генерації.",
     fields: [
       {
         key: "projectName",
-        label: "Назва проєкту",
+        label: "Project name",
         type: "text",
-        help: "Використовується для назв папок, класів і README.",
+        help: "Внутрішня назва проєкту",
         required: true
       },
       {
         key: "appDisplayName",
-        label: "Назва застосунку для UI",
+        label: "App display name",
         type: "text",
-        help: "Людське відображуване ім’я.",
+        help: "Назва для користувача",
         required: true
       },
       {
         key: "profile",
-        label: "Профіль генерації",
+        label: "Target profile",
         type: "select",
-        help: "Визначає платформний адаптер.",
+        help: "Платформа стартової архітектури",
         required: true,
         options: [
-          { value: "unity", label: "Unity" },
-          { value: "ios", label: "native iOS (Swift/Xcode)" },
-          { value: "flutter", label: "Flutter" },
-          { value: "react-native", label: "React Native" }
+          { label: "Unity / C#", value: "unity" },
+          { label: "native iOS / Swift", value: "ios" },
+          { label: "Flutter / Dart", value: "flutter" },
+          { label: "React Native / TypeScript", value: "react-native" }
+        ]
+      },
+      {
+        key: "generationMode",
+        label: "Generation mode",
+        type: "select",
+        help: "Baseline уже працює. Інші режими закладені в доменну модель для наступних фаз.",
+        required: true,
+        options: [
+          { label: "Rule/template baseline", value: "baseline" },
+          { label: "Hugging Face open model", value: "hf-open" },
+          { label: "Commercial LLM", value: "commercial" },
+          { label: "Hybrid", value: "hybrid" }
         ]
       },
       {
         key: "packageId",
         label: "Package / Bundle identifier",
         type: "text",
-        help: "Наприклад com.example.myapp. Якщо порожнє — згенерується автоматично."
+        help: "Наприклад com.example.app або com.company.product"
+      }
+    ]
+  },
+  {
+    id: "architecture",
+    title: "Архітектура",
+    description: "Вибір стилю архітектури, керування станом і середовищ.",
+    fields: [
+      {
+        key: "architectureStyle",
+        label: "Architecture style",
+        type: "select",
+        help: "Базова архітектурна схема",
+        options: [
+          { label: "Layered", value: "layered" },
+          { label: "MVVM", value: "mvvm" },
+          { label: "Feature-first", value: "feature-first" },
+          { label: "Coordinator", value: "coordinator" }
+        ]
+      },
+      {
+        key: "stateManagement",
+        label: "State management",
+        type: "select",
+        help: "Базовий спосіб керування станом",
+        options: [
+          { label: "Native / light", value: "native" },
+          { label: "Provider", value: "provider" },
+          { label: "Riverpod", value: "riverpod" },
+          { label: "Redux Toolkit", value: "redux-toolkit" },
+          { label: "ScriptableObject", value: "scriptable-object" }
+        ]
+      },
+      {
+        key: "navigationStyle",
+        label: "Navigation",
+        type: "select",
+        help: "Тип навігаційного шару",
+        options: [
+          { label: "Stack", value: "stack" },
+          { label: "Router", value: "router" },
+          { label: "Coordinator", value: "coordinator" },
+          { label: "Scene flow", value: "scene-flow" }
+        ]
       },
       {
         key: "environmentMode",
-        label: "Режим environment-конфігів",
+        label: "Environment config",
         type: "select",
-        help: "single = один environment, multi = dev/prod templates.",
+        help: "Single або multi environment",
         options: [
-          { value: "single", label: "Single environment" },
-          { value: "multi", label: "Dev / Prod environment" }
+          { label: "Single", value: "single" },
+          { label: "Multi", value: "multi" }
         ]
       }
     ]
   },
   {
-    title: "Архітектурні рішення",
-    description: "Система використовує їх у rule engine та template engine.",
+    id: "feature-modules",
+    title: "Модулі",
+    description: "Функціональні флаги, які мають потрапити у стартову архітектуру.",
     fields: [
       {
-        key: "architectureStyle",
-        label: "Архітектурний стиль",
-        type: "text",
-        help: "Наприклад mvvm-coordinator, manager-driven, feature-first."
+        key: "hasAuth",
+        label: "Auth scaffold",
+        type: "boolean",
+        help: "Згенерувати базову auth-структуру"
       },
       {
-        key: "stateManagement",
-        label: "Стратегія стану",
-        type: "text",
-        help: "Наприклад provider, observable-object, scriptable-store."
+        key: "hasAnalytics",
+        label: "Analytics hooks",
+        type: "boolean",
+        help: "Додати analytics abstraction і базові hook-и"
       },
       {
-        key: "navigationStyle",
-        label: "Навігаційний стиль",
-        type: "text",
-        help: "Наприклад router, scene-flow, coordinator."
+        key: "hasLocalization",
+        label: "Localization scaffold",
+        type: "boolean",
+        help: "Базова структура локалізації"
+      },
+      {
+        key: "hasPush",
+        label: "Push placeholder",
+        type: "boolean",
+        help: "Push notifications placeholder і service façade"
+      },
+      {
+        key: "hasNetworking",
+        label: "Networking layer",
+        type: "boolean",
+        help: "HTTP-клієнт і abstraction під API"
+      },
+      {
+        key: "hasPersistence",
+        label: "Persistence / storage",
+        type: "boolean",
+        help: "Storage abstraction або локальний persistence scaffold"
       }
     ]
   },
   {
-    title: "Універсальні модулі",
-    description: "Спільний набір для всіх профілів.",
+    id: "extras",
+    title: "Додатково",
+    description: "Прикладовий запуск і допоміжні блоки для demo-версії.",
     fields: [
-      { key: "hasAuth", label: "Auth scaffold", type: "boolean", help: "Додати базовий auth-модуль." },
-      { key: "hasAnalytics", label: "Analytics hooks", type: "boolean", help: "Додати заглушки аналітики." },
-      { key: "hasLocalization", label: "Localization scaffold", type: "boolean", help: "Додати файли локалізації." },
-      { key: "hasPush", label: "Push scaffold", type: "boolean", help: "Додати push placeholders." },
-      { key: "hasNetworking", label: "Network layer scaffold", type: "boolean", help: "Додати network client." },
-      { key: "hasPersistence", label: "Persistence scaffold", type: "boolean", help: "Додати локальне збереження або storage-wrapper." },
-      { key: "includeExampleScreen", label: "Стартовий екран / приклад запуску", type: "boolean", help: "Додати demo-screen / scene." },
-      { key: "includeLLMNotes", label: "LLM helper notes", type: "boolean", help: "Додати текстові підказки для README." }
+      {
+        key: "includeExampleScreen",
+        label: "Include example screen",
+        type: "boolean",
+        help: "Додати стартовий demo-модуль"
+      },
+      {
+        key: "includeLLMNotes",
+        label: "Include LLM notes block",
+        type: "boolean",
+        help: "Додати блок із підказками для майбутніх LLM-режимів"
+      }
     ]
   }
 ];

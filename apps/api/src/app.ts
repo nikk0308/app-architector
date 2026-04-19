@@ -1,153 +1,170 @@
 import fs from "node:fs";
-import Fastify from "fastify";
-import cors from "@fastify/cors";
-import { v4 as uuidv4 } from "uuid";
-import { z } from "zod";
+import path from "node:path";
+import express from "express";
+import cors from "cors";
+import { randomUUID } from "node:crypto";
 import {
+  buildArchitectureSpec,
+  buildArtifactManifest,
   buildConfigProfile,
   buildGenerationPlan,
-  questionnaireSchema,
+  validateArtifactManifest,
+  validateArchitectureSpec,
   type QuestionnaireAnswers
 } from "@mag/shared";
 import { env } from "./env.js";
-import { GenerationRepository } from "./services/database.js";
 import { buildFileTreePreview } from "./services/preview.js";
-import { runGenerator } from "./services/generatorRunner.js";
-import { createLlmHelper } from "./services/llm.js";
+import { generationRepository } from "./services/database.js";
+import { generatorRunner } from "./services/generatorRunner.js";
 
-const answersSchema = z.object({
-  projectName: z.string().min(1),
-  appDisplayName: z.string().min(1),
-  profile: z.enum(["unity", "ios", "flutter", "react-native"]),
-  packageId: z.string().optional(),
-  architectureStyle: z.string().optional(),
-  stateManagement: z.string().optional(),
-  navigationStyle: z.string().optional(),
-  environmentMode: z.enum(["single", "multi"]).optional(),
-  hasAuth: z.boolean().optional(),
-  hasAnalytics: z.boolean().optional(),
-  hasLocalization: z.boolean().optional(),
-  hasPush: z.boolean().optional(),
-  hasNetworking: z.boolean().optional(),
-  hasPersistence: z.boolean().optional(),
-  includeExampleScreen: z.boolean().optional(),
-  includeLLMNotes: z.boolean().optional()
+const app = express();
+
+app.use(cors());
+app.use(express.json({ limit: "1mb" }));
+app.use("/generated", express.static(path.resolve(env.GENERATED_OUTPUT_DIR)));
+
+app.get("/api/health", (_req, res) => {
+  res.json({ status: "ok" });
 });
 
-const healthPayload = {
-  status: "ok",
-  service: "mobile-architecture-generator-api"
-};
+app.get("/api/generations", (_req, res) => {
+  const items = generationRepository.list();
+  res.json({ items });
+});
 
-export function createApp() {
-  const app = Fastify({
-    logger: env.LOG_LEVEL === "silent" ? false : { level: env.LOG_LEVEL }
-  });
-  const repository = new GenerationRepository(env.DATABASE_PATH);
-  const llmHelper = createLlmHelper();
+app.get("/api/generations/:id", (req, res) => {
+  const item = generationRepository.getById(req.params.id);
+  if (!item) {
+    res.status(404).json({ error: "Generation not found" });
+    return;
+  }
+  res.json({ item });
+});
 
-  app.register(cors, {
-    origin: env.CORS_ORIGIN === "*" ? true : env.CORS_ORIGIN
-  });
+app.post("/api/preview", (req, res) => {
+  const answers = req.body as QuestionnaireAnswers;
 
-  app.get("/health", async () => healthPayload);
-  app.get("/api/health", async () => healthPayload);
-
-  app.get("/api/questionnaire", async () => ({
-    sections: questionnaireSchema
-  }));
-
-  app.post("/api/profile/preview", async (request) => {
-    const answers = answersSchema.parse(request.body) as QuestionnaireAnswers;
+  try {
     const profile = buildConfigProfile(answers);
+    const spec = buildArchitectureSpec(answers);
+    const manifest = buildArtifactManifest(spec);
     const plan = buildGenerationPlan(profile);
-    const fileTree = buildFileTreePreview(profile, plan);
-    const llmNotes = await llmHelper.describe(profile);
 
-    return {
-      profile,
-      plan,
-      fileTree,
-      architectureSummary: {
-        deterministicCore: true,
-        explanation: profile.explanation,
-        llmNotes
+    const specValidation = validateArchitectureSpec(spec);
+    const manifestValidation = validateArtifactManifest(manifest, spec);
+    const validation = {
+      status:
+        specValidation.status === "passed" && manifestValidation.status === "passed"
+          ? "passed"
+          : "failed",
+      issues: [...specValidation.issues, ...manifestValidation.issues],
+      metrics: {
+        ...specValidation.metrics,
+        ...manifestValidation.metrics
       }
     };
-  });
 
-  app.post("/api/generations", async (request, reply) => {
-    const answers = answersSchema.parse(request.body) as QuestionnaireAnswers;
+    const fileTree = buildFileTreePreview(manifest, manifest.rootFolderName);
+
+    res.json({
+      profile,
+      spec,
+      manifest,
+      plan,
+      validation,
+      fileTree
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown preview error";
+    res.status(400).json({ error: message });
+  }
+});
+
+app.post("/api/generate", async (req, res) => {
+  const answers = req.body as QuestionnaireAnswers;
+
+  try {
     const profile = buildConfigProfile(answers);
+    const spec = buildArchitectureSpec(answers);
+    const manifest = buildArtifactManifest(spec);
     const plan = buildGenerationPlan(profile);
-    const generationId = uuidv4();
 
-    try {
-      const result = await runGenerator(profile, plan, generationId);
+    const specValidation = validateArchitectureSpec(spec);
+    const manifestValidation = validateArtifactManifest(manifest, spec);
+    const validation = {
+      status:
+        specValidation.status === "passed" && manifestValidation.status === "passed"
+          ? "passed"
+          : "failed",
+      issues: [...specValidation.issues, ...manifestValidation.issues],
+      metrics: {
+        ...specValidation.metrics,
+        ...manifestValidation.metrics
+      }
+    };
 
-      repository.save({
-        id: generationId,
-        profile: profile.profile,
-        projectName: profile.projectName,
-        status: "completed",
-        zipPath: result.zipPath,
-        outputDir: result.outputDir,
-        fileTree: result.fileTree,
-        profileJson: JSON.stringify(profile),
-        planJson: JSON.stringify(plan)
-      });
+    const generationId = randomUUID();
+    const generationRoot = path.join(path.resolve(env.GENERATED_OUTPUT_DIR), generationId);
+    const projectOutputDir = path.join(generationRoot, manifest.rootFolderName);
+    fs.mkdirSync(generationRoot, { recursive: true });
 
-      return reply.code(201).send({
-        id: generationId,
-        profile,
-        plan,
-        fileTree: result.fileTree,
-        zipPath: result.zipPath,
-        downloadUrl: `/api/generations/${generationId}/download`
-      });
-    } catch (error) {
-      repository.save({
-        id: generationId,
-        profile: profile.profile,
-        projectName: profile.projectName,
-        status: "failed",
-        profileJson: JSON.stringify(profile),
-        planJson: JSON.stringify(plan)
-      });
+    const zipPath = path.join(generationRoot, `${profile.projectSlug}.zip`);
 
-      return reply.code(500).send({
-        error: "generation_failed",
-        message: String(error)
+    const result = await generatorRunner.run({
+      generationId,
+      profile,
+      spec,
+      manifest,
+      plan,
+      validation,
+      outputDir: generationRoot,
+      zipPath
+    });
+
+    const fileTree = buildFileTreePreview(manifest, manifest.rootFolderName);
+
+    generationRepository.save({
+      id: generationId,
+      profile: profile.profile,
+      generationMode: profile.generationMode,
+      projectName: profile.projectName,
+      status: result.success ? "completed" : "failed",
+      zipPath: result.success ? zipPath : undefined,
+      outputDir: projectOutputDir,
+      fileTree,
+      profileJson: JSON.stringify(profile),
+      planJson: JSON.stringify(plan),
+      specJson: JSON.stringify(spec),
+      manifestJson: JSON.stringify(manifest),
+      validationJson: JSON.stringify(validation)
+    });
+
+    if (!result.success) {
+      res.status(500).json({
+        error: result.error ?? "Generation failed",
+        generationId,
+        validation,
+        logFilePath: result.logFilePath
       });
+      return;
     }
-  });
 
-  app.get("/api/generations", async () => repository.list());
+    res.json({
+      generationId,
+      zipPath,
+      fileTree,
+      manifest,
+      spec,
+      plan,
+      validation,
+      logFilePath: result.logFilePath
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown generation error";
+    res.status(400).json({ error: message });
+  }
+});
 
-  app.get("/api/generations/:id", async (request, reply) => {
-    const params = z.object({ id: z.string().uuid() }).parse(request.params);
-    const item = repository.getById(params.id);
-    if (!item) {
-      return reply.code(404).send({ error: "not_found" });
-    }
-    return item;
-  });
-
-  app.get("/api/generations/:id/download", async (request, reply) => {
-    const params = z.object({ id: z.string().uuid() }).parse(request.params);
-    const item = repository.getById(params.id);
-    if (!item?.zipPath || !fs.existsSync(item.zipPath)) {
-      return reply.code(404).send({ error: "archive_not_found" });
-    }
-
-    reply.header("Content-Type", "application/zip");
-    reply.header("Content-Disposition", `attachment; filename="${profileSafeName(item.projectName)}-${item.profile}.zip"`);
-    return reply.send(fs.createReadStream(item.zipPath));
-  });
-
-  return app;
-}
-
-function profileSafeName(value: string): string {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
-}
+app.listen(env.PORT, () => {
+  console.log(`API listening on http://localhost:${env.PORT}`);
+});

@@ -1,233 +1,227 @@
 import { useEffect, useMemo, useState } from "react";
-import type { QuestionnaireAnswers, QuestionnaireSection, TreeNode } from "@mag/shared";
-import { createGeneration, fetchQuestionnaire, getApiRoot, previewProfile } from "./api";
+import type { GenerationMetadata, QuestionnaireAnswers, QuestionnaireSection } from "@mag/shared";
+import { createGeneration, fetchQuestionnaire, listGenerations, previewProfile, type GenerationResponse, type PreviewResponse } from "./api";
 
 const initialForm: QuestionnaireAnswers = {
-  projectName: "MindBoost Generator Demo",
-  appDisplayName: "MindBoost",
-  profile: "flutter",
-  environmentMode: "multi",
-  hasAuth: true,
-  hasAnalytics: true,
-  hasLocalization: true,
+  projectName: "",
+  appDisplayName: "",
+  profile: "ios",
+  generationMode: "baseline",
+  packageId: "",
+  architectureStyle: "",
+  stateManagement: "",
+  navigationStyle: "",
+  environmentMode: "single",
+  hasAuth: false,
+  hasAnalytics: false,
+  hasLocalization: false,
   hasPush: false,
   hasNetworking: true,
-  hasPersistence: true,
+  hasPersistence: false,
   includeExampleScreen: true,
   includeLLMNotes: false
 };
 
-export function App() {
+function fieldValue(form: QuestionnaireAnswers, key: string): string | boolean {
+  const value = form[key as keyof QuestionnaireAnswers];
+  return typeof value === "undefined" ? "" : value;
+}
+
+function downloadUrlForGeneration(generationId: string): string {
+  const apiBase = import.meta.env.VITE_API_BASE ?? "http://localhost:4000";
+  return `${apiBase}/api/generations/${generationId}/download`;
+}
+
+export default function App() {
   const [sections, setSections] = useState<QuestionnaireSection[]>([]);
   const [form, setForm] = useState<QuestionnaireAnswers>(initialForm);
-  const [currentStep, setCurrentStep] = useState(0);
-  const [preview, setPreview] = useState<any>(null);
-  const [result, setResult] = useState<any>(null);
+  const [preview, setPreview] = useState<PreviewResponse | null>(null);
+  const [generations, setGenerations] = useState<GenerationMetadata[]>([]);
+  const [createdGeneration, setCreatedGeneration] = useState<GenerationResponse | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [loadingGenerate, setLoadingGenerate] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchQuestionnaire()
-      .then((data) => setSections(data.sections))
-      .catch((err) => setError(String(err)));
+    fetchQuestionnaire().then(setSections).catch((err) => setError(err.message));
+    listGenerations().then(setGenerations).catch((err) => setError(err.message));
   }, []);
 
-  const step = sections[currentStep];
-  const canGoNext = currentStep < sections.length - 1;
-  const summary = useMemo(() => JSON.stringify(form, null, 2), [form]);
+  const selectedModeIsBaseline = useMemo(() => (form.generationMode ?? "baseline") === "baseline", [form.generationMode]);
 
-  const onChange = (key: keyof QuestionnaireAnswers, value: string | boolean) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  };
+  function updateField(key: string, value: string | boolean) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
 
   async function handlePreview() {
-    setError(null);
-    setLoadingPreview(true);
     try {
-      const data = await previewProfile(form);
-      setPreview(data);
-      setCurrentStep(sections.length);
+      setLoadingPreview(true);
+      setError(null);
+      const result = await previewProfile(form);
+      setPreview(result);
     } catch (err) {
-      setError(String(err));
+      setError(err instanceof Error ? err.message : "Preview failed");
     } finally {
       setLoadingPreview(false);
     }
   }
 
   async function handleGenerate() {
-    setError(null);
-    setLoadingGenerate(true);
     try {
-      const data = await createGeneration(form);
-      setResult(data);
+      setLoadingGenerate(true);
+      setError(null);
+      const result = await createGeneration(form);
+      setCreatedGeneration(result);
+      setPreview(result);
+      setGenerations(await listGenerations());
     } catch (err) {
-      setError(String(err));
+      setError(err instanceof Error ? err.message : "Generation failed");
     } finally {
       setLoadingGenerate(false);
     }
   }
 
   return (
-    <div className="page">
+    <div className="shell">
       <header className="hero">
         <div>
-          <p className="eyebrow">Diploma MVP</p>
-          <h1>Intelligent Mobile Architecture Generator</h1>
-          <p className="subtitle">
-            Один генератор, одне deterministic ядро, чотири профілі: Unity, iOS, Flutter, React Native.
-          </p>
+          <h1>Mobile App Architect</h1>
+          <p>Phase 1–2 build: canonical spec, manifest, validation and deterministic baseline archive generation.</p>
         </div>
+        <div className="hero-badge">baseline engine</div>
       </header>
 
+      {error ? <div className="error-banner">{error}</div> : null}
+      {!selectedModeIsBaseline ? (
+        <div className="warning-banner">
+          Обраний режим уже є в доменній моделі, але поточна збірка все ще генерує baseline-шаблони.
+        </div>
+      ) : null}
+
       <main className="layout">
-        <section className="panel">
-          <h2>Опитування</h2>
-          {sections.length === 0 ? (
-            <p>Завантаження схеми опитування…</p>
-          ) : step ? (
-            <>
-              <div className="step-meta">
-                <span>Крок {Math.min(currentStep + 1, sections.length)} / {sections.length}</span>
-                <strong>{step.title}</strong>
-              </div>
-              <p className="muted">{step.description}</p>
+        <section className="panel form-panel">
+          <div className="panel-header">
+            <h2>Questionnaire</h2>
+            <p>Заповни базові параметри, архітектуру та модулі.</p>
+          </div>
 
-              <div className="form-grid">
-                {step.fields.map((field) => {
-                  const fieldKey = field.key as keyof QuestionnaireAnswers;
-                  const value = form[fieldKey];
-                  if (field.type === "boolean") {
-                    return (
-                      <label key={field.key} className="checkbox-card">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(value)}
-                          onChange={(event) => onChange(fieldKey, event.target.checked)}
-                        />
-                        <div>
-                          <strong>{field.label}</strong>
-                          <p>{field.help}</p>
-                        </div>
-                      </label>
-                    );
-                  }
-
-                  if (field.type === "select") {
-                    return (
-                      <label key={field.key} className="field">
-                        <span>{field.label}</span>
-                        <select
-                          value={String(value ?? "")}
-                          onChange={(event) => onChange(fieldKey, event.target.value)}
-                        >
-                          <option value="">Select…</option>
-                          {field.options?.map((option) => (
-                            <option key={String(option.value)} value={String(option.value)}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                        <small>{field.help}</small>
-                      </label>
-                    );
-                  }
-
-                  return (
-                    <label key={field.key} className="field">
-                      <span>{field.label}</span>
+          {sections.map((section) => (
+            <div className="section-block" key={section.id}>
+              <h3>{section.title}</h3>
+              <p>{section.description}</p>
+              <div className="field-grid">
+                {section.fields.map((field) => (
+                  <label className="field" key={field.key}>
+                    <span>{field.label}</span>
+                    {field.type === "select" ? (
+                      <select
+                        value={String(fieldValue(form, field.key))}
+                        onChange={(event) => updateField(field.key, event.target.value)}
+                      >
+                        <option value="">Auto</option>
+                        {field.options?.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    ) : field.type === "boolean" ? (
                       <input
-                        value={String(value ?? "")}
-                        onChange={(event) => onChange(fieldKey, event.target.value)}
+                        type="checkbox"
+                        checked={Boolean(fieldValue(form, field.key))}
+                        onChange={(event) => updateField(field.key, event.target.checked)}
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        value={String(fieldValue(form, field.key))}
+                        onChange={(event) => updateField(field.key, event.target.value)}
                         placeholder={field.help}
                       />
-                      <small>{field.help}</small>
-                    </label>
-                  );
-                })}
+                    )}
+                    <small>{field.help}</small>
+                  </label>
+                ))}
               </div>
+            </div>
+          ))}
 
-              <div className="actions">
-                <button disabled={currentStep === 0} onClick={() => setCurrentStep((prev) => prev - 1)}>
-                  Назад
-                </button>
-                {canGoNext ? (
-                  <button onClick={() => setCurrentStep((prev) => prev + 1)}>Далі</button>
-                ) : (
-                  <button onClick={handlePreview} disabled={loadingPreview}>
-                    {loadingPreview ? "Готуємо preview…" : "Побудувати preview"}
-                  </button>
-                )}
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="muted">Опитування завершено. Можна перевірити preview або повернутися назад для змін.</p>
-              <div className="actions">
-                <button onClick={() => setCurrentStep(sections.length - 1)}>Повернутись до редагування</button>
-              </div>
-            </>
-          )}
+          <div className="actions">
+            <button onClick={handlePreview} disabled={loadingPreview || loadingGenerate}>
+              {loadingPreview ? "Loading preview..." : "Preview spec"}
+            </button>
+            <button className="primary" onClick={handleGenerate} disabled={loadingGenerate || loadingPreview}>
+              {loadingGenerate ? "Generating..." : "Generate archive"}
+            </button>
+          </div>
         </section>
 
-        <section className="panel">
-          <h2>Preview конфігурації</h2>
-          <pre className="code-block">{summary}</pre>
-          {preview && (
-            <>
-              <div className="summary-card">
-                <h3>Architecture summary</h3>
-                <p>{preview.architectureSummary.explanation}</p>
-                <p className="muted">{preview.architectureSummary.llmNotes}</p>
-              </div>
+        <section className="panel preview-panel">
+          <div className="panel-header">
+            <h2>Preview</h2>
+            <p>Spec, manifest, validation and file tree.</p>
+          </div>
 
-              <div className="summary-card">
-                <h3>Generation plan</h3>
-                <ul className="compact-list">
-                  {preview.plan.artifacts.map((artifact: any) => (
-                    <li key={artifact.id}>
-                      <strong>{artifact.id}</strong> — {artifact.reason}
-                    </li>
+          {preview ? (
+            <div className="preview-stack">
+              <div className="card">
+                <h3>Normalized profile</h3>
+                <pre>{JSON.stringify(preview.profile, null, 2)}</pre>
+              </div>
+              <div className="card">
+                <h3>Architecture spec</h3>
+                <pre>{JSON.stringify(preview.spec, null, 2)}</pre>
+              </div>
+              <div className="card">
+                <h3>Artifact manifest</h3>
+                <pre>{JSON.stringify(preview.manifest, null, 2)}</pre>
+              </div>
+              <div className="card">
+                <h3>Validation</h3>
+                <pre>{JSON.stringify(preview.validation, null, 2)}</pre>
+              </div>
+              <div className="card">
+                <h3>Tree preview</h3>
+                <ul className="tree-list">
+                  {preview.fileTree.map((node) => (
+                    <li key={node.path}>{node.path}</li>
                   ))}
                 </ul>
               </div>
-
-              <div className="summary-card">
-                <h3>File tree</h3>
-                <Tree tree={preview.fileTree} />
-              </div>
-
-              <button className="primary" onClick={handleGenerate} disabled={loadingGenerate}>
-                {loadingGenerate ? "Генеруємо ZIP…" : "Згенерувати проєкт"}
-              </button>
-            </>
-          )}
-
-          {result && (
-            <div className="summary-card success">
-              <h3>Готово</h3>
-              <p>ID генерації: {result.id}</p>
-              <a href={`${getApiRoot()}${result.downloadUrl}`} target="_blank" rel="noreferrer">
-                Завантажити ZIP
-              </a>
             </div>
+          ) : (
+            <div className="empty-state">Поки що нічого немає. Натисни Preview spec.</div>
           )}
-
-          {error && <p className="error">{error}</p>}
         </section>
       </main>
-    </div>
-  );
-}
 
-function Tree({ tree }: { tree: TreeNode[] }) {
-  return (
-    <ul className="compact-list tree">
-      {tree.map((item) => (
-        <li key={`${item.type}-${item.path}`}>
-          <code>{item.type === "directory" ? "📁" : "📄"} {item.path}</code>
-        </li>
-      ))}
-    </ul>
+      <section className="panel history-panel">
+        <div className="panel-header">
+          <h2>Generations</h2>
+          <p>Останні збережені генерації з SQLite.</p>
+        </div>
+
+        {createdGeneration ? (
+          <div className="download-banner">
+            <strong>Останній архів готовий.</strong>
+            <a href={downloadUrlForGeneration(createdGeneration.generationId)}>Завантажити ZIP</a>
+          </div>
+        ) : null}
+
+        <div className="history-list">
+          {generations.map((item) => (
+            <article className="history-card" key={item.id}>
+              <div>
+                <strong>{item.projectName}</strong>
+                <div>{item.profile} · {item.generationMode ?? "baseline"}</div>
+                <div>{item.status}</div>
+              </div>
+              <a href={downloadUrlForGeneration(item.id)}>ZIP</a>
+            </article>
+          ))}
+          {generations.length === 0 ? <div className="empty-state">Історія поки порожня.</div> : null}
+        </div>
+      </section>
+    </div>
   );
 }
