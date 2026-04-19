@@ -1,170 +1,132 @@
 import fs from "node:fs";
 import path from "node:path";
-import express from "express";
-import cors from "cors";
-import { randomUUID } from "node:crypto";
+import Fastify, { type FastifyInstance } from "fastify";
+import cors from "@fastify/cors";
 import {
+  questionnaireSchema,
+  buildNormalizedProfile,
   buildArchitectureSpec,
-  buildArtifactManifest,
-  buildConfigProfile,
   buildGenerationPlan,
-  validateArtifactManifest,
+  buildArtifactManifest,
   validateArchitectureSpec,
-  type QuestionnaireAnswers
+  validateArtifactManifest,
+  type QuestionnaireAnswers,
+  type GenerationMetadata
 } from "@mag/shared";
-import { env } from "./env.js";
-import { buildFileTreePreview } from "./services/preview.js";
 import { generationRepository } from "./services/database.js";
 import { generatorRunner } from "./services/generatorRunner.js";
+import { buildFileTreePreview } from "./services/preview.js";
+import { buildTemplateVariables } from "./services/templateVariables.js";
+import { createRunDirectories } from "./services/storage.js";
 
-const app = express();
+function buildPreviewPayload(answers: QuestionnaireAnswers) {
+  const profile = buildNormalizedProfile(answers);
+  const spec = buildArchitectureSpec(profile);
+  const plan = buildGenerationPlan(spec);
+  const manifest = buildArtifactManifest(spec, plan);
+  const specValidation = validateArchitectureSpec(spec);
+  const manifestValidation = validateArtifactManifest(manifest);
+  const templateVariables = buildTemplateVariables(profile, spec, manifest);
+  const fileTree = buildFileTreePreview(manifest, templateVariables);
 
-app.use(cors());
-app.use(express.json({ limit: "1mb" }));
-app.use("/generated", express.static(path.resolve(env.GENERATED_OUTPUT_DIR)));
+  return {
+    profile,
+    spec,
+    plan,
+    manifest,
+    validation: {
+      spec: specValidation,
+      manifest: manifestValidation
+    },
+    fileTree,
+    notes: [...plan.notes, ...manifest.notes]
+  };
+}
 
-app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok" });
-});
+export function createApp(): FastifyInstance {
+  const app = Fastify({ logger: true });
 
-app.get("/api/generations", (_req, res) => {
-  const items = generationRepository.list();
-  res.json({ items });
-});
+  void app.register(cors, { origin: true });
 
-app.get("/api/generations/:id", (req, res) => {
-  const item = generationRepository.getById(req.params.id);
-  if (!item) {
-    res.status(404).json({ error: "Generation not found" });
-    return;
-  }
-  res.json({ item });
-});
+  app.get("/api/health", async () => ({ status: "ok" }));
 
-app.post("/api/preview", (req, res) => {
-  const answers = req.body as QuestionnaireAnswers;
+  app.get("/api/questionnaire", async () => ({ sections: questionnaireSchema }));
 
-  try {
-    const profile = buildConfigProfile(answers);
-    const spec = buildArchitectureSpec(answers);
-    const manifest = buildArtifactManifest(spec);
-    const plan = buildGenerationPlan(profile);
+  app.get("/api/generations", async () => ({ items: generationRepository.list() }));
 
-    const specValidation = validateArchitectureSpec(spec);
-    const manifestValidation = validateArtifactManifest(manifest, spec);
-    const validation = {
-      status:
-        specValidation.status === "passed" && manifestValidation.status === "passed"
-          ? "passed"
-          : "failed",
-      issues: [...specValidation.issues, ...manifestValidation.issues],
-      metrics: {
-        ...specValidation.metrics,
-        ...manifestValidation.metrics
-      }
-    };
+  app.get<{ Params: { id: string } }>("/api/generations/:id", async (request, reply) => {
+    const generation = generationRepository.getById(request.params.id);
+    if (!generation) {
+      reply.code(404);
+      return { error: "Generation not found" };
+    }
+    return generation;
+  });
 
-    const fileTree = buildFileTreePreview(manifest, manifest.rootFolderName);
-
-    res.json({
-      profile,
-      spec,
-      manifest,
-      plan,
-      validation,
-      fileTree
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown preview error";
-    res.status(400).json({ error: message });
-  }
-});
-
-app.post("/api/generate", async (req, res) => {
-  const answers = req.body as QuestionnaireAnswers;
-
-  try {
-    const profile = buildConfigProfile(answers);
-    const spec = buildArchitectureSpec(answers);
-    const manifest = buildArtifactManifest(spec);
-    const plan = buildGenerationPlan(profile);
-
-    const specValidation = validateArchitectureSpec(spec);
-    const manifestValidation = validateArtifactManifest(manifest, spec);
-    const validation = {
-      status:
-        specValidation.status === "passed" && manifestValidation.status === "passed"
-          ? "passed"
-          : "failed",
-      issues: [...specValidation.issues, ...manifestValidation.issues],
-      metrics: {
-        ...specValidation.metrics,
-        ...manifestValidation.metrics
-      }
-    };
-
-    const generationId = randomUUID();
-    const generationRoot = path.join(path.resolve(env.GENERATED_OUTPUT_DIR), generationId);
-    const projectOutputDir = path.join(generationRoot, manifest.rootFolderName);
-    fs.mkdirSync(generationRoot, { recursive: true });
-
-    const zipPath = path.join(generationRoot, `${profile.projectSlug}.zip`);
-
-    const result = await generatorRunner.run({
-      generationId,
-      profile,
-      spec,
-      manifest,
-      plan,
-      validation,
-      outputDir: generationRoot,
-      zipPath
-    });
-
-    const fileTree = buildFileTreePreview(manifest, manifest.rootFolderName);
-
-    generationRepository.save({
-      id: generationId,
-      profile: profile.profile,
-      generationMode: profile.generationMode,
-      projectName: profile.projectName,
-      status: result.success ? "completed" : "failed",
-      zipPath: result.success ? zipPath : undefined,
-      outputDir: projectOutputDir,
-      fileTree,
-      profileJson: JSON.stringify(profile),
-      planJson: JSON.stringify(plan),
-      specJson: JSON.stringify(spec),
-      manifestJson: JSON.stringify(manifest),
-      validationJson: JSON.stringify(validation)
-    });
-
-    if (!result.success) {
-      res.status(500).json({
-        error: result.error ?? "Generation failed",
-        generationId,
-        validation,
-        logFilePath: result.logFilePath
-      });
-      return;
+  app.get<{ Params: { id: string } }>("/api/generations/:id/download", async (request, reply) => {
+    const generation = generationRepository.getById(request.params.id);
+    if (!generation?.zipPath || !fs.existsSync(generation.zipPath)) {
+      reply.code(404);
+      return { error: "Archive not found" };
     }
 
-    res.json({
-      generationId,
-      zipPath,
-      fileTree,
-      manifest,
-      spec,
-      plan,
-      validation,
-      logFilePath: result.logFilePath
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown generation error";
-    res.status(400).json({ error: message });
-  }
-});
+    reply.header("Content-Type", "application/zip");
+    reply.header("Content-Disposition", `attachment; filename="${path.basename(generation.zipPath)}"`);
+    return fs.createReadStream(generation.zipPath);
+  });
 
-app.listen(env.PORT, () => {
-  console.log(`API listening on http://localhost:${env.PORT}`);
-});
+  app.post<{ Body: QuestionnaireAnswers }>("/api/profile/preview", async (request) => {
+    return buildPreviewPayload(request.body);
+  });
+
+  app.post<{ Body: QuestionnaireAnswers }>("/api/generations", async (request, reply) => {
+    const preview = buildPreviewPayload(request.body);
+    const directories = createRunDirectories(preview.profile.projectSlug);
+
+    const generationResult = await generatorRunner.run({
+      generationId: directories.generationId,
+      profile: preview.profile,
+      spec: preview.spec,
+      plan: preview.plan,
+      manifest: preview.manifest,
+      validation: preview.validation.manifest,
+      outputDir: directories.outputDir,
+      zipPath: directories.zipPath
+    });
+
+    const metadata: GenerationMetadata = {
+      id: directories.generationId,
+      profile: preview.profile.profile,
+      generationMode: preview.profile.generationMode,
+      projectName: preview.profile.projectName,
+      status: generationResult.success ? "completed" : "failed",
+      createdAt: new Date().toISOString(),
+      zipPath: generationResult.success ? generationResult.zipPath : undefined,
+      outputDir: directories.outputDir,
+      fileTree: preview.fileTree,
+      profileJson: JSON.stringify(preview.profile),
+      planJson: JSON.stringify(preview.plan),
+      specJson: JSON.stringify(preview.spec),
+      manifestJson: JSON.stringify(preview.manifest),
+      validationJson: JSON.stringify(preview.validation)
+    };
+
+    generationRepository.save(metadata);
+
+    if (!generationResult.success) {
+      reply.code(500);
+      return {
+        error: generationResult.error ?? "Generation failed",
+        generationId: directories.generationId
+      };
+    }
+
+    return {
+      generationId: directories.generationId,
+      zipPath: generationResult.zipPath,
+      ...preview
+    };
+  });
+
+  return app;
+}

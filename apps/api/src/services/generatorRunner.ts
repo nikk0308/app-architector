@@ -43,7 +43,7 @@ function buildTemplateContext(profile: NormalizedProfile, spec: ArchitectureSpec
     environmentMode: profile.environmentMode,
     entryPoint: profile.entryPoint,
     explanation: profile.explanation,
-    profileNotes: spec.warnings,
+    profileNotes: spec.dependencyPlan.warnings,
     features: {
       auth: profile.features.auth,
       analytics: profile.features.analytics,
