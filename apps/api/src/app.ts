@@ -4,8 +4,8 @@ import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import {
   questionnaireSchema,
-  buildNormalizedProfile,
   buildArchitectureSpec,
+  projectProfileFromSpec,
   buildGenerationPlan,
   buildArtifactManifest,
   validateArchitectureSpec,
@@ -20,12 +20,12 @@ import { buildTemplateVariables } from "./services/templateVariables.js";
 import { createRunDirectories } from "./services/storage.js";
 
 function buildPreviewPayload(answers: QuestionnaireAnswers) {
-  const profile = buildNormalizedProfile(answers);
-  const spec = buildArchitectureSpec(profile);
-  const plan = buildGenerationPlan(spec);
-  const manifest = buildArtifactManifest(spec, plan);
+  const spec = buildArchitectureSpec(answers);
+  const profile = projectProfileFromSpec(spec);
+  const plan = buildGenerationPlan(profile);
+  const manifest = buildArtifactManifest(spec);
   const specValidation = validateArchitectureSpec(spec);
-  const manifestValidation = validateArtifactManifest(manifest);
+  const manifestValidation = validateArtifactManifest(spec, manifest);
   const templateVariables = buildTemplateVariables(profile, spec, manifest);
   const fileTree = buildFileTreePreview(manifest, templateVariables);
 
