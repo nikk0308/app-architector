@@ -28,6 +28,8 @@ export interface PreviewResponse {
 export interface GenerationResponse extends PreviewResponse {
   generationId: string;
   zipPath: string;
+  logFilePath?: string;
+  diagnosticsPath?: string;
 }
 
 async function request<T>(input: RequestInfo, init?: RequestInit): Promise<T> {

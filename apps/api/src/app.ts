@@ -108,7 +108,10 @@ export function createApp(): FastifyInstance {
       planJson: JSON.stringify(preview.plan),
       specJson: JSON.stringify(preview.spec),
       manifestJson: JSON.stringify(preview.manifest),
-      validationJson: JSON.stringify(preview.validation)
+      validationJson: JSON.stringify(preview.validation),
+      generatorLogPath: generationResult.logFilePath,
+      diagnosticsPath: generationResult.diagnosticsPath,
+      errorMessage: generationResult.error
     };
 
     generationRepository.save(metadata);
@@ -117,13 +120,17 @@ export function createApp(): FastifyInstance {
       reply.code(500);
       return {
         error: generationResult.error ?? "Generation failed",
-        generationId: directories.generationId
+        generationId: directories.generationId,
+        logFilePath: generationResult.logFilePath,
+        diagnosticsPath: generationResult.diagnosticsPath
       };
     }
 
     return {
       generationId: directories.generationId,
       zipPath: generationResult.zipPath,
+      logFilePath: generationResult.logFilePath,
+      diagnosticsPath: generationResult.diagnosticsPath,
       ...preview
     };
   });
