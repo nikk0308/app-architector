@@ -5,6 +5,7 @@ import { buildArtifactManifest, buildArchitectureSpec, validateArtifactManifest,
 import { env } from "../env.js";
 import { generationOutputPath, repoRoot, zipOutputPath } from "../runtimePaths.js";
 import { buildFileTreePreview } from "./preview.js";
+import { buildTemplateVariables } from "./templateVariables.js";
 
 export interface GeneratorExecutionInput {
   generationId: string;
@@ -30,6 +31,10 @@ function buildTemplateContext(profile: NormalizedProfile, spec: ArchitectureSpec
     appDisplayName: profile.appDisplayName,
     projectSlug: profile.projectSlug,
     projectPascal: profile.projectPascal,
+    project_slug: profile.projectSlug,
+    project_pascal: profile.projectPascal,
+    app_display_name: profile.appDisplayName,
+    package_id: profile.packageId,
     packageId: profile.packageId,
     profile: profile.profile,
     generationMode: profile.generationMode,
@@ -168,7 +173,7 @@ export async function runGenerator(
     throw new Error(execution.error ?? "Generator failed");
   }
 
-  const fileTree = buildFileTreePreview(manifest, buildTemplateContext(profile, spec));
+  const fileTree = buildFileTreePreview(manifest, buildTemplateVariables(profile, spec, manifest));
 
   return {
     zipPath: execution.zipPath,
