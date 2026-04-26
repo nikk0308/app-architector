@@ -1,14 +1,10 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import type {
-  ArchitectureSpec,
-  ArtifactManifest,
-  GenerationPlan,
-  NormalizedProfile,
-  ValidationReport
-} from "@mag/shared";
+import { buildArtifactManifest, buildArchitectureSpec, validateArtifactManifest, type ArchitectureSpec, type ArtifactManifest, type GenerationPlan, type NormalizedProfile, type QuestionnaireAnswers, type ValidationReport } from "@mag/shared";
 import { env } from "../env.js";
+import { generationOutputPath, repoRoot, zipOutputPath } from "../runtimePaths.js";
+import { buildFileTreePreview } from "./preview.js";
 
 export interface GeneratorExecutionInput {
   generationId: string;
@@ -64,7 +60,7 @@ class GeneratorRunner {
 
     const generationRoot = input.outputDir;
     const logFilePath = path.join(generationRoot, "generator.log");
-    const generatorScriptPath = path.resolve(process.cwd(), "services", "generator-python", "generator_cli.py");
+    const generatorScriptPath = path.resolve(repoRoot, "services", "generator-python", "generator_cli.py");
 
     const payload = JSON.stringify({
       generationId: input.generationId,
@@ -80,7 +76,7 @@ class GeneratorRunner {
 
     return await new Promise<GeneratorExecutionResult>((resolve) => {
       const child = spawn("python3", [generatorScriptPath], {
-        cwd: process.cwd(),
+        cwd: repoRoot,
         env: {
           ...process.env,
           OPENAI_API_KEY: env.OPENAI_API_KEY,
@@ -126,3 +122,60 @@ class GeneratorRunner {
 }
 
 export const generatorRunner = new GeneratorRunner();
+
+function profileToAnswers(profile: NormalizedProfile): QuestionnaireAnswers {
+  return {
+    profile: profile.profile,
+    projectName: profile.projectName,
+    appDisplayName: profile.appDisplayName,
+    packageId: profile.packageId,
+    architectureStyle: profile.architectureStyle,
+    stateManagement: profile.stateManagement,
+    navigationStyle: profile.navigationStyle,
+    environmentMode: profile.environmentMode,
+    hasAuth: profile.features.auth,
+    hasAnalytics: profile.features.analytics,
+    hasLocalization: profile.features.localization,
+    hasPush: profile.features.push,
+    hasNetworking: profile.features.networking,
+    hasPersistence: profile.features.persistence
+  };
+}
+
+export async function runGenerator(
+  profile: NormalizedProfile,
+  plan: GenerationPlan,
+  generationId: string
+): Promise<{ zipPath: string; outputDir: string; fileTree: ReturnType<typeof buildFileTreePreview>; manifest: ArtifactManifest; validation: ValidationReport; spec: ArchitectureSpec }> {
+  const spec = buildArchitectureSpec(profileToAnswers(profile));
+  const manifest = buildArtifactManifest(spec);
+  const validation = validateArtifactManifest(spec, manifest);
+  const outputDir = generationOutputPath(env.OUTPUT_ROOT, generationId);
+  const zipPath = zipOutputPath(env.OUTPUT_ROOT, generationId);
+
+  const execution = await generatorRunner.run({
+    generationId,
+    profile,
+    spec,
+    manifest,
+    plan,
+    validation,
+    outputDir,
+    zipPath
+  });
+
+  if (!execution.success || !execution.zipPath) {
+    throw new Error(execution.error ?? "Generator failed");
+  }
+
+  const fileTree = buildFileTreePreview(manifest, buildTemplateContext(profile, spec));
+
+  return {
+    zipPath: execution.zipPath,
+    outputDir,
+    fileTree,
+    manifest,
+    validation,
+    spec
+  };
+}

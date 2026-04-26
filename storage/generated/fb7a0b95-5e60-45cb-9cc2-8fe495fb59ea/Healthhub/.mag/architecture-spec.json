@@ -1,0 +1,197 @@
+{
+  "version": "1.0",
+  "profileId": "unity",
+  "generationMode": "baseline",
+  "projectName": "HealthHub",
+  "appDisplayName": "HealthHub",
+  "naming": {
+    "projectSlug": "healthhub",
+    "projectPascal": "Healthhub",
+    "packageId": "com.example.healthhub",
+    "rootDirectoryName": "Healthhub"
+  },
+  "architecture": {
+    "style": "game-flow",
+    "stateManagement": "scriptable-object",
+    "navigationStyle": "scene-flow",
+    "environmentMode": "single",
+    "entryPoint": "Assets/Scenes/Bootstrap.unity"
+  },
+  "features": {
+    "auth": true,
+    "analytics": true,
+    "localization": true,
+    "push": true,
+    "networking": true,
+    "persistence": true,
+    "exampleScreen": true,
+    "llmNotes": false
+  },
+  "modules": [
+    {
+      "featureId": "entry-point",
+      "enabled": true,
+      "supported": true,
+      "required": true,
+      "source": "mandatory",
+      "artifactIds": [],
+      "notes": []
+    },
+    {
+      "featureId": "navigation",
+      "enabled": true,
+      "supported": true,
+      "required": true,
+      "source": "mandatory",
+      "artifactIds": [
+        "module.navigation"
+      ],
+      "notes": [
+        "Navigation is represented through scene flow and managers."
+      ]
+    },
+    {
+      "featureId": "auth",
+      "enabled": true,
+      "supported": true,
+      "required": false,
+      "source": "answer",
+      "artifactIds": [
+        "module.auth"
+      ],
+      "notes": []
+    },
+    {
+      "featureId": "analytics",
+      "enabled": true,
+      "supported": true,
+      "required": false,
+      "source": "answer",
+      "artifactIds": [
+        "module.analytics"
+      ],
+      "notes": []
+    },
+    {
+      "featureId": "localization",
+      "enabled": true,
+      "supported": true,
+      "required": false,
+      "source": "answer",
+      "artifactIds": [
+        "module.localization"
+      ],
+      "notes": []
+    },
+    {
+      "featureId": "push",
+      "enabled": false,
+      "supported": false,
+      "required": false,
+      "source": "answer",
+      "artifactIds": [],
+      "notes": [
+        "Unity push integration is reserved for a later phase."
+      ]
+    },
+    {
+      "featureId": "networking",
+      "enabled": true,
+      "supported": true,
+      "required": false,
+      "source": "answer",
+      "artifactIds": [
+        "module.networking"
+      ],
+      "notes": []
+    },
+    {
+      "featureId": "storage",
+      "enabled": true,
+      "supported": true,
+      "required": false,
+      "source": "answer",
+      "artifactIds": [
+        "module.persistence"
+      ],
+      "notes": []
+    },
+    {
+      "featureId": "environment-config",
+      "enabled": true,
+      "supported": true,
+      "required": true,
+      "source": "mandatory",
+      "artifactIds": [
+        "common.env"
+      ],
+      "notes": []
+    },
+    {
+      "featureId": "state-management",
+      "enabled": true,
+      "supported": true,
+      "required": true,
+      "source": "mandatory",
+      "artifactIds": [],
+      "notes": []
+    },
+    {
+      "featureId": "dependency-injection",
+      "enabled": false,
+      "supported": false,
+      "required": false,
+      "source": "derived",
+      "artifactIds": [],
+      "notes": [
+        "Dedicated DI container is not generated in baseline Unity mode."
+      ]
+    },
+    {
+      "featureId": "testing-skeleton",
+      "enabled": true,
+      "supported": true,
+      "required": false,
+      "source": "answer",
+      "artifactIds": [],
+      "notes": []
+    }
+  ],
+  "dependencyPlan": {
+    "requiredFeatures": [
+      "entry-point",
+      "navigation",
+      "environment-config",
+      "state-management"
+    ],
+    "optionalFeatures": [
+      "auth",
+      "analytics",
+      "localization",
+      "networking",
+      "storage",
+      "testing-skeleton"
+    ],
+    "relationships": [
+      {
+        "from": "auth",
+        "to": "networking",
+        "reason": "Auth scaffold requires request/response abstractions."
+      },
+      {
+        "from": "localization",
+        "to": "entry-point",
+        "reason": "Localization must be wired into application bootstrap."
+      },
+      {
+        "from": "analytics",
+        "to": "navigation",
+        "reason": "Analytics hooks are attached to screen or scene transitions."
+      }
+    ],
+    "warnings": [
+      "push is requested but not supported for unity in the baseline profile."
+    ]
+  },
+  "explanation": "Profile unity uses game-flow architecture with scriptable-object state management, scene-flow navigation and single environment configuration."
+}

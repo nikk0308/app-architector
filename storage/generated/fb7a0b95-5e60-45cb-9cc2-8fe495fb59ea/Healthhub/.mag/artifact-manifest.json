@@ -1,0 +1,122 @@
+{
+  "version": "1.0",
+  "profileId": "unity",
+  "generationMode": "baseline",
+  "rootFolderName": "Healthhub",
+  "artifacts": [
+    {
+      "id": "common.readme",
+      "title": "README",
+      "reason": "Every generation must include a deterministic project overview and setup summary.",
+      "required": true,
+      "category": "core",
+      "source": "baseline"
+    },
+    {
+      "id": "common.env",
+      "title": "Environment configuration",
+      "reason": "Environment scaffold is part of the canonical baseline output.",
+      "required": true,
+      "category": "core",
+      "source": "baseline"
+    },
+    {
+      "id": "entry.unity.bootstrap",
+      "title": "Entry point",
+      "reason": "Profile Unity / C# requires an entry artifact wired to Assets/Scenes/Bootstrap.unity.",
+      "required": true,
+      "category": "profile",
+      "source": "baseline"
+    },
+    {
+      "id": "profile.unity.base",
+      "title": "Unity / C# foundation",
+      "reason": "Each platform profile contributes a deterministic foundation scaffold.",
+      "required": true,
+      "category": "profile",
+      "source": "baseline"
+    },
+    {
+      "id": "module.navigation",
+      "title": "module.navigation",
+      "reason": "navigation is enabled for Unity / C#.",
+      "required": true,
+      "category": "feature",
+      "source": "baseline"
+    },
+    {
+      "id": "module.auth",
+      "title": "module.auth",
+      "reason": "auth is enabled for Unity / C#.",
+      "required": false,
+      "category": "feature",
+      "source": "baseline"
+    },
+    {
+      "id": "module.analytics",
+      "title": "module.analytics",
+      "reason": "analytics is enabled for Unity / C#.",
+      "required": false,
+      "category": "feature",
+      "source": "baseline"
+    },
+    {
+      "id": "module.localization",
+      "title": "module.localization",
+      "reason": "localization is enabled for Unity / C#.",
+      "required": false,
+      "category": "feature",
+      "source": "baseline"
+    },
+    {
+      "id": "module.networking",
+      "title": "module.networking",
+      "reason": "networking is enabled for Unity / C#.",
+      "required": false,
+      "category": "feature",
+      "source": "baseline"
+    },
+    {
+      "id": "module.persistence",
+      "title": "module.persistence",
+      "reason": "storage is enabled for Unity / C#.",
+      "required": false,
+      "category": "feature",
+      "source": "baseline"
+    },
+    {
+      "id": "sample.home-screen",
+      "title": "Example home screen",
+      "reason": "Example screen is enabled to demonstrate navigation and state wiring.",
+      "required": false,
+      "category": "feature",
+      "source": "baseline"
+    },
+    {
+      "id": "meta.manifest",
+      "title": "Manifest metadata",
+      "reason": "Every generated archive carries its own manifest for auditability.",
+      "required": true,
+      "category": "metadata",
+      "source": "baseline"
+    },
+    {
+      "id": "meta.validation",
+      "title": "Validation report",
+      "reason": "Validation output is part of the generated package contract.",
+      "required": true,
+      "category": "metadata",
+      "source": "baseline"
+    }
+  ],
+  "summary": {
+    "totalArtifacts": 13,
+    "requiredArtifacts": 7,
+    "featureArtifacts": 7
+  },
+  "notes": [
+    "Unity generation focuses on folder structure, scenes, managers and ScriptableObject-based configuration.",
+    "Push and DI are intentionally kept outside the baseline Unity scaffold in this phase.",
+    "push is requested but not supported for unity in the baseline profile."
+  ]
+}

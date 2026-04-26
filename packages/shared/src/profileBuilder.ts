@@ -1,7 +1,14 @@
 import type { NormalizedProfile, QuestionnaireAnswers } from "./types.js";
 import { buildArchitectureSpec, projectProfileFromSpec } from "./specBuilder.js";
 
-export function buildConfigProfile(answers: QuestionnaireAnswers): NormalizedProfile {
-  const spec = buildArchitectureSpec(answers);
-  return projectProfileFromSpec(spec);
+function assertRequiredIdentityFields(input: QuestionnaireAnswers): void {
+  const projectName = input.projectName?.trim();
+  if (!projectName) {
+    throw new Error("projectName is required");
+  }
+}
+
+export function buildConfigProfile(input: QuestionnaireAnswers): NormalizedProfile {
+  assertRequiredIdentityFields(input);
+  return projectProfileFromSpec(buildArchitectureSpec(input));
 }

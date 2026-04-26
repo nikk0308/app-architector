@@ -1,0 +1,95 @@
+{
+  "profile": "ios",
+  "generationMode": "baseline",
+  "rootFolderName": "Healthhub",
+  "artifacts": [
+    {
+      "id": "common.readme",
+      "title": "README",
+      "reason": "Every generation must include a deterministic project overview and setup summary.",
+      "required": true
+    },
+    {
+      "id": "common.env",
+      "title": "Environment configuration",
+      "reason": "Environment scaffold is part of the canonical baseline output.",
+      "required": true
+    },
+    {
+      "id": "common.entry",
+      "title": "Entry point",
+      "reason": "Profile native iOS / Swift requires an entry artifact wired to Sources/App/AppEntry.swift.",
+      "required": true
+    },
+    {
+      "id": "profile.ios.base",
+      "title": "native iOS / Swift foundation",
+      "reason": "Each platform profile contributes a deterministic foundation scaffold.",
+      "required": true
+    },
+    {
+      "id": "module.navigation",
+      "title": "module.navigation",
+      "reason": "navigation is enabled for native iOS / Swift.",
+      "required": true
+    },
+    {
+      "id": "module.auth",
+      "title": "module.auth",
+      "reason": "auth is enabled for native iOS / Swift.",
+      "required": false
+    },
+    {
+      "id": "module.analytics",
+      "title": "module.analytics",
+      "reason": "analytics is enabled for native iOS / Swift.",
+      "required": false
+    },
+    {
+      "id": "module.localization",
+      "title": "module.localization",
+      "reason": "localization is enabled for native iOS / Swift.",
+      "required": false
+    },
+    {
+      "id": "module.push",
+      "title": "module.push",
+      "reason": "push is enabled for native iOS / Swift.",
+      "required": false
+    },
+    {
+      "id": "module.networking",
+      "title": "module.networking",
+      "reason": "networking is enabled for native iOS / Swift.",
+      "required": false
+    },
+    {
+      "id": "module.persistence",
+      "title": "module.persistence",
+      "reason": "storage is enabled for native iOS / Swift.",
+      "required": false
+    },
+    {
+      "id": "sample.home-screen",
+      "title": "Example home screen",
+      "reason": "Example screen is enabled to demonstrate navigation and state wiring.",
+      "required": false
+    },
+    {
+      "id": "meta.manifest",
+      "title": "Manifest metadata",
+      "reason": "Every generated archive carries its own manifest for auditability.",
+      "required": true
+    },
+    {
+      "id": "meta.validation",
+      "title": "Validation report",
+      "reason": "Validation output is part of the generated package contract.",
+      "required": true
+    }
+  ],
+  "notes": [
+    "iOS baseline generates services, coordinators/view-models and a native entry point scaffold.",
+    "Persistence is represented as a lightweight local storage façade in this phase."
+  ]
+}

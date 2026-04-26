@@ -1,0 +1,3 @@
+{
+  "appTitle": "${display_name}"
+}
