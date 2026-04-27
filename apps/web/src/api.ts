@@ -10,7 +10,25 @@ import type {
   TreeNode
 } from "@mag/shared";
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:4000";
+function normalizeApiBase(rawBase: unknown): string {
+  if (typeof rawBase !== "string") {
+    return "";
+  }
+  const trimmed = rawBase.trim();
+  if (!trimmed || trimmed === "/") {
+    return "";
+  }
+  return trimmed.replace(/\/+$/, "");
+}
+
+export const API_BASE = normalizeApiBase(
+  import.meta.env.VITE_API_BASE_URL ?? import.meta.env.VITE_API_BASE
+);
+
+export function apiUrl(path: string): string {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${API_BASE}${normalizedPath}`;
+}
 
 export interface PreviewResponse {
   profile: NormalizedProfile;
@@ -42,12 +60,12 @@ async function request<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
 }
 
 export async function fetchQuestionnaire(): Promise<QuestionnaireSection[]> {
-  const response = await request<{ sections: QuestionnaireSection[] }>(`${API_BASE}/api/questionnaire`);
+  const response = await request<{ sections: QuestionnaireSection[] }>(apiUrl("/api/questionnaire"));
   return response.sections;
 }
 
 export async function previewProfile(payload: QuestionnaireAnswers): Promise<PreviewResponse> {
-  return request<PreviewResponse>(`${API_BASE}/api/profile/preview`, {
+  return request<PreviewResponse>(apiUrl("/api/profile/preview"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -55,7 +73,7 @@ export async function previewProfile(payload: QuestionnaireAnswers): Promise<Pre
 }
 
 export async function createGeneration(payload: QuestionnaireAnswers): Promise<GenerationResponse> {
-  return request<GenerationResponse>(`${API_BASE}/api/generations`, {
+  return request<GenerationResponse>(apiUrl("/api/generations"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -63,6 +81,6 @@ export async function createGeneration(payload: QuestionnaireAnswers): Promise<G
 }
 
 export async function listGenerations(): Promise<GenerationMetadata[]> {
-  const response = await request<{ items: GenerationMetadata[] }>(`${API_BASE}/api/generations`);
+  const response = await request<{ items: GenerationMetadata[] }>(apiUrl("/api/generations"));
   return response.items;
 }

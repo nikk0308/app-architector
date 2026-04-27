@@ -1,22 +1,23 @@
 [Unit]
-Description=__SERVICE_NAME__
+Description=Mobile Architecture Generator API (__SERVICE_NAME__)
 After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=__APP_ROOT__/current/apps/api
-Environment=MAG_ENV_FILE=__APP_ROOT__/shared/runtime.env
-ExecStart=/usr/bin/node dist/index.js
+WorkingDirectory=__APP_ROOT__/current
+EnvironmentFile=-__RUNTIME_ENV_FILE__
+Environment=MAG_ENV_FILE=__RUNTIME_ENV_FILE__
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node __APP_ROOT__/current/apps/api/dist/index.js
 Restart=always
-RestartSec=2
-User=root
-Group=root
+RestartSec=5
+KillSignal=SIGINT
+TimeoutStopSec=30
 NoNewPrivileges=true
-PrivateTmp=true
 ProtectSystem=full
+ProtectHome=true
 ReadWritePaths=__APP_ROOT__/shared
-StandardOutput=journal
-StandardError=journal
+SyslogIdentifier=mobile-architecture-generator
 
 [Install]
 WantedBy=multi-user.target

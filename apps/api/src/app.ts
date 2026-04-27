@@ -6,13 +6,14 @@ import {
   questionnaireSchema,
   buildArchitectureSpec,
   projectProfileFromSpec,
-  buildGenerationPlan,
   buildArtifactManifest,
+  manifestToGenerationPlan,
   validateArchitectureSpec,
   validateArtifactManifest,
   type QuestionnaireAnswers,
   type GenerationMetadata
 } from "@mag/shared";
+import { env } from "./env.js";
 import { generationRepository } from "./services/database.js";
 import { generatorRunner } from "./services/generatorRunner.js";
 import { buildFileTreePreview } from "./services/preview.js";
@@ -22,8 +23,8 @@ import { createRunDirectories } from "./services/storage.js";
 function buildPreviewPayload(answers: QuestionnaireAnswers) {
   const spec = buildArchitectureSpec(answers);
   const profile = projectProfileFromSpec(spec);
-  const plan = buildGenerationPlan(profile);
   const manifest = buildArtifactManifest(spec);
+  const plan = manifestToGenerationPlan(manifest);
   const specValidation = validateArchitectureSpec(spec);
   const manifestValidation = validateArtifactManifest(spec, manifest);
   const templateVariables = buildTemplateVariables(profile, spec, manifest);
@@ -44,9 +45,10 @@ function buildPreviewPayload(answers: QuestionnaireAnswers) {
 }
 
 export function createApp(): FastifyInstance {
-  const app = Fastify({ logger: true });
+  const app = Fastify({ logger: { level: env.LOG_LEVEL } });
 
-  void app.register(cors, { origin: true });
+  const corsOrigin = env.CORS_ORIGIN === "*" ? true : env.CORS_ORIGIN.split(",").map((item) => item.trim()).filter(Boolean);
+  void app.register(cors, { origin: corsOrigin });
 
   app.get("/api/health", async () => ({ status: "ok" }));
 

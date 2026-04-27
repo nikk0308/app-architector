@@ -94,7 +94,7 @@ class GeneratorRunner {
     });
 
     return await new Promise<GeneratorExecutionResult>((resolve) => {
-      const pythonBin = process.env.GENERATOR_PYTHON_BIN ?? "python3";
+      const pythonBin = process.env.GENERATOR_PYTHON_BIN ?? process.env.PYTHON_BIN ?? "python3";
       const child = spawn(pythonBin, [generatorScriptPath], {
         cwd: repoRoot,
         env: {

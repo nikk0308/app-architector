@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { GenerationMetadata, QuestionnaireAnswers, QuestionnaireSection } from "@mag/shared";
-import { createGeneration, fetchQuestionnaire, listGenerations, previewProfile, type GenerationResponse, type PreviewResponse } from "./api";
+import { apiUrl, createGeneration, fetchQuestionnaire, listGenerations, previewProfile, type GenerationResponse, type PreviewResponse } from "./api";
 
 const initialForm: QuestionnaireAnswers = {
   projectName: "",
@@ -28,8 +28,7 @@ function fieldValue(form: QuestionnaireAnswers, key: string): string | boolean {
 }
 
 function downloadUrlForGeneration(generationId: string): string {
-  const apiBase = import.meta.env.VITE_API_BASE ?? "http://localhost:4000";
-  return `${apiBase}/api/generations/${generationId}/download`;
+  return apiUrl(`/api/generations/${generationId}/download`);
 }
 
 export default function App() {
