@@ -206,10 +206,62 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          CURL_RESOLVE=(--resolve "$DOMAIN:80:$SERVER_IP" --resolve "$DOMAIN:443:$SERVER_IP")
-          curl -fsSL "${CURL_RESOLVE[@]}" "http://$DOMAIN/api/health" | tee "$DIAGNOSTICS_DIR/smoke-health.json"
-          curl -fsSL "${CURL_RESOLVE[@]}" "http://$DOMAIN/" > "$DIAGNOSTICS_DIR/smoke-index.html"
-          grep -qi '<div id="root"' "$DIAGNOSTICS_DIR/smoke-index.html"
+          mkdir -p "$DIAGNOSTICS_DIR"
+
+          HTTPS_EXPECTED="$(ssh -i ~/.ssh/deploy_key \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            "$SSH_USER@$SERVER_IP" \
+            "test -f '/etc/letsencrypt/live/$DOMAIN/fullchain.pem' && test -f '/etc/letsencrypt/live/$DOMAIN/privkey.pem' && echo yes || echo no")"
+          echo "https_expected=$HTTPS_EXPECTED" | tee "$DIAGNOSTICS_DIR/public-endpoint-mode.env"
+
+          curl -sSIL --max-time 8 --resolve "$DOMAIN:80:$SERVER_IP" "http://$DOMAIN/" \
+            | tee "$DIAGNOSTICS_DIR/smoke-http-index-headers.txt"
+
+          if [ "$HTTPS_EXPECTED" = "yes" ]; then
+            curl -kfsSL --max-time 10 --resolve "$DOMAIN:443:$SERVER_IP" "https://$DOMAIN/api/health" \
+              | tee "$DIAGNOSTICS_DIR/smoke-https-health.json"
+            curl -kfsSL --max-time 10 --resolve "$DOMAIN:443:$SERVER_IP" "https://$DOMAIN/" \
+              > "$DIAGNOSTICS_DIR/smoke-https-index.html"
+            grep -qi '<div id="root"' "$DIAGNOSTICS_DIR/smoke-https-index.html"
+          else
+            curl -fsSL --max-time 10 --resolve "$DOMAIN:80:$SERVER_IP" "http://$DOMAIN/api/health" \
+              | tee "$DIAGNOSTICS_DIR/smoke-http-health.json"
+            curl -fsSL --max-time 10 --resolve "$DOMAIN:80:$SERVER_IP" "http://$DOMAIN/" \
+              > "$DIAGNOSTICS_DIR/smoke-http-index.html"
+            grep -qi '<div id="root"' "$DIAGNOSTICS_DIR/smoke-http-index.html"
+          fi
+
+      - name: Fetch remote diagnostics snapshot
+        if: ${{ always() }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          mkdir -p "$DIAGNOSTICS_DIR/remote"
+          if [ -z "${SERVER_IP:-}" ] || [ -z "${SSH_USER:-}" ] || [ ! -f ~/.ssh/deploy_key ]; then
+            echo "Remote diagnostics skipped: SSH context is not available." > "$DIAGNOSTICS_DIR/remote/remote-diagnostics-skipped.txt"
+            exit 0
+          fi
+
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$SSH_USER@$SERVER_IP" \
+            "APP_ROOT='$APP_ROOT' SERVICE_NAME='$SERVICE_NAME' API_PORT='$API_PORT' RELEASE_NAME='$RELEASE_NAME' DOMAIN='$DOMAIN' bash -s" <<'REMOTE_DIAG' || true
+          set +e
+          SRC="$APP_ROOT/shared/logs/deploy-$RELEASE_NAME"
+          mkdir -p /tmp/mag-deploy-diagnostics
+          if [ -d "$SRC" ]; then cp -a "$SRC"/. /tmp/mag-deploy-diagnostics/; fi
+          systemctl status "$SERVICE_NAME" --no-pager > /tmp/mag-deploy-diagnostics/systemctl-status-live.txt 2>&1 || true
+          journalctl -u "$SERVICE_NAME" --no-pager -n 300 > /tmp/mag-deploy-diagnostics/journal-live.txt 2>&1 || true
+          systemctl status nginx --no-pager > /tmp/mag-deploy-diagnostics/nginx-status-live.txt 2>&1 || true
+          journalctl -u nginx --no-pager -n 120 > /tmp/mag-deploy-diagnostics/nginx-journal-live.txt 2>&1 || true
+          nginx -t > /tmp/mag-deploy-diagnostics/nginx-test-live.txt 2>&1 || true
+          nginx -T > /tmp/mag-deploy-diagnostics/nginx-full-config-live.txt 2>&1 || true
+          ss -ltnp > /tmp/mag-deploy-diagnostics/ports-live.txt 2>&1 || true
+          ufw status verbose > /tmp/mag-deploy-diagnostics/ufw-status-live.txt 2>&1 || true
+REMOTE_DIAG
+
+          rsync -az -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" \
+            "$SSH_USER@$SERVER_IP:/tmp/mag-deploy-diagnostics/" "$DIAGNOSTICS_DIR/remote/" || true
 
       - name: Mark diagnostics success
         if: ${{ success() }}

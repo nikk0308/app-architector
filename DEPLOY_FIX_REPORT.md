@@ -1,24 +1,19 @@
 # Deploy fix report
 
-## Що виправлено
+The deploy succeeded, but the browser showed ERR_CONNECTION_REFUSED. The likely cause is nginx being rewritten by deploy_remote.sh with an HTTP-only template after HTTPS had already been enabled. That removes the `listen 443 ssl` server block, so HTTPS connections are refused even though the GitHub job can still pass HTTP smoke checks.
 
-1. API тепер за замовчуванням слухає порт 3000, а не 4000.
-2. systemd-сервіс читає runtime env-файл через EnvironmentFile та MAG_ENV_FILE.
-3. Frontend більше не ходить на localhost:4000 у production. За замовчуванням API викликається відносно поточного домену: /api/...
-4. Deploy-скрипт тепер чекає API health-check у циклі до 30 секунд, а не робить один curl одразу після restart.
-5. Deploy-скрипт генерує діагностику при падінні: systemctl, journalctl, nginx -t, відкриті порти, direct health-check, redacted runtime.env і дерево релізу.
-6. Workflow 03_deploy.yml тепер збирає deploy-diagnostics artifact при падінні.
-7. Deploy не перетирає certbot HTTPS-конфіг, якщо в nginx-конфігу вже є ssl_certificate.
-8. API preview/generation тепер використовують generation plan з manifest, щоб preview і реальна генерація не розʼїжджалися логічно.
+Fixes included:
+- detect existing Lets Encrypt certificate
+- render HTTPS nginx config when certificate exists
+- keep HTTP-only config only before HTTPS is enabled
+- correctly replace __RUNTIME_ENV_FILE__ in systemd service
+- add nginx/service/port/firewall diagnostics
+- add a manual server_diagnostics.sh script
+- provide a workflow smoke-test snippet that checks HTTPS when HTTPS is expected
 
-## Локальна валідація
+Validation done here:
+- generated the patch archive
+- checked Python packaging completed successfully
+- shell content was reviewed for syntax-sensitive heredocs and escaped nginx variables
 
-Виконано:
-- bash -n scripts/deploy/deploy_remote.sh
-- bash -n scripts/deploy/bootstrap_remote.sh
-- bash -n scripts/deploy/enable_https_remote.sh
-- python3 -m py_compile services/generator-python/generator_cli.py
-- YAML parse для workflow-файлів
-- static check, що production web source більше не містить hardcoded localhost:4000
-
-Повний npm build у цьому середовищі не був завершений через обмеження середовища виконання, але GitHub workflow збирає проект перед upload release.
+Full npm build was not rerun in this sandbox because dependency installation is not needed for these deploy-shell changes and may exceed the interactive execution window.
