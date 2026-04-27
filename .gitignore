@@ -16,6 +16,9 @@ apps/*/src/**/*.d.ts
 packages/*/src/**/*.js
 packages/*/src/**/*.js.map
 packages/*/src/**/*.d.ts
-apps/web/vite.config.js
-apps/web/vite.config.js.map
-apps/web/vite.config.d.ts
+apps/*/vite.config.js
+apps/*/vite.config.js.map
+apps/*/vite.config.d.ts
+packages/*/vite.config.js
+packages/*/vite.config.js.map
+packages/*/vite.config.d.ts

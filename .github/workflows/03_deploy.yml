@@ -2,6 +2,7 @@ name: 03 deploy
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  DIAGNOSTICS_DIR: deploy-diagnostics
 
 on:
   workflow_dispatch:
@@ -46,7 +47,7 @@ jobs:
           echo "API_PORT=$API_PORT" >> "$GITHUB_ENV"
           echo "SERVICE_NAME=$SERVICE_NAME" >> "$GITHUB_ENV"
           echo "RELEASE_NAME=$RELEASE_NAME" >> "$GITHUB_ENV"
-          mkdir -p deploy-diagnostics
+          mkdir -p "$DIAGNOSTICS_DIR"
           {
             echo "workflow_status=started"
             echo "domain=$DOMAIN"
@@ -58,49 +59,63 @@ jobs:
             echo "service_name=$SERVICE_NAME"
             echo "release_name=$RELEASE_NAME"
             echo "timestamp_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          } > deploy-diagnostics/workflow-context.env
+          } > "$DIAGNOSTICS_DIR/workflow-context.env"
+
+      - name: Collect local diagnostics snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/diagnostics/collect_local_diagnostics.sh "$DIAGNOSTICS_DIR" 2>&1 | tee "$DIAGNOSTICS_DIR/local-diagnostics.log"
+
+      - name: Clean generated source artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/verify/clean_stale_source_artifacts.sh 2>&1 | tee "$DIAGNOSTICS_DIR/clean-source-artifacts.log"
+          bash scripts/diagnostics/collect_local_diagnostics.sh "$DIAGNOSTICS_DIR" 2>&1 | tee -a "$DIAGNOSTICS_DIR/local-diagnostics.log"
 
       - name: Install dependencies
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p deploy-diagnostics
-          npm install --no-fund --no-audit 2>&1 | tee deploy-diagnostics/npm-install.log
+          npm install --no-fund --no-audit 2>&1 | tee "$DIAGNOSTICS_DIR/npm-install.log"
 
       - name: Verify source tree
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p deploy-diagnostics
-          npm run verify:source 2>&1 | tee deploy-diagnostics/verify-source.log
+          bash scripts/verify/no_stale_source_artifacts.sh 2>&1 | tee "$DIAGNOSTICS_DIR/verify-source.log"
 
       - name: Build
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p deploy-diagnostics
-          npm run build 2>&1 | tee deploy-diagnostics/build.log
+          npm run build 2>&1 | tee "$DIAGNOSTICS_DIR/build.log"
+          bash scripts/diagnostics/collect_build_outputs.sh "$DIAGNOSTICS_DIR" 2>&1 | tee "$DIAGNOSTICS_DIR/build-diagnostics.log"
 
       - name: Test
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p deploy-diagnostics
-          npm test 2>&1 | tee deploy-diagnostics/test.log
+          npm test 2>&1 | tee "$DIAGNOSTICS_DIR/test.log"
 
       - name: Validate built release
         shell: bash
         run: |
           set -euo pipefail
-          test -f apps/api/dist/index.js
-          test -d apps/web/dist
-          test -f apps/web/dist/index.html
-          test -f packages/shared/dist/index.js
-          if grep -R "localhost:4000" apps/web/dist >/tmp/local-host-leak.txt 2>/dev/null; then
-            echo "Production web bundle still contains localhost:4000"
-            cat /tmp/local-host-leak.txt | tee deploy-diagnostics/local-host-leak.txt
-            exit 1
-          fi
+          {
+            echo "Checking built release files..."
+            test -f apps/api/dist/index.js
+            test -d apps/web/dist
+            test -f apps/web/dist/index.html
+            test -f packages/shared/dist/index.js
+            if grep -R "localhost:4000" apps/web/dist >/tmp/local-host-leak.txt 2>/dev/null; then
+              echo "Production web bundle still contains localhost:4000"
+              cat /tmp/local-host-leak.txt
+              exit 1
+            fi
+            echo "Built release validation passed."
+          } 2>&1 | tee "$DIAGNOSTICS_DIR/validate-built-release.log"
 
       - name: Prepare SSH key
         env:
@@ -108,8 +123,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p deploy-diagnostics
-          python3 scripts/deploy/prepare_ssh_key.py 2>&1 | tee deploy-diagnostics/prepare-ssh-key.log
+          python3 scripts/deploy/prepare_ssh_key.py 2>&1 | tee "$DIAGNOSTICS_DIR/prepare-ssh-key.log"
 
       - name: Trust server host key
         env:
@@ -135,7 +149,7 @@ jobs:
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=yes \
             -o BatchMode=yes \
-            "$SSH_USER@$SERVER_IP" 'true' 2>&1 | tee deploy-diagnostics/verify-ssh.log
+            "$SSH_USER@$SERVER_IP" 'true' 2>&1 | tee "$DIAGNOSTICS_DIR/verify-ssh.log"
 
       - name: Encode runtime env
         env:
@@ -146,6 +160,8 @@ jobs:
           if [ -n "$APP_RUNTIME_ENV_CONTENT" ]; then
             printf '%s' "$APP_RUNTIME_ENV_CONTENT" | base64 -w 0 > /tmp/runtime_env.b64
             echo "RUNTIME_ENV_B64=$(cat /tmp/runtime_env.b64)" >> "$GITHUB_ENV"
+          else
+            echo "APP_RUNTIME_ENV secret is empty; remote defaults will be used." | tee "$DIAGNOSTICS_DIR/runtime-env.log"
           fi
 
       - name: Create release directory
@@ -162,7 +178,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          export RSYNC_RSH="ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
           rsync -az \
             -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" \
             --delete \
@@ -173,7 +188,8 @@ jobs:
             --exclude '__pycache__/' \
             --exclude 'node_modules/' \
             --exclude 'deploy-diagnostics/' \
-            "$GITHUB_WORKSPACE/" "$SSH_USER@$SERVER_IP:$APP_ROOT/releases/$RELEASE_NAME/"
+            "$GITHUB_WORKSPACE/" "$SSH_USER@$SERVER_IP:$APP_ROOT/releases/$RELEASE_NAME/" \
+            2>&1 | tee "$DIAGNOSTICS_DIR/rsync-release.log"
 
       - name: Activate release
         shell: bash
@@ -184,16 +200,23 @@ jobs:
             -o StrictHostKeyChecking=yes \
             "$SSH_USER@$SERVER_IP" \
             "DOMAIN='$DOMAIN' APP_ROOT='$APP_ROOT' WEB_ROOT='$WEB_ROOT' API_PORT='$API_PORT' SERVICE_NAME='$SERVICE_NAME' RELEASE_NAME='$RELEASE_NAME' RUNTIME_ENV_B64='${RUNTIME_ENV_B64:-}' bash -s" \
-            < scripts/deploy/deploy_remote.sh
+            < scripts/deploy/deploy_remote.sh 2>&1 | tee "$DIAGNOSTICS_DIR/activate-release.log"
 
       - name: Smoke test deployed site
         shell: bash
         run: |
           set -euo pipefail
           CURL_RESOLVE=(--resolve "$DOMAIN:80:$SERVER_IP" --resolve "$DOMAIN:443:$SERVER_IP")
-          curl -fsSL "${CURL_RESOLVE[@]}" "http://$DOMAIN/api/health" | tee /tmp/health.json
-          curl -fsSL "${CURL_RESOLVE[@]}" "http://$DOMAIN/" >/tmp/index.html
-          grep -qi '<div id="root"' /tmp/index.html
+          curl -fsSL "${CURL_RESOLVE[@]}" "http://$DOMAIN/api/health" | tee "$DIAGNOSTICS_DIR/smoke-health.json"
+          curl -fsSL "${CURL_RESOLVE[@]}" "http://$DOMAIN/" > "$DIAGNOSTICS_DIR/smoke-index.html"
+          grep -qi '<div id="root"' "$DIAGNOSTICS_DIR/smoke-index.html"
+
+      - name: Mark diagnostics success
+        if: ${{ success() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -i 's/^workflow_status=.*/workflow_status=success/' "$DIAGNOSTICS_DIR/workflow-context.env" || true
 
       - name: Collect deploy diagnostics
         if: ${{ failure() }}
@@ -201,22 +224,29 @@ jobs:
         shell: bash
         run: |
           set +e
-          mkdir -p deploy-diagnostics
+          mkdir -p "$DIAGNOSTICS_DIR"
           {
             echo "workflow_status=failed"
-            echo "domain=$DOMAIN"
-            echo "server_ip=$SERVER_IP"
-            echo "ssh_user=$SSH_USER"
-            echo "app_root=$APP_ROOT"
-            echo "web_root=$WEB_ROOT"
-            echo "api_port=$API_PORT"
-            echo "service_name=$SERVICE_NAME"
-            echo "release_name=$RELEASE_NAME"
+            echo "domain=${DOMAIN:-}"
+            echo "server_ip=${SERVER_IP:-}"
+            echo "ssh_user=${SSH_USER:-}"
+            echo "app_root=${APP_ROOT:-}"
+            echo "web_root=${WEB_ROOT:-}"
+            echo "api_port=${API_PORT:-}"
+            echo "service_name=${SERVICE_NAME:-}"
+            echo "release_name=${RELEASE_NAME:-}"
             echo "timestamp_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          } > deploy-diagnostics/workflow-context.env
+          } > "$DIAGNOSTICS_DIR/workflow-context.env"
+
+          bash scripts/diagnostics/collect_local_diagnostics.sh "$DIAGNOSTICS_DIR" >> "$DIAGNOSTICS_DIR/local-diagnostics.log" 2>&1 || true
 
           if [ -z "${SERVER_IP:-}" ] || [ -z "${SSH_USER:-}" ]; then
-            echo "SERVER_IP or SSH_USER is unavailable; remote diagnostics skipped." > deploy-diagnostics/remote-diagnostics-skipped.txt
+            echo "SERVER_IP or SSH_USER is unavailable; remote diagnostics skipped." > "$DIAGNOSTICS_DIR/remote-diagnostics-skipped.txt"
+            exit 0
+          fi
+
+          if [ ! -f ~/.ssh/deploy_key ]; then
+            echo "SSH deploy key was not prepared before the failure; remote diagnostics skipped." > "$DIAGNOSTICS_DIR/remote-diagnostics-skipped.txt"
             exit 0
           fi
 
@@ -229,16 +259,18 @@ jobs:
           journalctl -u "$SERVICE_NAME" --no-pager -n 250 > /tmp/mag-deploy-diagnostics/journal.txt 2>&1 || true
           nginx -t > /tmp/mag-deploy-diagnostics/nginx-test.txt 2>&1 || true
           ss -ltnp > /tmp/mag-deploy-diagnostics/ports.txt 2>&1 || true
-          curl -v --max-time 5 "http://127.0.0.1:$API_PORT/api/health" > /tmp/mag-deploy-diagnostics/health.txt 2>&1 || true
+          curl -v --max-time 5 "http://127.0.0.1:$API_PORT/api/health" > /tmp/mag-deploy-diagnostics/remote-health.txt 2>&1 || true
+          find "$APP_ROOT" -maxdepth 3 -type f -printf '%p %s bytes\n' > /tmp/mag-deploy-diagnostics/remote-app-tree.txt 2>&1 || true
           REMOTE_DIAG
 
           rsync -az -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" \
-            "$SSH_USER@$SERVER_IP:/tmp/mag-deploy-diagnostics/" deploy-diagnostics/ || true
+            "$SSH_USER@$SERVER_IP:/tmp/mag-deploy-diagnostics/" "$DIAGNOSTICS_DIR/" || true
 
       - name: Upload deploy diagnostics
-        if: ${{ failure() }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: deploy-diagnostics
           path: deploy-diagnostics
           if-no-files-found: warn
+          retention-days: 7
