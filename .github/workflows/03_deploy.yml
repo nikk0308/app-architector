@@ -46,15 +46,47 @@ jobs:
           echo "API_PORT=$API_PORT" >> "$GITHUB_ENV"
           echo "SERVICE_NAME=$SERVICE_NAME" >> "$GITHUB_ENV"
           echo "RELEASE_NAME=$RELEASE_NAME" >> "$GITHUB_ENV"
+          mkdir -p deploy-diagnostics
+          {
+            echo "workflow_status=started"
+            echo "domain=$DOMAIN"
+            echo "server_ip=$SERVER_IP"
+            echo "ssh_user=$SSH_USER"
+            echo "app_root=$APP_ROOT"
+            echo "web_root=$WEB_ROOT"
+            echo "api_port=$API_PORT"
+            echo "service_name=$SERVICE_NAME"
+            echo "release_name=$RELEASE_NAME"
+            echo "timestamp_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } > deploy-diagnostics/workflow-context.env
 
       - name: Install dependencies
-        run: npm install --no-fund --no-audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p deploy-diagnostics
+          npm install --no-fund --no-audit 2>&1 | tee deploy-diagnostics/npm-install.log
+
+      - name: Verify source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p deploy-diagnostics
+          npm run verify:source 2>&1 | tee deploy-diagnostics/verify-source.log
 
       - name: Build
-        run: npm run build
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p deploy-diagnostics
+          npm run build 2>&1 | tee deploy-diagnostics/build.log
 
       - name: Test
-        run: npm test
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p deploy-diagnostics
+          npm test 2>&1 | tee deploy-diagnostics/test.log
 
       - name: Validate built release
         shell: bash
@@ -66,14 +98,18 @@ jobs:
           test -f packages/shared/dist/index.js
           if grep -R "localhost:4000" apps/web/dist >/tmp/local-host-leak.txt 2>/dev/null; then
             echo "Production web bundle still contains localhost:4000"
-            cat /tmp/local-host-leak.txt
+            cat /tmp/local-host-leak.txt | tee deploy-diagnostics/local-host-leak.txt
             exit 1
           fi
 
       - name: Prepare SSH key
         env:
-          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
-        run: python3 scripts/deploy/prepare_ssh_key.py
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY || secrets.SERVER_SSH_PRIVATE_KEY || secrets.DO_SSH_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p deploy-diagnostics
+          python3 scripts/deploy/prepare_ssh_key.py 2>&1 | tee deploy-diagnostics/prepare-ssh-key.log
 
       - name: Trust server host key
         env:
@@ -95,7 +131,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/deploy_key             -o IdentitiesOnly=yes             -o StrictHostKeyChecking=yes             -o BatchMode=yes             "$SSH_USER@$SERVER_IP" 'true'
+          ssh -i ~/.ssh/deploy_key \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o BatchMode=yes \
+            "$SSH_USER@$SERVER_IP" 'true' 2>&1 | tee deploy-diagnostics/verify-ssh.log
 
       - name: Encode runtime env
         env:
@@ -112,31 +152,51 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$SSH_USER@$SERVER_IP"             "mkdir -p '$APP_ROOT/releases/$RELEASE_NAME'"
+          ssh -i ~/.ssh/deploy_key \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            "$SSH_USER@$SERVER_IP" \
+            "mkdir -p '$APP_ROOT/releases/$RELEASE_NAME'"
 
       - name: Upload release
         shell: bash
         run: |
           set -euo pipefail
           export RSYNC_RSH="ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
-          rsync -az             --delete             --exclude '.git/'             --exclude '.github/'             --exclude '.env'             --exclude '*.log'             --exclude '__pycache__/'             --exclude 'node_modules/'             "$GITHUB_WORKSPACE/" "$SSH_USER@$SERVER_IP:$APP_ROOT/releases/$RELEASE_NAME/"
+          rsync -az \
+            -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" \
+            --delete \
+            --exclude '.git/' \
+            --exclude '.github/' \
+            --exclude '.env' \
+            --exclude '*.log' \
+            --exclude '__pycache__/' \
+            --exclude 'node_modules/' \
+            --exclude 'deploy-diagnostics/' \
+            "$GITHUB_WORKSPACE/" "$SSH_USER@$SERVER_IP:$APP_ROOT/releases/$RELEASE_NAME/"
 
       - name: Activate release
         shell: bash
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$SSH_USER@$SERVER_IP"             "DOMAIN='$DOMAIN' APP_ROOT='$APP_ROOT' WEB_ROOT='$WEB_ROOT' API_PORT='$API_PORT' SERVICE_NAME='$SERVICE_NAME' RELEASE_NAME='$RELEASE_NAME' RUNTIME_ENV_B64='${RUNTIME_ENV_B64:-}' bash -s"             < scripts/deploy/deploy_remote.sh
+          ssh -i ~/.ssh/deploy_key \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            "$SSH_USER@$SERVER_IP" \
+            "DOMAIN='$DOMAIN' APP_ROOT='$APP_ROOT' WEB_ROOT='$WEB_ROOT' API_PORT='$API_PORT' SERVICE_NAME='$SERVICE_NAME' RELEASE_NAME='$RELEASE_NAME' RUNTIME_ENV_B64='${RUNTIME_ENV_B64:-}' bash -s" \
+            < scripts/deploy/deploy_remote.sh
 
       - name: Smoke test deployed site
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsSL "http://$DOMAIN/api/health" | tee /tmp/health.json
-          curl -fsSL "http://$DOMAIN/" >/tmp/index.html
+          CURL_RESOLVE=(--resolve "$DOMAIN:80:$SERVER_IP" --resolve "$DOMAIN:443:$SERVER_IP")
+          curl -fsSL "${CURL_RESOLVE[@]}" "http://$DOMAIN/api/health" | tee /tmp/health.json
+          curl -fsSL "${CURL_RESOLVE[@]}" "http://$DOMAIN/" >/tmp/index.html
           grep -qi '<div id="root"' /tmp/index.html
 
       - name: Collect deploy diagnostics
-        if: ${{ failure() && env.SERVER_IP != '' && env.SSH_USER != '' }}
+        if: ${{ failure() }}
         continue-on-error: true
         shell: bash
         run: |
@@ -154,6 +214,11 @@ jobs:
             echo "release_name=$RELEASE_NAME"
             echo "timestamp_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           } > deploy-diagnostics/workflow-context.env
+
+          if [ -z "${SERVER_IP:-}" ] || [ -z "${SSH_USER:-}" ]; then
+            echo "SERVER_IP or SSH_USER is unavailable; remote diagnostics skipped." > deploy-diagnostics/remote-diagnostics-skipped.txt
+            exit 0
+          fi
 
           ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$SSH_USER@$SERVER_IP" \
             "APP_ROOT='$APP_ROOT' SERVICE_NAME='$SERVICE_NAME' API_PORT='$API_PORT' RELEASE_NAME='$RELEASE_NAME' bash -s" <<'REMOTE_DIAG' || true

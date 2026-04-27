@@ -3,10 +3,13 @@ import {
   UNIVERSAL_FEATURES,
   type ProfileId,
   type ProjectProfileDefinition,
+  type ProfileCapability,
   type UniversalFeatureId
 } from "./types.js";
 
-const allSupported = (overrides: Partial<Record<UniversalFeatureId, Partial<ProjectProfileDefinition["capabilities"][UniversalFeatureId]>>>) => {
+const allSupported = (
+  overrides: Partial<Record<UniversalFeatureId, Partial<ProfileCapability>>>
+) => {
   return Object.fromEntries(
     UNIVERSAL_FEATURES.map((featureId) => {
       const base = {
@@ -18,6 +21,22 @@ const allSupported = (overrides: Partial<Record<UniversalFeatureId, Partial<Proj
       return [featureId, { ...base, ...(overrides[featureId] ?? {}) }];
     })
   ) as ProjectProfileDefinition["capabilities"];
+};
+
+const commonRequiredArtifactIds = [
+  "common.readme",
+  "common.env",
+  "common.config",
+  "common.state",
+  "common.entry"
+];
+
+const commonInfrastructureArtifacts: Partial<Record<UniversalFeatureId, string[]>> = {
+  "entry-point": ["common.entry"],
+  navigation: ["module.navigation"],
+  "environment-config": ["common.env", "common.config"],
+  "state-management": ["common.state"],
+  "testing-skeleton": []
 };
 
 const registry: Record<ProfileId, ProjectProfileDefinition> = {
@@ -32,7 +51,7 @@ const registry: Record<ProfileId, ProjectProfileDefinition> = {
       rootFolderPattern: "pascal",
       sourceFolder: "Assets"
     },
-    entryArtifactId: "entry.unity.bootstrap",
+    entryArtifactId: "common.entry",
     baseArtifactId: "profile.unity.base",
     capabilities: allSupported({
       "entry-point": { supported: true, defaultEnabled: true, required: true },
@@ -48,24 +67,14 @@ const registry: Record<ProfileId, ProjectProfileDefinition> = {
       "dependency-injection": { supported: false, defaultEnabled: false, notes: ["Dedicated DI container is not generated in baseline Unity mode."] },
       "testing-skeleton": { supported: true, defaultEnabled: true }
     }),
-    requiredArtifactIds: [
-      "common.readme",
-      "common.env",
-      "common.config",
-      "common.state",
-      "entry.unity.bootstrap",
-      "profile.unity.base",
-      "profile.unity.foundation"
-    ],
+    requiredArtifactIds: [...commonRequiredArtifactIds, "profile.unity.base"],
     featureArtifacts: {
-      navigation: ["module.navigation"],
+      ...commonInfrastructureArtifacts,
       auth: ["module.auth"],
       analytics: ["module.analytics"],
       localization: ["module.localization"],
       networking: ["module.networking"],
-      storage: ["module.persistence"],
-      "environment-config": ["common.env"],
-      "testing-skeleton": []
+      storage: ["module.persistence"]
     },
     platformNotes: [
       "Unity generation focuses on folder structure, scenes, managers and ScriptableObject-based configuration.",
@@ -99,24 +108,15 @@ const registry: Record<ProfileId, ProjectProfileDefinition> = {
       "dependency-injection": { supported: true, defaultEnabled: false, notes: ["Baseline uses lightweight composition without an external DI container."] },
       "testing-skeleton": { supported: true, defaultEnabled: true }
     }),
-    requiredArtifactIds: [
-      "common.readme",
-      "common.env",
-      "common.config",
-      "common.state",
-      "common.entry",
-      "profile.ios.base",
-      "profile.ios.foundation"
-    ],
+    requiredArtifactIds: [...commonRequiredArtifactIds, "profile.ios.base"],
     featureArtifacts: {
-      navigation: ["module.navigation"],
+      ...commonInfrastructureArtifacts,
       auth: ["module.auth"],
       analytics: ["module.analytics"],
       localization: ["module.localization"],
       push: ["module.push"],
       networking: ["module.networking"],
-      storage: ["module.persistence"],
-      "testing-skeleton": []
+      storage: ["module.persistence"]
     },
     platformNotes: [
       "iOS baseline generates services, coordinators/view-models and a native entry point scaffold.",
@@ -134,7 +134,7 @@ const registry: Record<ProfileId, ProjectProfileDefinition> = {
       rootFolderPattern: "slug",
       sourceFolder: "lib"
     },
-    entryArtifactId: "entry.flutter.main",
+    entryArtifactId: "common.entry",
     baseArtifactId: "profile.flutter.base",
     capabilities: allSupported({
       "entry-point": { supported: true, defaultEnabled: true, required: true },
@@ -150,24 +150,15 @@ const registry: Record<ProfileId, ProjectProfileDefinition> = {
       "dependency-injection": { supported: false, defaultEnabled: false, notes: ["Dedicated DI container is postponed; baseline uses direct composition."] },
       "testing-skeleton": { supported: true, defaultEnabled: true }
     }),
-    requiredArtifactIds: [
-      "common.readme",
-      "common.env",
-      "common.config",
-      "common.state",
-      "entry.flutter.main",
-      "profile.flutter.base",
-      "profile.flutter.foundation"
-    ],
+    requiredArtifactIds: [...commonRequiredArtifactIds, "profile.flutter.base"],
     featureArtifacts: {
-      navigation: ["module.navigation"],
+      ...commonInfrastructureArtifacts,
       auth: ["module.auth"],
       analytics: ["module.analytics"],
       localization: ["module.localization"],
       push: ["module.push"],
       networking: ["module.networking"],
-      storage: ["module.persistence"],
-      "testing-skeleton": []
+      storage: ["module.persistence"]
     },
     platformNotes: [
       "Flutter baseline keeps routing, core/services and feature folders deterministic.",
@@ -185,7 +176,7 @@ const registry: Record<ProfileId, ProjectProfileDefinition> = {
       rootFolderPattern: "slug",
       sourceFolder: "src"
     },
-    entryArtifactId: "entry.rn.app",
+    entryArtifactId: "common.entry",
     baseArtifactId: "profile.react-native.base",
     capabilities: allSupported({
       "entry-point": { supported: true, defaultEnabled: true, required: true },
@@ -201,24 +192,15 @@ const registry: Record<ProfileId, ProjectProfileDefinition> = {
       "dependency-injection": { supported: false, defaultEnabled: false, notes: ["Baseline avoids container frameworks and keeps services explicit."] },
       "testing-skeleton": { supported: true, defaultEnabled: true }
     }),
-    requiredArtifactIds: [
-      "common.readme",
-      "common.env",
-      "common.config",
-      "common.state",
-      "entry.rn.app",
-      "profile.react-native.base",
-      "profile.rn.foundation"
-    ],
+    requiredArtifactIds: [...commonRequiredArtifactIds, "profile.react-native.base"],
     featureArtifacts: {
-      navigation: ["module.navigation"],
+      ...commonInfrastructureArtifacts,
       auth: ["module.auth"],
       analytics: ["module.analytics"],
       localization: ["module.localization"],
       push: ["module.push"],
       networking: ["module.networking"],
-      storage: ["module.persistence"],
-      "testing-skeleton": []
+      storage: ["module.persistence"]
     },
     platformNotes: [
       "React Native baseline generates a typed src structure and deterministic service/config/state folders.",

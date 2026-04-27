@@ -13,6 +13,8 @@
     "build": "npm run build -w @mag/shared && npm run build -w @mag/api && npm run build -w @mag/web",
     "test": "npm run test -w @mag/shared && npm run test -w @mag/api",
     "lint": "npm run lint -w @mag/api && npm run lint -w @mag/web",
-    "start": "npm run start -w @mag/api"
+    "start": "npm run start -w @mag/api",
+    "verify:source": "bash scripts/verify/no_stale_source_artifacts.sh",
+    "verify:release": "npm run verify:source && npm run build && npm test"
   }
 }
