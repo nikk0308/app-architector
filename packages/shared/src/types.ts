@@ -4,6 +4,42 @@ export type ProfileId = typeof PROFILE_IDS[number];
 export const GENERATION_MODES = ["baseline", "hf-open", "commercial", "hybrid"] as const;
 export type GenerationMode = typeof GENERATION_MODES[number];
 
+export const ADVISOR_PROVIDERS = ["deterministic", "huggingface"] as const;
+export type AdvisorProvider = typeof ADVISOR_PROVIDERS[number];
+
+export type AdvisorStatus = "disabled" | "ready" | "fallback" | "failed";
+export type AdvisorImpact = "low" | "medium" | "high";
+
+export interface ArchitectureDecision {
+  id: string;
+  title: string;
+  recommendation: string;
+  rationale: string;
+  impact: AdvisorImpact;
+  files: string[];
+}
+
+export interface ArchitectureAdvisorReport {
+  version: "1.0";
+  status: AdvisorStatus;
+  provider: AdvisorProvider;
+  model?: string;
+  summary: string;
+  decisions: ArchitectureDecision[];
+  nextSteps: string[];
+  risks: string[];
+  warnings: string[];
+  createdAt: string;
+}
+
+export interface ArchitectureAdvisorStatus {
+  enabled: boolean;
+  provider: AdvisorProvider;
+  status: AdvisorStatus;
+  model?: string;
+  reason?: string;
+}
+
 export const UNIVERSAL_FEATURES = [
   "entry-point",
   "navigation",
@@ -190,7 +226,7 @@ export interface ArtifactDefinition {
   reason: string;
   required: boolean;
   category: "core" | "profile" | "feature" | "metadata";
-  source: "baseline";
+  source: "baseline" | "advisor";
 }
 
 export interface ArtifactManifest {
@@ -257,6 +293,7 @@ export interface GenerationMetadata {
   specJson?: string;
   manifestJson?: string;
   validationJson?: string;
+  advisorJson?: string;
   generatorLogPath?: string;
   diagnosticsPath?: string;
   errorMessage?: string;

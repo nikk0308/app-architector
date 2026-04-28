@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import type { GenerationMetadata, QuestionnaireAnswers, QuestionnaireField, QuestionnaireSection } from "@mag/shared";
-import { apiUrl, createGeneration, fetchQuestionnaire, listGenerations, previewProfile, type GenerationResponse, type PreviewResponse } from "./api";
+import type { ArchitectureAdvisorReport, ArchitectureAdvisorStatus, GenerationMetadata, QuestionnaireAnswers, QuestionnaireField, QuestionnaireSection } from "@mag/shared";
+import { apiUrl, createAdvisorPlan, createGeneration, fetchAdvisorStatus, fetchQuestionnaire, listGenerations, previewProfile, type GenerationResponse, type PreviewResponse } from "./api";
 
 const initialForm: QuestionnaireAnswers = {
   projectName: "",
@@ -78,10 +78,15 @@ export default function App() {
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [loadingGenerate, setLoadingGenerate] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [advisorStatus, setAdvisorStatus] = useState<ArchitectureAdvisorStatus | null>(null);
+  const [advisorPlan, setAdvisorPlan] = useState<ArchitectureAdvisorReport | null>(null);
+  const [advisorLoading, setAdvisorLoading] = useState(false);
+  const [advisorError, setAdvisorError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchQuestionnaire().then(setSections).catch((err) => setError(humanError(err.message)));
     listGenerations().then(setGenerations).catch((err) => setError(humanError(err.message)));
+    fetchAdvisorStatus().then(setAdvisorStatus).catch(() => setAdvisorStatus(null));
   }, []);
 
   const displayedSections = useMemo(
@@ -101,11 +106,17 @@ export default function App() {
   const latestGeneration = createdGeneration ?? null;
   const isBusy = loadingPreview || loadingGenerate;
 
+  function buildRequestPayload() {
+    return {
+      ...form,
+      generationMode: form.includeLLMNotes ? "hybrid" : "baseline",
+      includeLLMNotes: form.includeLLMNotes
+    } as const;
+  }
+
   function updateField(key: string, value: string | boolean) {
     setForm((current) => ({
       ...current,
-      generationMode: "baseline",
-      includeLLMNotes: false,
       [key]: value
     }));
   }
@@ -119,7 +130,7 @@ export default function App() {
     try {
       setLoadingPreview(true);
       setError(null);
-      const result = await previewProfile({ ...form, generationMode: "baseline", includeLLMNotes: false });
+      const result = await previewProfile(buildRequestPayload());
       setPreview(result);
     } catch (err) {
       setError(err instanceof Error ? humanError(err.message) : "Не вдалося підготувати попередній перегляд.");
@@ -137,7 +148,8 @@ export default function App() {
     try {
       setLoadingGenerate(true);
       setError(null);
-      const result = await createGeneration({ ...form, generationMode: "baseline", includeLLMNotes: false });
+      const result = await createGeneration(buildRequestPayload());
+      setAdvisorPlan(result.advisor ?? null);
       setCreatedGeneration(result);
       setPreview(result);
       setGenerations(await listGenerations());
@@ -251,6 +263,24 @@ export default function App() {
             </div>
           ))}
 
+          <div className="advisor-option">
+            <label className="toggle-line" htmlFor="advisor-notes">
+              <input
+                id="advisor-notes"
+                type="checkbox"
+                checked={Boolean(form.includeLLMNotes)}
+                onChange={(event) => updateField("includeLLMNotes", event.target.checked)}
+              />
+              <span>Додати архітектурний план у ZIP</span>
+            </label>
+            <p>У ZIP зʼявляться docs/architecture-decisions.md та .mag/architecture-advice.json. Якщо зовнішній провайдер недоступний, буде створено стабільний локальний план.</p>
+            {advisorStatus ? <small>Статус: {advisorStatus.status}{advisorStatus.model ? ` · ` : ""}</small> : null}
+            <button className="secondary small-button" onClick={handleAdvisorPlan} disabled={!canSubmit || isBusy || advisorLoading}>
+              {advisorLoading ? "Готуємо план..." : "Показати план"}
+            </button>
+            {advisorError ? <small className="error-text">{advisorError}</small> : null}
+          </div>
+
           <div className="actions">
             <button className="secondary" onClick={handlePreview} disabled={!canSubmit || isBusy}>
               {loadingPreview ? "Перевіряємо..." : "Переглянути структуру"}
@@ -324,6 +354,23 @@ export default function App() {
                     <h3>Нотатки генерації</h3>
                     <ul className="note-list">
                       {preview.notes.map((note) => <li key={note}>{note}</li>)}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {advisorPlan ? (
+                  <div className="card advisor-card">
+                    <div className="card-row">
+                      <h3>Архітектурний план</h3>
+                      <span className="status-pill">{advisorPlan.status}</span>
+                    </div>
+                    <p>{advisorPlan.summary}</p>
+                    <ul className="note-list">
+                      {advisorPlan.decisions.slice(0, 4).map((decision) => (
+                        <li key={decision.id}>
+                          <strong>{decision.title}:</strong> {decision.recommendation}
+                        </li>
+                      ))}
                     </ul>
                   </div>
                 ) : null}

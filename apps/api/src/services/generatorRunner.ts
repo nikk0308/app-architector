@@ -5,6 +5,7 @@ import {
   buildArtifactManifest,
   buildArchitectureSpec,
   validateArtifactManifest,
+  type ArchitectureAdvisorReport,
   type ArchitectureSpec,
   type ArtifactManifest,
   type GenerationPlan,
@@ -25,6 +26,7 @@ export interface GeneratorExecutionInput {
   manifest: ArtifactManifest;
   plan: GenerationPlan;
   validation: ValidationReport;
+  advisorReport?: ArchitectureAdvisorReport;
   outputDir: string;
   zipPath: string;
 }
@@ -67,7 +69,7 @@ class GeneratorRunner {
     const logFilePath = path.join(input.outputDir, "generator.log");
     const diagnosticsPath = path.join(input.outputDir, input.manifest.rootFolderName, ".mag", "generation-diagnostics.json");
     const generatorScriptPath = path.resolve(repoRoot, "services", "generator-python", "generator_cli.py");
-    const templateContext = buildTemplateVariables(input.profile, input.spec, input.manifest);
+    const templateContext = buildTemplateVariables(input.profile, input.spec, input.manifest, input.advisorReport);
 
     safeWriteJson(path.join(input.outputDir, ".mag", "api-payload-preview.json"), {
       generationId: input.generationId,
@@ -76,6 +78,7 @@ class GeneratorRunner {
       manifest: input.manifest,
       plan: input.plan,
       validation: input.validation,
+      advisorReport: input.advisorReport ?? null,
       templateContext,
       outputDir: input.outputDir,
       zipPath: input.zipPath
@@ -88,6 +91,7 @@ class GeneratorRunner {
       manifest: input.manifest,
       plan: input.plan,
       validation: input.validation,
+      advisorReport: input.advisorReport ?? null,
       templateContext,
       outputDir: input.outputDir,
       zipPath: input.zipPath

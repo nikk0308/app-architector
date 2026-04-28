@@ -96,6 +96,17 @@ export function buildArtifactManifest(spec: ArchitectureSpec): ArtifactManifest 
     });
   }
 
+  if (spec.features.llmNotes) {
+    pushArtifact(artifacts, {
+      id: "meta.advisor",
+      title: "Architecture advisor report",
+      reason: "Advisor output is requested to document architecture decisions and next steps.",
+      required: false,
+      category: "metadata",
+      source: "advisor"
+    });
+  }
+
   pushArtifact(artifacts, {
     id: "meta.manifest",
     title: "Manifest metadata",

@@ -599,3 +599,55 @@ pre {
     flex-direction: column;
   }
 }
+
+.advisor-option {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+  background: #f8fbff;
+}
+
+.toggle-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  color: #172033;
+}
+
+.toggle-line input {
+  width: 18px;
+  height: 18px;
+}
+
+.advisor-option p,
+.advisor-option small {
+  margin: 0;
+  color: #5b6b80;
+  line-height: 1.5;
+}
+
+.small-button {
+  justify-self: start;
+  min-height: 38px;
+  padding: 0 14px;
+}
+
+.error-text {
+  color: #b42318 !important;
+}
+
+.advisor-card {
+  border-color: #bfdbfe;
+  background: #f8fbff;
+}
+
+.card-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}

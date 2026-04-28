@@ -1,6 +1,8 @@
 import type {
   ArchitectureSpec,
   ArtifactManifest,
+  ArchitectureAdvisorReport,
+  ArchitectureAdvisorStatus,
   GenerationMetadata,
   GenerationPlan,
   NormalizedProfile,
@@ -41,6 +43,12 @@ export interface PreviewResponse {
   plan: GenerationPlan;
   fileTree: TreeNode[];
   notes: string[];
+  advisorStatus?: ArchitectureAdvisorStatus;
+}
+
+export interface AdvisorPlanResponse {
+  advisor: ArchitectureAdvisorReport;
+  validation: ValidationReport;
 }
 
 export interface GenerationResponse extends PreviewResponse {
@@ -48,6 +56,7 @@ export interface GenerationResponse extends PreviewResponse {
   zipPath: string;
   logFilePath?: string;
   diagnosticsPath?: string;
+  advisor?: ArchitectureAdvisorReport;
 }
 
 async function request<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
@@ -83,4 +92,16 @@ export async function createGeneration(payload: QuestionnaireAnswers): Promise<G
 export async function listGenerations(): Promise<GenerationMetadata[]> {
   const response = await request<{ items: GenerationMetadata[] }>(apiUrl("/api/generations"));
   return response.items;
+}
+
+export async function fetchAdvisorStatus(): Promise<ArchitectureAdvisorStatus> {
+  return request<ArchitectureAdvisorStatus>(apiUrl("/api/advisor/status"));
+}
+
+export async function createAdvisorPlan(payload: QuestionnaireAnswers): Promise<AdvisorPlanResponse> {
+  return request<AdvisorPlanResponse>(apiUrl("/api/advisor/plan"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
 }

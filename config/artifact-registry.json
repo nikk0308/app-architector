@@ -895,5 +895,22 @@
         }
       ]
     }
+  },
+  {
+    "id": "meta.advisor",
+    "title": "Architecture advisor report",
+    "profiles": ["productivity", "learning", "fitness", "finance", "content", "utility"],
+    "outputs": {
+      "default": [
+        {
+          "path": ".mag/architecture-advice.json",
+          "template": "common/architecture-advice.json.tpl"
+        },
+        {
+          "path": "docs/architecture-decisions.md",
+          "template": "common/architecture-decisions.md.tpl"
+        }
+      ]
+    }
   }
 ]

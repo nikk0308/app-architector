@@ -19,6 +19,7 @@ import { generatorRunner } from "./services/generatorRunner.js";
 import { buildFileTreePreview } from "./services/preview.js";
 import { buildTemplateVariables } from "./services/templateVariables.js";
 import { createRunDirectories } from "./services/storage.js";
+import { buildArchitectureAdvisorReport, getAdvisorStatus } from "./services/advisor/architectureAdvisor.js";
 
 function buildPreviewPayload(answers: QuestionnaireAnswers) {
   const spec = buildArchitectureSpec(answers);
@@ -52,6 +53,8 @@ export function createApp(): FastifyInstance {
 
   app.get("/api/health", async () => ({ status: "ok" }));
 
+  app.get("/api/advisor/status", async () => getAdvisorStatus());
+
   app.get("/api/questionnaire", async () => ({ sections: questionnaireSchema }));
 
   app.get("/api/generations", async () => ({ items: generationRepository.list() }));
@@ -81,9 +84,32 @@ export function createApp(): FastifyInstance {
     return buildPreviewPayload(request.body);
   });
 
+  app.post<{ Body: QuestionnaireAnswers }>("/api/advisor/plan", async (request) => {
+    const preview = buildPreviewPayload(request.body);
+    const advisor = await buildArchitectureAdvisorReport({
+      answers: request.body,
+      spec: preview.spec,
+      manifest: preview.manifest,
+      validation: preview.validation.manifest,
+      mode: preview.profile.generationMode
+    });
+
+    return { advisor, validation: preview.validation.manifest };
+  });
+
   app.post<{ Body: QuestionnaireAnswers }>("/api/generations", async (request, reply) => {
     const preview = buildPreviewPayload(request.body);
     const directories = createRunDirectories(preview.profile.projectSlug);
+
+    const advisorReport = preview.profile.includeLLMNotes || preview.profile.generationMode !== "baseline"
+      ? await buildArchitectureAdvisorReport({
+        answers: request.body,
+        spec: preview.spec,
+        manifest: preview.manifest,
+        validation: preview.validation.manifest,
+        mode: preview.profile.generationMode
+      })
+      : undefined;
 
     const generationResult = await generatorRunner.run({
       generationId: directories.generationId,
@@ -92,6 +118,7 @@ export function createApp(): FastifyInstance {
       plan: preview.plan,
       manifest: preview.manifest,
       validation: preview.validation.manifest,
+      advisorReport,
       outputDir: directories.outputDir,
       zipPath: directories.zipPath
     });
@@ -111,6 +138,7 @@ export function createApp(): FastifyInstance {
       specJson: JSON.stringify(preview.spec),
       manifestJson: JSON.stringify(preview.manifest),
       validationJson: JSON.stringify(preview.validation),
+      advisorJson: advisorReport ? JSON.stringify(advisorReport) : undefined,
       generatorLogPath: generationResult.logFilePath,
       diagnosticsPath: generationResult.diagnosticsPath,
       errorMessage: generationResult.error
@@ -133,6 +161,7 @@ export function createApp(): FastifyInstance {
       zipPath: generationResult.zipPath,
       logFilePath: generationResult.logFilePath,
       diagnosticsPath: generationResult.diagnosticsPath,
+      advisor: advisorReport,
       ...preview
     };
   });
