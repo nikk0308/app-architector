@@ -3,44 +3,44 @@ import type { QuestionnaireSection } from "./types.js";
 export const questionnaireSchema: QuestionnaireSection[] = [
   {
     id: "project-basics",
-    title: "Базові параметри",
-    description: "Назва проєкту, профіль платформи і режим генерації.",
+    title: "Основне",
+    description: "Дай сервісу назву додатка і вибери платформу, під яку потрібен стартовий проєкт.",
     fields: [
       {
         key: "projectName",
-        label: "Project name",
+        label: "Назва проєкту",
         type: "text",
-        help: "Внутрішня назва проєкту",
+        help: "Наприклад: Finance Tracker",
         required: true
       },
       {
         key: "appDisplayName",
-        label: "App display name",
+        label: "Назва для користувача",
         type: "text",
-        help: "Назва для користувача",
+        help: "Таку назву побачить користувач у додатку",
         required: true
       },
       {
         key: "profile",
-        label: "Target profile",
+        label: "Платформа",
         type: "select",
-        help: "Платформа стартової архітектури",
+        help: "Під що зібрати стартову структуру",
         required: true,
         options: [
           { label: "Unity / C#", value: "unity" },
-          { label: "native iOS / Swift", value: "ios" },
+          { label: "iOS / Swift", value: "ios" },
           { label: "Flutter / Dart", value: "flutter" },
           { label: "React Native / TypeScript", value: "react-native" }
         ]
       },
       {
         key: "generationMode",
-        label: "Generation mode",
+        label: "Режим генерації",
         type: "select",
-        help: "Baseline уже працює. Інші режими закладені в доменну модель для наступних фаз.",
+        help: "Стабільна шаблонна генерація використовується за замовчуванням.",
         required: true,
         options: [
-          { label: "Rule/template baseline", value: "baseline" },
+          { label: "Стабільна шаблонна генерація", value: "baseline" },
           { label: "Hugging Face open model", value: "hf-open" },
           { label: "Commercial LLM", value: "commercial" },
           { label: "Hybrid", value: "hybrid" }
@@ -48,22 +48,22 @@ export const questionnaireSchema: QuestionnaireSection[] = [
       },
       {
         key: "packageId",
-        label: "Package / Bundle identifier",
+        label: "Bundle / Package ID",
         type: "text",
-        help: "Наприклад com.example.app або com.company.product"
+        help: "Наприклад: com.company.product"
       }
     ]
   },
   {
     id: "architecture",
-    title: "Архітектура",
-    description: "Вибір стилю архітектури, керування станом і середовищ.",
+    title: "Структура проєкту",
+    description: "Обери, як зручніше організувати екрани, сервіси, стан і конфігурацію.",
     fields: [
       {
         key: "architectureStyle",
-        label: "Architecture style",
+        label: "Архітектурний підхід",
         type: "select",
-        help: "Базова архітектурна схема",
+        help: "Можна залишити автоматичний вибір",
         options: [
           { label: "Layered", value: "layered" },
           { label: "MVVM", value: "mvvm" },
@@ -73,9 +73,9 @@ export const questionnaireSchema: QuestionnaireSection[] = [
       },
       {
         key: "stateManagement",
-        label: "State management",
+        label: "Керування станом",
         type: "select",
-        help: "Базовий спосіб керування станом",
+        help: "Базовий спосіб роботи зі станом додатка",
         options: [
           { label: "Native / light", value: "native" },
           { label: "Provider", value: "provider" },
@@ -86,9 +86,9 @@ export const questionnaireSchema: QuestionnaireSection[] = [
       },
       {
         key: "navigationStyle",
-        label: "Navigation",
+        label: "Навігація",
         type: "select",
-        help: "Тип навігаційного шару",
+        help: "Як буде організований перехід між екранами",
         options: [
           { label: "Stack", value: "stack" },
           { label: "Router", value: "router" },
@@ -98,12 +98,12 @@ export const questionnaireSchema: QuestionnaireSection[] = [
       },
       {
         key: "environmentMode",
-        label: "Environment config",
+        label: "Конфігурації середовищ",
         type: "select",
-        help: "Single або multi environment",
+        help: "Один режим або окремо dev/stage/prod",
         options: [
-          { label: "Single", value: "single" },
-          { label: "Multi", value: "multi" }
+          { label: "Один режим", value: "single" },
+          { label: "Dev / Stage / Prod", value: "multi" }
         ]
       }
     ]
@@ -111,62 +111,62 @@ export const questionnaireSchema: QuestionnaireSection[] = [
   {
     id: "feature-modules",
     title: "Модулі",
-    description: "Функціональні флаги, які мають потрапити у стартову архітектуру.",
+    description: "Вибери готові заготовки, які одразу мають бути в архіві.",
     fields: [
       {
         key: "hasAuth",
-        label: "Auth scaffold",
+        label: "Авторизація",
         type: "boolean",
-        help: "Згенерувати базову auth-структуру"
+        help: "Папки та базові файли для входу користувача"
       },
       {
         key: "hasAnalytics",
-        label: "Analytics hooks",
+        label: "Аналітика",
         type: "boolean",
-        help: "Додати analytics abstraction і базові hook-и"
+        help: "Єдине місце для майбутніх подій аналітики"
       },
       {
         key: "hasLocalization",
-        label: "Localization scaffold",
+        label: "Локалізація",
         type: "boolean",
-        help: "Базова структура локалізації"
+        help: "Структура для перекладів і текстів інтерфейсу"
       },
       {
         key: "hasPush",
-        label: "Push placeholder",
+        label: "Push-сповіщення",
         type: "boolean",
-        help: "Push notifications placeholder і service façade"
+        help: "Порожній сервіс, який потім можна підключити до провайдера"
       },
       {
         key: "hasNetworking",
-        label: "Networking layer",
+        label: "API-клієнт",
         type: "boolean",
-        help: "HTTP-клієнт і abstraction під API"
+        help: "Базовий шар для запитів до бекенду"
       },
       {
         key: "hasPersistence",
-        label: "Persistence / storage",
+        label: "Локальне збереження",
         type: "boolean",
-        help: "Storage abstraction або локальний persistence scaffold"
+        help: "Заготовка для кешу, налаштувань або локального сховища"
       }
     ]
   },
   {
     id: "extras",
     title: "Додатково",
-    description: "Прикладовий запуск і допоміжні блоки для demo-версії.",
+    description: "Невеликі допоміжні файли, які зручні для першого запуску.",
     fields: [
       {
         key: "includeExampleScreen",
-        label: "Include example screen",
+        label: "Приклад екрана",
         type: "boolean",
-        help: "Додати стартовий demo-модуль"
+        help: "Додати простий стартовий екран або demo-модуль"
       },
       {
         key: "includeLLMNotes",
-        label: "Include LLM notes block",
+        label: "Технічні нотатки",
         type: "boolean",
-        help: "Додати блок із підказками для майбутніх LLM-режимів"
+        help: "Допоміжний блок для майбутніх режимів генерації"
       }
     ]
   }
