@@ -238,30 +238,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          mkdir -p "$DIAGNOSTICS_DIR/remote"
-          if [ -z "${SERVER_IP:-}" ] || [ -z "${SSH_USER:-}" ] || [ ! -f ~/.ssh/deploy_key ]; then
-            echo "Remote diagnostics skipped: SSH context is not available." > "$DIAGNOSTICS_DIR/remote/remote-diagnostics-skipped.txt"
-            exit 0
-          fi
-
-          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$SSH_USER@$SERVER_IP" \
-            "APP_ROOT='$APP_ROOT' SERVICE_NAME='$SERVICE_NAME' API_PORT='$API_PORT' RELEASE_NAME='$RELEASE_NAME' DOMAIN='$DOMAIN' bash -s" <<'REMOTE_DIAG' || true
-          set +e
-          SRC="$APP_ROOT/shared/logs/deploy-$RELEASE_NAME"
-          mkdir -p /tmp/mag-deploy-diagnostics
-          if [ -d "$SRC" ]; then cp -a "$SRC"/. /tmp/mag-deploy-diagnostics/; fi
-          systemctl status "$SERVICE_NAME" --no-pager > /tmp/mag-deploy-diagnostics/systemctl-status-live.txt 2>&1 || true
-          journalctl -u "$SERVICE_NAME" --no-pager -n 300 > /tmp/mag-deploy-diagnostics/journal-live.txt 2>&1 || true
-          systemctl status nginx --no-pager > /tmp/mag-deploy-diagnostics/nginx-status-live.txt 2>&1 || true
-          journalctl -u nginx --no-pager -n 120 > /tmp/mag-deploy-diagnostics/nginx-journal-live.txt 2>&1 || true
-          nginx -t > /tmp/mag-deploy-diagnostics/nginx-test-live.txt 2>&1 || true
-          nginx -T > /tmp/mag-deploy-diagnostics/nginx-full-config-live.txt 2>&1 || true
-          ss -ltnp > /tmp/mag-deploy-diagnostics/ports-live.txt 2>&1 || true
-          ufw status verbose > /tmp/mag-deploy-diagnostics/ufw-status-live.txt 2>&1 || true
-REMOTE_DIAG
-
-          rsync -az -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" \
-            "$SSH_USER@$SERVER_IP:/tmp/mag-deploy-diagnostics/" "$DIAGNOSTICS_DIR/remote/" || true
+          bash scripts/deploy/fetch_remote_diagnostics.sh 2>&1 | tee "$DIAGNOSTICS_DIR/fetch-remote-diagnostics.log"
 
       - name: Mark diagnostics success
         if: ${{ success() }}

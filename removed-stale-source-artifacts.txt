@@ -1,0 +1,12 @@
+/mnt/data/work_app/app-architector/apps/web/src/api.d.ts
+/mnt/data/work_app/app-architector/apps/web/src/api.js
+/mnt/data/work_app/app-architector/apps/web/src/api.js.map
+/mnt/data/work_app/app-architector/apps/web/src/App.d.ts
+/mnt/data/work_app/app-architector/apps/web/src/App.js
+/mnt/data/work_app/app-architector/apps/web/src/App.js.map
+/mnt/data/work_app/app-architector/apps/web/src/main.d.ts
+/mnt/data/work_app/app-architector/apps/web/src/main.js
+/mnt/data/work_app/app-architector/apps/web/src/main.js.map
+/mnt/data/work_app/app-architector/apps/web/vite.config.d.ts
+/mnt/data/work_app/app-architector/apps/web/vite.config.js
+/mnt/data/work_app/app-architector/apps/web/vite.config.js.map
