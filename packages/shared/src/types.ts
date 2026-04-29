@@ -319,6 +319,18 @@ export interface GenerationAdvisorSummary {
   warnings?: string[];
 }
 
+export interface ArchitectureSynthesisSummary {
+  provider: AdvisorProvider;
+  mode: GenerationMode;
+  usedAi: boolean;
+  status: "baseline" | "ai-applied" | "fallback" | "repaired";
+  model?: string;
+  warnings: string[];
+  assumptions: string[];
+  risks: string[];
+  recommendations: string[];
+}
+
 export interface GenerationMetadata {
   id: string;
   profile: ProfileId;

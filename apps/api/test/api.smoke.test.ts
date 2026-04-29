@@ -10,6 +10,12 @@ const phaseFourPayload = {
   hasPersistence: true
 } as const;
 
+const aiModePayload = {
+  ...phaseFourPayload,
+  generationMode: "commercial",
+  includeLLMNotes: true
+} as const;
+
 describe("API smoke", () => {
   it("returns health status", async () => {
     const app = createApp();
@@ -62,6 +68,24 @@ describe("API smoke", () => {
     expect(response.statusCode).toBe(200);
     expect(payload.artifacts.length).toBeGreaterThan(0);
     expect(payload.artifacts.some((artifact: { path: string }) => artifact.path.endsWith(".mag/architecture-advisor.json"))).toBe(true);
+    await app.close();
+  });
+
+  it("returns ArchitectureSpec synthesis metadata for AI modes", async () => {
+    const app = createApp();
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/profile/preview",
+      payload: aiModePayload
+    });
+
+    const payload = response.json();
+    expect(response.statusCode).toBe(200);
+    expect(payload.spec.generationMode).toBe("commercial");
+    expect(payload.spec.features.llmNotes).toBe(true);
+    expect(payload.architectureSynthesis.mode).toBe("commercial");
+    expect(["ai-applied", "repaired", "fallback", "baseline"]).toContain(payload.architectureSynthesis.status);
+    expect(payload.manifest.summary.totalArtifacts).toBeGreaterThan(0);
     await app.close();
   });
 

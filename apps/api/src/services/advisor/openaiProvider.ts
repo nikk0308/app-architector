@@ -17,6 +17,14 @@ interface OpenAIOutputItem {
   content?: OpenAITextContent[];
 }
 
+export interface OpenAIJsonRequest {
+  prompt: string;
+  schema: Record<string, unknown>;
+  schemaName: string;
+  systemPrompt: string;
+  maxOutputTokens?: number;
+}
+
 function extractOutputText(payload: unknown): string | undefined {
   if (!payload || typeof payload !== "object") {
     return undefined;
@@ -84,7 +92,7 @@ function advisorJsonSchema(): Record<string, unknown> {
   };
 }
 
-export async function runOpenAIAdvisor(prompt: string): Promise<OpenAIProviderResult> {
+export async function runOpenAIJson(request: OpenAIJsonRequest): Promise<OpenAIProviderResult> {
   if (!env.OPENAI_API_KEY) {
     return { ok: false, error: "OPENAI_API_KEY is not configured", model: env.OPENAI_MODEL };
   }
@@ -105,22 +113,22 @@ export async function runOpenAIAdvisor(prompt: string): Promise<OpenAIProviderRe
         input: [
           {
             role: "system",
-            content: "You are an architecture reviewer for generated mobile starter projects. Return only valid JSON matching the requested schema."
+            content: request.systemPrompt
           },
           {
             role: "user",
-            content: prompt
+            content: request.prompt
           }
         ],
         text: {
           format: {
             type: "json_schema",
-            name: "architecture_advisor_report",
+            name: request.schemaName,
             strict: true,
-            schema: advisorJsonSchema()
+            schema: request.schema
           }
         },
-        max_output_tokens: env.LLM_MAX_NEW_TOKENS
+        max_output_tokens: request.maxOutputTokens ?? env.LLM_MAX_NEW_TOKENS
       })
     });
 
@@ -151,4 +159,13 @@ export async function runOpenAIAdvisor(prompt: string): Promise<OpenAIProviderRe
   } finally {
     clearTimeout(timeout);
   }
+}
+
+export async function runOpenAIAdvisor(prompt: string): Promise<OpenAIProviderResult> {
+  return runOpenAIJson({
+    prompt,
+    schema: advisorJsonSchema(),
+    schemaName: "architecture_advisor_report",
+    systemPrompt: "You are an architecture reviewer for generated mobile starter projects. Return only valid JSON matching the requested schema."
+  });
 }

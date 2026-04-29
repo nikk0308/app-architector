@@ -4,7 +4,6 @@ import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import {
   questionnaireSchema,
-  buildArchitectureSpec,
   projectProfileFromSpec,
   buildArtifactManifest,
   manifestToGenerationPlan,
@@ -27,9 +26,11 @@ import { buildTemplateVariables } from "./services/templateVariables.js";
 import { createRunDirectories } from "./services/storage.js";
 import { buildArchitectureAdvisorReport, getAdvisorStatus } from "./services/advisor/architectureAdvisor.js";
 import { getProviderStatusSummaries } from "./services/providers/status.js";
+import { synthesizeArchitectureSpec } from "./services/architectureSynthesis.js";
 
-function buildPreviewPayload(answers: QuestionnaireAnswers) {
-  const spec = buildArchitectureSpec(answers);
+async function buildPreviewPayload(answers: QuestionnaireAnswers) {
+  const synthesis = await synthesizeArchitectureSpec(answers);
+  const spec = synthesis.spec;
   const profile = projectProfileFromSpec(spec);
   const manifest = buildArtifactManifest(spec);
   const plan = manifestToGenerationPlan(manifest);
@@ -49,7 +50,8 @@ function buildPreviewPayload(answers: QuestionnaireAnswers) {
     },
     fileTree,
     artifacts: buildGeneratedArtifacts(fileTree),
-    notes: [...plan.notes, ...manifest.notes]
+    notes: [...plan.notes, ...manifest.notes, ...synthesis.metadata.warnings],
+    architectureSynthesis: synthesis.metadata
   };
 }
 
@@ -154,11 +156,11 @@ export function createApp(): FastifyInstance {
   });
 
   app.post<{ Body: QuestionnaireAnswers }>("/api/profile/preview", async (request) => {
-    return buildPreviewPayload(request.body);
+    return await buildPreviewPayload(request.body);
   });
 
   app.post<{ Body: QuestionnaireAnswers }>("/api/advisor/plan", async (request) => {
-    const preview = buildPreviewPayload(request.body);
+    const preview = await buildPreviewPayload(request.body);
     const advisor = await buildArchitectureAdvisorReport({
       answers: request.body,
       spec: preview.spec,
@@ -171,7 +173,7 @@ export function createApp(): FastifyInstance {
   });
 
   app.post<{ Body: QuestionnaireAnswers }>("/api/generations", async (request, reply) => {
-    const preview = buildPreviewPayload(request.body);
+    const preview = await buildPreviewPayload(request.body);
     const directories = createRunDirectories(preview.profile.projectSlug);
 
     const shouldBuildAdvisorReport = preview.spec.features.llmNotes || preview.profile.generationMode !== "baseline";

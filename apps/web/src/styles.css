@@ -835,6 +835,16 @@ pre {
   border-color: rgba(239, 68, 68, 0.26);
 }
 
+.synthesis-card {
+  border-color: rgba(59, 130, 246, 0.28);
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.synthesis-card small {
+  display: block;
+  margin-top: 8px;
+}
+
 .result-metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

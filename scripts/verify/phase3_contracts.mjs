@@ -166,6 +166,7 @@ try {
   const sharedProviderDomain = read("packages/shared/src/domain/provider.ts");
   const appSource = read("apps/api/src/app.ts");
   const advisorSource = read("apps/api/src/services/advisor/architectureAdvisor.ts");
+  const architectureSynthesisSource = read("apps/api/src/services/architectureSynthesis.ts");
   const openAiProviderSource = read("apps/api/src/services/advisor/openaiProvider.ts");
   const deterministicSource = read("apps/api/src/services/advisor/deterministic.ts");
   const generatorRunnerSource = read("apps/api/src/services/generatorRunner.ts");
@@ -226,6 +227,15 @@ try {
       && contains(openAiProviderSource, "OPENAI_API_KEY"),
     "api.openai-provider-advisor",
     "OpenAI advisor provider uses the Responses API with structured JSON output and optional credentials."
+  );
+
+  check(
+    contains(architectureSynthesisSource, "synthesizeArchitectureSpec")
+      && contains(architectureSynthesisSource, "architecturePatchSchema")
+      && contains(architectureSynthesisSource, "AI ArchitectureSpec fallback")
+      && contains(appSource, "await synthesizeArchitectureSpec"),
+    "api.ai-architecture-spec-synthesis",
+    "AI modes can synthesize a controlled ArchitectureSpec patch before manifest and ZIP generation."
   );
 
   check(

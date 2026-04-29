@@ -3,6 +3,7 @@ import type {
   ArtifactManifest,
   ArchitectureAdvisorReport,
   ArchitectureAdvisorStatus,
+  ArchitectureSynthesisSummary,
   GeneratedArtifactSummary,
   GenerationAdvisorSummary,
   GenerationMetadata,
@@ -48,6 +49,7 @@ export interface PreviewResponse {
   artifacts?: GeneratedArtifactSummary[];
   notes: string[];
   advisorStatus?: ArchitectureAdvisorStatus;
+  architectureSynthesis?: ArchitectureSynthesisSummary;
 }
 
 export interface AdvisorPlanResponse {

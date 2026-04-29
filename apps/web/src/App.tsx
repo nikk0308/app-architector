@@ -201,6 +201,7 @@ export default function App() {
   const activeAdvisor = advisorPlan ?? latestGeneration?.advisor ?? null;
   const advisorSummary = latestGeneration?.advisorSummary ?? advisorSummaryFromReport(activeAdvisor);
   const advisorWarnings = advisorSummary?.warnings?.filter(Boolean) ?? [];
+  const architectureSynthesis = latestGeneration?.architectureSynthesis ?? preview?.architectureSynthesis;
   const selectedMode = form.generationMode ?? "baseline";
   const selectedModeOption = generationModeOptions.find((option) => option.mode === selectedMode) ?? generationModeOptions[0];
   const providerById = useMemo(
@@ -500,8 +501,8 @@ export default function App() {
                       <strong>{preview.manifest.summary.totalArtifacts}</strong>
                     </div>
                     <div>
-                      <span>Advisor</span>
-                      <strong>{advisorSummary?.mode ?? selectedModeOption.title}</strong>
+                      <span>Spec</span>
+                      <strong>{architectureSynthesis?.status ?? selectedModeOption.title}</strong>
                     </div>
                   </div>
                   {latestGeneration ? (
@@ -526,6 +527,28 @@ export default function App() {
                         </li>
                       ))}
                     </ul>
+                  </div>
+                ) : null}
+
+                {architectureSynthesis ? (
+                  <div className="card synthesis-card">
+                    <div className="card-row">
+                      <h3>Architecture generation</h3>
+                      <span className="status-pill accent-pill">
+                        {architectureSynthesis.usedAi ? architectureSynthesis.provider : "code"}
+                      </span>
+                    </div>
+                    <p>
+                      {architectureSynthesis.usedAi
+                        ? `ArchitectureSpec was synthesized by ${architectureSynthesis.provider}${architectureSynthesis.model ? ` (${architectureSynthesis.model})` : ""}.`
+                        : "ArchitectureSpec was built by deterministic code."}
+                    </p>
+                    <small>Status: {architectureSynthesis.status} · Mode: {architectureSynthesis.mode}</small>
+                    {architectureSynthesis.warnings.length > 0 ? (
+                      <ul className="note-list">
+                        {architectureSynthesis.warnings.slice(0, 3).map((warning) => <li key={warning}>{warning}</li>)}
+                      </ul>
+                    ) : null}
                   </div>
                 ) : null}
 
