@@ -23,6 +23,7 @@ let pythonBin = pythonCandidates[0];
 
 const requiredRelativePaths = [
   ".mag/architecture-advisor.json",
+  ".mag/architecture-synthesis.json",
   "docs/architecture-decisions.md"
 ];
 
@@ -140,6 +141,16 @@ function payload() {
       notes: []
     },
     validation: { status: "passed", issues: [], metrics: { missingRequiredArtifacts: 0, unsupportedEnabledFeatures: 0, duplicateArtifacts: 0 } },
+    architectureSynthesis: {
+      provider: "deterministic",
+      mode: "hybrid",
+      usedAi: false,
+      status: "fallback",
+      warnings: ["Smoke payload uses deterministic synthesis."],
+      assumptions: [],
+      risks: [],
+      recommendations: []
+    },
     advisorReport: {
       version: "1.0",
       schemaVersion: "1.0",
@@ -215,8 +226,10 @@ function run() {
   });
 
   const advisorPath = path.join(outputRoot, ".mag", "architecture-advisor.json");
+  const synthesisPath = path.join(outputRoot, ".mag", "architecture-synthesis.json");
   const decisionsPath = path.join(outputRoot, "docs", "architecture-decisions.md");
   const advisor = fs.existsSync(advisorPath) ? JSON.parse(fs.readFileSync(advisorPath, "utf8")) : null;
+  const synthesis = fs.existsSync(synthesisPath) ? JSON.parse(fs.readFileSync(synthesisPath, "utf8")) : null;
   const markdownText = fs.existsSync(decisionsPath) ? fs.readFileSync(decisionsPath, "utf8") : "";
 
   const checks = [
@@ -224,8 +237,10 @@ function run() {
     { id: "zip.exists", status: fs.existsSync(zipPath) ? "passed" : "failed", message: "Generated ZIP exists." },
     { id: "zip.not-empty", status: fs.existsSync(zipPath) && fs.statSync(zipPath).size > 0 ? "passed" : "failed", message: "Generated ZIP is not empty." },
     { id: "advisor-json.present", status: requiredArtifacts[0].present ? "passed" : "failed", message: ".mag/architecture-advisor.json exists in output and ZIP." },
-    { id: "decisions-md.present", status: requiredArtifacts[1].present ? "passed" : "failed", message: "docs/architecture-decisions.md exists in output and ZIP." },
+    { id: "synthesis-json.present", status: requiredArtifacts[1].present ? "passed" : "failed", message: ".mag/architecture-synthesis.json exists in output and ZIP." },
+    { id: "decisions-md.present", status: requiredArtifacts[2].present ? "passed" : "failed", message: "docs/architecture-decisions.md exists in output and ZIP." },
     { id: "advisor-json.parseable", status: advisor && advisor.schemaVersion === "1.0" ? "passed" : "failed", message: "Advisor JSON is parseable and carries schemaVersion." },
+    { id: "synthesis-json.parseable", status: synthesis && synthesis.mode === "hybrid" ? "passed" : "failed", message: "Architecture synthesis JSON is parseable and carries mode metadata." },
     { id: "decisions-md.meaningful", status: markdownText.length > 80 && markdownText.includes("Architecture Decisions") ? "passed" : "failed", message: "Advisor markdown has meaningful content." }
   ];
   const failed = checks.filter((item) => item.status === "failed");

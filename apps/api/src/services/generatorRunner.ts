@@ -6,6 +6,7 @@ import {
   buildArchitectureSpec,
   validateArtifactManifest,
   type ArchitectureAdvisorReport,
+  type ArchitectureSynthesisSummary,
   type ArchitectureSpec,
   type ArtifactManifest,
   type GenerationPlan,
@@ -26,6 +27,7 @@ export interface GeneratorExecutionInput {
   manifest: ArtifactManifest;
   plan: GenerationPlan;
   validation: ValidationReport;
+  architectureSynthesis?: ArchitectureSynthesisSummary;
   advisorReport?: ArchitectureAdvisorReport;
   outputDir: string;
   zipPath: string;
@@ -78,6 +80,7 @@ class GeneratorRunner {
       manifest: input.manifest,
       plan: input.plan,
       validation: input.validation,
+      architectureSynthesis: input.architectureSynthesis ?? null,
       advisorReport: input.advisorReport ?? null,
       templateContext,
       outputDir: input.outputDir,
@@ -91,6 +94,7 @@ class GeneratorRunner {
       manifest: input.manifest,
       plan: input.plan,
       validation: input.validation,
+      architectureSynthesis: input.architectureSynthesis ?? null,
       advisorReport: input.advisorReport ?? null,
       templateContext,
       outputDir: input.outputDir,

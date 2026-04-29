@@ -24,6 +24,19 @@ interface RawArchitecturePatch {
   recommendations?: unknown;
 }
 
+interface ProviderTextResult {
+  ok: boolean;
+  text?: string;
+  error?: string;
+  model?: string;
+}
+
+export interface ArchitectureSynthesisOptions {
+  llmEnabled?: boolean;
+  forcedProvider?: Exclude<ProviderName, "deterministic">;
+  providerResult?: ProviderTextResult;
+}
+
 export interface ArchitectureSynthesisResult {
   spec: ArchitectureSpec;
   metadata: ArchitectureSynthesisSummary;
@@ -231,17 +244,21 @@ function applyExplanation(spec: ArchitectureSpec, metadata: ArchitectureSynthesi
   };
 }
 
-export async function synthesizeArchitectureSpec(answers: QuestionnaireAnswers): Promise<ArchitectureSynthesisResult> {
+export async function synthesizeArchitectureSpec(
+  answers: QuestionnaireAnswers,
+  options: ArchitectureSynthesisOptions = {}
+): Promise<ArchitectureSynthesisResult> {
   const mode = answers.generationMode ?? "baseline";
   const baseline = buildArchitectureSpec(answers);
+  const llmEnabled = options.llmEnabled ?? env.LLM_ENABLED;
 
-  if (!env.LLM_ENABLED || !wantsAiSpec(mode)) {
+  if (!llmEnabled || !wantsAiSpec(mode)) {
     const metadata: ArchitectureSynthesisSummary = {
       provider: "deterministic",
       mode,
       usedAi: false,
       status: "baseline",
-      warnings: env.LLM_ENABLED ? [] : ["LLM_ENABLED is false; deterministic ArchitectureSpec was used."],
+      warnings: llmEnabled ? [] : ["LLM_ENABLED is false; deterministic ArchitectureSpec was used."],
       assumptions: [],
       risks: [],
       recommendations: []
@@ -249,7 +266,7 @@ export async function synthesizeArchitectureSpec(answers: QuestionnaireAnswers):
     return { spec: applyExplanation(baseline, metadata), metadata };
   }
 
-  const provider = selectProvider(mode);
+  const provider = options.forcedProvider ?? selectProvider(mode);
   if (provider === "deterministic") {
     const metadata: ArchitectureSynthesisSummary = {
       provider,
@@ -265,7 +282,7 @@ export async function synthesizeArchitectureSpec(answers: QuestionnaireAnswers):
   }
 
   const prompt = buildPrompt(answers, baseline, mode);
-  const providerResult = provider === "openai"
+  const providerResult = options.providerResult ?? (provider === "openai"
     ? await runOpenAIJson({
       prompt,
       schema: architecturePatchSchema(),
@@ -273,7 +290,7 @@ export async function synthesizeArchitectureSpec(answers: QuestionnaireAnswers):
       systemPrompt: "You generate controlled JSON patches for a mobile ArchitectureSpec. Return only valid JSON.",
       maxOutputTokens: Math.max(env.LLM_MAX_NEW_TOKENS, 900)
     })
-    : await runHuggingFaceAdvisor(prompt);
+    : await runHuggingFaceAdvisor(prompt));
 
   if (!providerResult.ok || !providerResult.text) {
     const metadata: ArchitectureSynthesisSummary = {

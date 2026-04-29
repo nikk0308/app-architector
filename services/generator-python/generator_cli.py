@@ -177,6 +177,8 @@ def write_metadata_files(output_root: Path, payload: Dict[str, Any], diagnostics
     write_json(metadata_root / "architecture-spec.json", payload.get("spec", {}))
     write_json(metadata_root / "artifact-manifest.json", payload.get("manifest", {}))
     write_json(metadata_root / "validation-report.json", payload.get("validation", {}))
+    if payload.get("architectureSynthesis") is not None:
+        write_json(metadata_root / "architecture-synthesis.json", payload.get("architectureSynthesis", {}))
     write_json(metadata_root / "generation-plan.json", payload.get("generationPlan", payload.get("generation_plan", payload.get("plan", {}))))
     write_json(metadata_root / "legacy-plan.json", payload.get("plan", {}))
     write_json(metadata_root / "template-context.json", payload.get("templateContext", {}))

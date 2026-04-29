@@ -16,6 +16,7 @@ import {
   type GenerationAdvisorSummary,
   type ArchitectureAdvisorReport,
   type TreeNode,
+  type ArchitectureSynthesisSummary,
   CONTRACT_VERSIONS
 } from "@mag/shared";
 import { env } from "./env.js";
@@ -37,7 +38,11 @@ async function buildPreviewPayload(answers: QuestionnaireAnswers) {
   const specValidation = validateArchitectureSpec(spec);
   const manifestValidation = validateArtifactManifest(spec, manifest);
   const templateVariables = buildTemplateVariables(profile, spec, manifest);
-  const fileTree = buildFileTreePreview(manifest, templateVariables);
+  const fileTree = withArchitectureSynthesisNode(
+    buildFileTreePreview(manifest, templateVariables),
+    manifest.rootFolderName,
+    synthesis.metadata
+  );
 
   return {
     profile,
@@ -53,6 +58,22 @@ async function buildPreviewPayload(answers: QuestionnaireAnswers) {
     notes: [...plan.notes, ...manifest.notes, ...synthesis.metadata.warnings],
     architectureSynthesis: synthesis.metadata
   };
+}
+
+function withArchitectureSynthesisNode(
+  fileTree: TreeNode[],
+  rootFolderName: string,
+  synthesis: ArchitectureSynthesisSummary
+): TreeNode[] {
+  if (synthesis.mode === "baseline" && !synthesis.usedAi) {
+    return fileTree;
+  }
+
+  const path = `${rootFolderName}/.mag/architecture-synthesis.json`;
+  if (fileTree.some((node) => node.path === path)) {
+    return fileTree;
+  }
+  return [...fileTree, { path, type: "file" }];
 }
 
 function artifactKindForPath(filePath: string): GeneratedArtifactKind {
@@ -194,6 +215,7 @@ export function createApp(): FastifyInstance {
       plan: preview.plan,
       manifest: preview.manifest,
       validation: preview.validation.manifest,
+      architectureSynthesis: preview.architectureSynthesis,
       advisorReport,
       outputDir: directories.outputDir,
       zipPath: directories.zipPath
@@ -214,6 +236,7 @@ export function createApp(): FastifyInstance {
       specJson: JSON.stringify(preview.spec),
       manifestJson: JSON.stringify(preview.manifest),
       validationJson: JSON.stringify(preview.validation),
+      architectureSynthesisJson: JSON.stringify(preview.architectureSynthesis),
       advisorJson: advisorReport ? JSON.stringify(advisorReport) : undefined,
       generatorLogPath: generationResult.logFilePath,
       diagnosticsPath: generationResult.diagnosticsPath,

@@ -3,24 +3,26 @@ import type { AIProviderStatusSummary, ArchitectureAdvisorReport, ArchitectureAd
 import { apiUrl, createAdvisorPlan, createGeneration, fetchAdvisorStatus, fetchProviderStatuses, fetchQuestionnaire, listGenerations, previewProfile, type GenerationResponse, type PreviewResponse } from "./api";
 
 const initialForm: QuestionnaireAnswers = {
-  projectName: "",
-  appDisplayName: "",
+  projectName: "AI Commerce Demo",
+  appDisplayName: "AI Commerce",
   profile: "ios",
-  generationMode: "baseline",
-  packageId: "",
-  architectureStyle: "",
-  stateManagement: "",
-  navigationStyle: "",
-  environmentMode: "single",
-  hasAuth: false,
-  hasAnalytics: false,
+  generationMode: "commercial",
+  packageId: "com.example.aicommerce",
+  architectureStyle: "feature-first",
+  stateManagement: "native",
+  navigationStyle: "coordinator",
+  environmentMode: "multi",
+  hasAuth: true,
+  hasAnalytics: true,
   hasLocalization: false,
-  hasPush: false,
+  hasPush: true,
   hasNetworking: true,
-  hasPersistence: false,
+  hasPersistence: true,
   includeExampleScreen: true,
-  includeLLMNotes: false
+  includeLLMNotes: true
 };
+
+const demoForm: QuestionnaireAnswers = { ...initialForm };
 
 const hiddenFieldKeys = new Set(["generationMode", "includeLLMNotes"]);
 
@@ -237,6 +239,14 @@ export default function App() {
     setCreatedGeneration(null);
   }
 
+  function fillDemoForm() {
+    setForm(demoForm);
+    setPreview(null);
+    setAdvisorPlan(null);
+    setCreatedGeneration(null);
+    setError(null);
+  }
+
   async function handlePreview() {
     if (!canSubmit) {
       setError("Заповни назву проєкту і назву додатка, щоб зібрати попередній перегляд.");
@@ -314,7 +324,12 @@ export default function App() {
               <span className="section-kicker">Налаштування</span>
               <h2>Опиши майбутній додаток</h2>
             </div>
-            <span className="status-pill">{selectedModeOption.title}</span>
+            <div className="header-actions">
+              <button className="secondary small-button" type="button" onClick={fillDemoForm}>
+                Demo data
+              </button>
+              <span className="status-pill">{selectedModeOption.title}</span>
+            </div>
           </div>
 
           <div className="mode-selector" aria-label="Вибір режиму генерації">

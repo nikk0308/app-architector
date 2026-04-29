@@ -346,6 +346,7 @@ export interface GenerationMetadata {
   specJson?: string;
   manifestJson?: string;
   validationJson?: string;
+  architectureSynthesisJson?: string;
   advisorJson?: string;
   generatorLogPath?: string;
   diagnosticsPath?: string;

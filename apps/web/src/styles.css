@@ -241,6 +241,13 @@ a:hover {
   margin-bottom: 20px;
 }
 
+.header-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .panel-header.compact {
   margin-bottom: 16px;
 }
