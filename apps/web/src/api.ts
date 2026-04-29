@@ -3,6 +3,8 @@ import type {
   ArtifactManifest,
   ArchitectureAdvisorReport,
   ArchitectureAdvisorStatus,
+  GeneratedArtifactSummary,
+  GenerationAdvisorSummary,
   GenerationMetadata,
   GenerationPlan,
   NormalizedProfile,
@@ -42,6 +44,7 @@ export interface PreviewResponse {
   };
   plan: GenerationPlan;
   fileTree: TreeNode[];
+  artifacts?: GeneratedArtifactSummary[];
   notes: string[];
   advisorStatus?: ArchitectureAdvisorStatus;
 }
@@ -56,6 +59,8 @@ export interface GenerationResponse extends PreviewResponse {
   zipPath: string;
   logFilePath?: string;
   diagnosticsPath?: string;
+  artifacts?: GeneratedArtifactSummary[];
+  advisorSummary?: GenerationAdvisorSummary;
   advisor?: ArchitectureAdvisorReport;
 }
 

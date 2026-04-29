@@ -25,4 +25,26 @@ describe("API smoke", () => {
     expect(response.json().sections.length).toBeGreaterThan(0);
     await app.close();
   });
+
+  it("returns backward-compatible preview artifacts", async () => {
+    const app = createApp();
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/profile/preview",
+      payload: {
+        projectName: "Phase Four",
+        appDisplayName: "Phase Four",
+        profile: "flutter",
+        includeLLMNotes: true,
+        hasNetworking: true,
+        hasPersistence: true
+      }
+    });
+
+    const payload = response.json();
+    expect(response.statusCode).toBe(200);
+    expect(payload.artifacts.length).toBeGreaterThan(0);
+    expect(payload.artifacts.some((artifact: { path: string }) => artifact.path.endsWith(".mag/architecture-advisor.json"))).toBe(true);
+    await app.close();
+  });
 });

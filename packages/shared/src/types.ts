@@ -304,6 +304,21 @@ export interface TreeNode {
   type: "file" | "directory";
 }
 
+export type GeneratedArtifactKind = "metadata" | "documentation" | "source" | "config" | "other";
+
+export interface GeneratedArtifactSummary {
+  path: string;
+  kind: GeneratedArtifactKind;
+  description?: string;
+}
+
+export interface GenerationAdvisorSummary {
+  summary?: string;
+  mode?: string;
+  status?: AdvisorStatus;
+  warnings?: string[];
+}
+
 export interface GenerationMetadata {
   id: string;
   profile: ProfileId;

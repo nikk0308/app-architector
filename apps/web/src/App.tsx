@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { ArchitectureAdvisorReport, ArchitectureAdvisorStatus, GenerationMetadata, QuestionnaireAnswers, QuestionnaireField, QuestionnaireSection } from "@mag/shared";
+import type { ArchitectureAdvisorReport, ArchitectureAdvisorStatus, GeneratedArtifactSummary, GenerationAdvisorSummary, GenerationMetadata, QuestionnaireAnswers, QuestionnaireField, QuestionnaireSection, TreeNode } from "@mag/shared";
 import { apiUrl, createAdvisorPlan, createGeneration, fetchAdvisorStatus, fetchQuestionnaire, listGenerations, previewProfile, type GenerationResponse, type PreviewResponse } from "./api";
 
 const initialForm: QuestionnaireAnswers = {
@@ -69,6 +69,55 @@ function visibleFields(fields: QuestionnaireField[]): QuestionnaireField[] {
   return fields.filter((field) => !hiddenFieldKeys.has(field.key));
 }
 
+function artifactKindForPath(path: string): GeneratedArtifactSummary["kind"] {
+  const normalized = path.toLowerCase();
+  if (normalized.includes("/.mag/")) return "metadata";
+  if (normalized.includes("/docs/") || normalized.endsWith("/readme.md")) return "documentation";
+  if (normalized.endsWith(".json") || normalized.endsWith(".yaml") || normalized.endsWith(".yml") || normalized.endsWith(".env.example") || normalized.endsWith(".xcconfig")) return "config";
+  if (/\.(ts|tsx|js|jsx|swift|dart|cs|arb)$/i.test(path)) return "source";
+  return "other";
+}
+
+function fallbackArtifacts(fileTree?: TreeNode[]): GeneratedArtifactSummary[] {
+  return (fileTree ?? [])
+    .filter((node) => node.type === "file")
+    .map((node) => ({
+      path: node.path,
+      kind: artifactKindForPath(node.path),
+      description: `${artifactKindForPath(node.path)} artifact`
+    }));
+}
+
+function advisorSummaryFromReport(report: ArchitectureAdvisorReport | null): GenerationAdvisorSummary | null {
+  if (!report) return null;
+  return {
+    summary: report.summary,
+    mode: report.mode ?? report.status,
+    status: report.status,
+    warnings: [...report.warnings, ...(report.llm?.warnings ?? [])].filter(Boolean)
+  };
+}
+
+function artifactLabel(kind: GeneratedArtifactSummary["kind"]): string {
+  switch (kind) {
+    case "metadata":
+      return "META";
+    case "documentation":
+      return "DOC";
+    case "source":
+      return "SRC";
+    case "config":
+      return "CFG";
+    default:
+      return "FILE";
+  }
+}
+
+function compactArtifactPath(path: string): string {
+  const parts = path.split("/");
+  return parts.length > 4 ? `${parts[0]}/.../${parts.slice(-2).join("/")}` : path;
+}
+
 export default function App() {
   const [sections, setSections] = useState<QuestionnaireSection[]>([]);
   const [form, setForm] = useState<QuestionnaireAnswers>(initialForm);
@@ -105,6 +154,13 @@ export default function App() {
   const selectedPlatform = platformLabels[form.profile] ?? form.profile;
   const latestGeneration = createdGeneration ?? null;
   const isBusy = loadingPreview || loadingGenerate;
+  const displayedArtifacts = useMemo(
+    () => (latestGeneration?.artifacts ?? preview?.artifacts ?? fallbackArtifacts(preview?.fileTree)).slice(0, 10),
+    [latestGeneration, preview]
+  );
+  const generatedFileCount = preview?.fileTree.filter((node) => node.type === "file").length ?? 0;
+  const advisorSummary = latestGeneration?.advisorSummary ?? advisorSummaryFromReport(advisorPlan);
+  const advisorWarnings = advisorSummary?.warnings?.filter(Boolean) ?? [];
 
   function buildRequestPayload() {
     return {
@@ -357,6 +413,57 @@ export default function App() {
                   </p>
                 </div>
 
+                <div className="card package-console">
+                  <div className="card-row">
+                    <div>
+                      <span className="section-kicker">Generated package</span>
+                      <h3>{latestGeneration ? "Архів зібрано" : "Пакет готовий до генерації"}</h3>
+                    </div>
+                    <span className="status-pill accent-pill">{latestGeneration ? "ZIP READY" : "PREVIEW"}</span>
+                  </div>
+                  <div className="result-metrics">
+                    <div>
+                      <span>Root</span>
+                      <strong>{preview.manifest.rootFolderName}</strong>
+                    </div>
+                    <div>
+                      <span>Files</span>
+                      <strong>{generatedFileCount}</strong>
+                    </div>
+                    <div>
+                      <span>Artifacts</span>
+                      <strong>{preview.manifest.summary.totalArtifacts}</strong>
+                    </div>
+                    <div>
+                      <span>Advisor</span>
+                      <strong>{advisorSummary?.mode ?? (form.includeLLMNotes ? "requested" : "off")}</strong>
+                    </div>
+                  </div>
+                  {latestGeneration ? (
+                    <a className="download-link compact-download" href={downloadUrlForGeneration(latestGeneration.generationId)}>Download ZIP</a>
+                  ) : null}
+                </div>
+
+                {displayedArtifacts.length > 0 ? (
+                  <div className="card artifact-card">
+                    <div className="card-row">
+                      <h3>Included artifacts</h3>
+                      <span className="status-pill">{displayedArtifacts.length} shown</span>
+                    </div>
+                    <ul className="artifact-list">
+                      {displayedArtifacts.map((artifact) => (
+                        <li key={artifact.path}>
+                          <span className={`artifact-kind artifact-${artifact.kind}`}>{artifactLabel(artifact.kind)}</span>
+                          <div>
+                            <strong title={artifact.path}>{compactArtifactPath(artifact.path)}</strong>
+                            {artifact.description ? <small>{artifact.description}</small> : null}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
                 <div className="card">
                   <h3>Дерево файлів</h3>
                   <ul className="tree-list">
@@ -380,9 +487,25 @@ export default function App() {
                   <div className="card advisor-card">
                     <div className="card-row">
                       <h3>Архітектурний план</h3>
-                      <span className="status-pill">{advisorPlan.status}</span>
+                      <span className="status-pill accent-pill">{advisorSummary?.mode ?? advisorPlan.status}</span>
                     </div>
-                    <p>{advisorPlan.summary}</p>
+                    <p>{advisorSummary?.summary ?? advisorPlan.summary}</p>
+                    {advisorPlan.recommendations && advisorPlan.recommendations.length > 0 ? (
+                      <div className="advisor-section">
+                        <h4>Recommendations</h4>
+                        <ul className="note-list">
+                          {advisorPlan.recommendations.slice(0, 3).map((recommendation) => <li key={recommendation}>{recommendation}</li>)}
+                        </ul>
+                      </div>
+                    ) : null}
+                    {advisorWarnings.length > 0 ? (
+                      <div className="advisor-section warning-section">
+                        <h4>Warnings</h4>
+                        <ul className="note-list">
+                          {advisorWarnings.slice(0, 3).map((warning) => <li key={warning}>{warning}</li>)}
+                        </ul>
+                      </div>
+                    ) : null}
                     <ul className="note-list">
                       {advisorPlan.decisions.slice(0, 4).map((decision) => (
                         <li key={decision.id}>

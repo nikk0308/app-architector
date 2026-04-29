@@ -11,7 +11,12 @@ import {
   validateArchitectureSpec,
   validateArtifactManifest,
   type QuestionnaireAnswers,
-  type GenerationMetadata
+  type GenerationMetadata,
+  type GeneratedArtifactKind,
+  type GeneratedArtifactSummary,
+  type GenerationAdvisorSummary,
+  type ArchitectureAdvisorReport,
+  type TreeNode
 } from "@mag/shared";
 import { env } from "./env.js";
 import { generationRepository } from "./services/database.js";
@@ -41,7 +46,66 @@ function buildPreviewPayload(answers: QuestionnaireAnswers) {
       manifest: manifestValidation
     },
     fileTree,
+    artifacts: buildGeneratedArtifacts(fileTree),
     notes: [...plan.notes, ...manifest.notes]
+  };
+}
+
+function artifactKindForPath(filePath: string): GeneratedArtifactKind {
+  const normalized = filePath.toLowerCase();
+  if (normalized.includes("/.mag/")) {
+    return "metadata";
+  }
+  if (normalized.includes("/docs/") || normalized.endsWith("/readme.md")) {
+    return "documentation";
+  }
+  if (normalized.endsWith(".json") || normalized.endsWith(".yaml") || normalized.endsWith(".yml") || normalized.endsWith(".env.example") || normalized.endsWith(".xcconfig")) {
+    return "config";
+  }
+  if (/\.(ts|tsx|js|jsx|swift|dart|cs|arb)$/i.test(filePath)) {
+    return "source";
+  }
+  return "other";
+}
+
+function artifactDescription(filePath: string): string {
+  if (filePath.endsWith(".mag/architecture-advisor.json")) {
+    return "Structured advisor report with mode, assumptions, risks and recommendations.";
+  }
+  if (filePath.endsWith("docs/architecture-decisions.md")) {
+    return "Readable architecture decisions and next steps for the generated starter.";
+  }
+  if (filePath.endsWith(".mag/artifact-manifest.json")) {
+    return "Generated artifact manifest for auditability.";
+  }
+  if (filePath.endsWith(".mag/validation-report.json")) {
+    return "Validation output for the normalized spec and manifest.";
+  }
+  if (filePath.endsWith("README.md")) {
+    return "Project overview and setup notes.";
+  }
+  return `${artifactKindForPath(filePath)} artifact`;
+}
+
+function buildGeneratedArtifacts(fileTree: TreeNode[]): GeneratedArtifactSummary[] {
+  return fileTree
+    .filter((node) => node.type === "file")
+    .map((node) => ({
+      path: node.path,
+      kind: artifactKindForPath(node.path),
+      description: artifactDescription(node.path)
+    }));
+}
+
+function buildAdvisorSummary(advisorReport?: ArchitectureAdvisorReport): GenerationAdvisorSummary | undefined {
+  if (!advisorReport) {
+    return undefined;
+  }
+  return {
+    summary: advisorReport.summary,
+    mode: advisorReport.mode ?? advisorReport.status,
+    status: advisorReport.status,
+    warnings: [...advisorReport.warnings, ...(advisorReport.llm?.warnings ?? [])].filter(Boolean)
   };
 }
 
@@ -158,12 +222,14 @@ export function createApp(): FastifyInstance {
     }
 
     return {
+      ...preview,
       generationId: directories.generationId,
       zipPath: generationResult.zipPath,
       logFilePath: generationResult.logFilePath,
       diagnosticsPath: generationResult.diagnosticsPath,
-      advisor: advisorReport,
-      ...preview
+      artifacts: buildGeneratedArtifacts(preview.fileTree),
+      advisorSummary: buildAdvisorSummary(advisorReport),
+      advisor: advisorReport
     };
   });
 
