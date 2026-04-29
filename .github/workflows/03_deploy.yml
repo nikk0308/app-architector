@@ -105,6 +105,12 @@ jobs:
           set -euo pipefail
           npm test 2>&1 | tee "$DIAGNOSTICS_DIR/test.log"
 
+      - name: Smoke phase 3 advisor artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run smoke 2>&1 | tee "$DIAGNOSTICS_DIR/advisor-smoke.log"
+
       - name: Validate built release
         shell: bash
         run: |

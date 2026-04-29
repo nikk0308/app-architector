@@ -44,16 +44,23 @@ describe("phase 3 architecture advisor", () => {
       mode: "hybrid"
     });
 
-    expect(report.status).toBe("completed");
+    expect(["disabled", "fallback"]).toContain(report.status);
     expect(report.provider).toBe("deterministic");
+    expect(report.schemaVersion).toBe("1.0");
+    expect(report.advisorVersion).toBe("phase3");
+    expect(report.llm?.used).toBe(false);
     expect(report.summary.length).toBeGreaterThan(0);
     expect(report.decisions.length).toBeGreaterThan(0);
     expect(report.createdAt).toMatch(/T/);
   });
 
   it("parses fenced LLM JSON without losing advisor decisions", () => {
-    const parsed = parseAdvisorResponse(`\n\`\`\`json\n{\n  "summary": "Use a modular mobile starter.",\n  "decisions": [{"title": "Keep API code isolated", "rationale": "It protects feature code from transport changes.", "impact": "Better maintainability"}],\n  "risks": ["Payment flows need sandbox coverage."],\n  "nextSteps": ["Add generated smoke tests."]\n}\n\`\`\`\n`);
+    const parsed = parseAdvisorResponse(`\n\`\`\`json\n{\n  "summary": "Use a modular mobile starter.",\n  "decisions": [{"title": "Keep API code isolated", "recommendation": "Keep transport code behind one client.", "rationale": "It protects feature code from transport changes.", "impact": "medium"}],\n  "risks": ["Payment flows need sandbox coverage."],\n  "nextSteps": ["Add generated smoke tests."]\n}\n\`\`\`\n`);
 
+    expect(parsed).not.toBeNull();
+    if (!parsed) {
+      throw new Error("Expected advisor response to parse.");
+    }
     expect(parsed.summary).toContain("modular");
     expect(parsed.decisions).toHaveLength(1);
     expect(parsed.risks[0]).toContain("Payment");

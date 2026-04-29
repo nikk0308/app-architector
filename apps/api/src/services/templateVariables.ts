@@ -13,13 +13,13 @@ function bool(value: boolean): string {
 
 function advisorToMarkdown(advisor?: ArchitectureAdvisorReport): string {
   if (!advisor) {
-    return "# Architecture decisions\n\nNo advisor report was requested for this generation.\n";
+    return "# Architecture Decisions\n\nNo advisor report was requested for this generation.\n";
   }
 
   const decisions = advisor.decisions
     .map((decision, index) => {
       const files = decision.files.length > 0 ? `\n\nRelated artifacts: ${decision.files.join(", ")}` : "";
-      return `## ${index + 1}. ${decision.title}\n\nRecommendation: ${decision.recommendation}\n\nReason: ${decision.rationale}\n\nImpact: ${decision.impact}${files}`;
+      return `### ${index + 1}. ${decision.title}\n\nRecommendation: ${decision.recommendation}\n\nReason: ${decision.rationale}\n\nImpact: ${decision.impact}${files}`;
     })
     .join("\n\n");
 
@@ -32,8 +32,24 @@ function advisorToMarkdown(advisor?: ArchitectureAdvisorReport): string {
   const warnings = advisor.warnings.length > 0
     ? advisor.warnings.map((warning) => `- ${warning}`).join("\n")
     : "- No warnings.";
+  const recommendations = advisor.recommendations && advisor.recommendations.length > 0
+    ? advisor.recommendations.map((recommendation) => `- ${recommendation}`).join("\n")
+    : "- Continue with the generated starter structure and replace placeholders incrementally.";
+  const assumptions = advisor.assumptions && advisor.assumptions.length > 0
+    ? advisor.assumptions.map((assumption) => `- ${assumption}`).join("\n")
+    : "- The generated package is a starter architecture and requires product-specific implementation.";
+  const modules = advisor.modules && advisor.modules.length > 0
+    ? advisor.modules.map((module) => `- ${module.id}${module.required ? " (required)" : ""}`).join("\n")
+    : "- Module summary was not available.";
+  const architecture = advisor.architecture
+    ? `${advisor.architecture.style}: ${advisor.architecture.rationale}`
+    : "Architecture details were derived from the questionnaire and generated manifest.";
+  const mode = advisor.mode ?? advisor.status;
+  const llmStatus = advisor.llm
+    ? `${advisor.llm.status}${advisor.llm.model ? ` (${advisor.llm.model})` : ""}`
+    : "not recorded";
 
-  return `# Architecture decisions\n\nGenerated at: ${advisor.createdAt}\n\nStatus: ${advisor.status}\n\nProvider: ${advisor.provider}${advisor.model ? ` (${advisor.model})` : ""}\n\n${advisor.summary}\n\n${decisions}\n\n## Next steps\n\n${nextSteps}\n\n## Risks\n\n${risks}\n\n## Warnings\n\n${warnings}\n`;
+  return `# Architecture Decisions\n\nGenerated at: ${advisor.createdAt}\n\n## Overview\n\n${advisor.summary}\n\n## Selected Architecture\n\n${architecture}\n\n## Generated Modules\n\n${modules}\n\n## Key Assumptions\n\n${assumptions}\n\n## Decisions\n\n${decisions}\n\n## Risks\n\n${risks}\n\n## Recommendations\n\n${recommendations}\n\n## Next Steps\n\n${nextSteps}\n\n## Notes About Advisor Mode\n\n- Status: ${advisor.status}\n- Mode: ${mode}\n- Provider: ${advisor.provider}${advisor.model ? ` (${advisor.model})` : ""}\n- LLM: ${llmStatus}\n\n## Warnings\n\n${warnings}\n`;
 }
 
 /**

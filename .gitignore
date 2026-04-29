@@ -2,6 +2,10 @@ node_modules
 dist
 coverage
 .env
+artifacts/
+deploy-diagnostics/
+storage/
+*.zip
 apps/api/storage
 apps/api/data
 *.log

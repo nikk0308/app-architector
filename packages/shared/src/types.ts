@@ -9,6 +9,8 @@ export type AdvisorProvider = typeof ADVISOR_PROVIDERS[number];
 
 export type AdvisorStatus = "disabled" | "ready" | "fallback" | "failed";
 export type AdvisorImpact = "low" | "medium" | "high";
+export type AdvisorMode = "deterministic-fallback" | "disabled-fallback" | "llm" | "llm-fallback";
+export type AdvisorLlmStatus = "disabled" | "unavailable" | "used" | "failed";
 
 export interface ArchitectureDecision {
   id: string;
@@ -21,14 +23,38 @@ export interface ArchitectureDecision {
 
 export interface ArchitectureAdvisorReport {
   version: "1.0";
+  schemaVersion?: "1.0";
+  advisorVersion?: "phase3";
   status: AdvisorStatus;
   provider: AdvisorProvider;
+  mode?: AdvisorMode;
   model?: string;
   summary: string;
+  architecture?: {
+    style: string;
+    rationale: string;
+    platforms: ProfileId[];
+  };
+  modules?: Array<{
+    id: string;
+    enabled: boolean;
+    required: boolean;
+    artifactIds: string[];
+  }>;
+  assumptions?: string[];
   decisions: ArchitectureDecision[];
+  recommendations?: string[];
   nextSteps: string[];
   risks: string[];
   warnings: string[];
+  llm?: {
+    enabled: boolean;
+    used: boolean;
+    status: AdvisorLlmStatus;
+    provider?: AdvisorProvider;
+    model?: string;
+    warnings: string[];
+  };
   createdAt: string;
 }
 
