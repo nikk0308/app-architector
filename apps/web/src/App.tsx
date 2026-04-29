@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import type { ArchitectureAdvisorReport, ArchitectureAdvisorStatus, GeneratedArtifactSummary, GenerationAdvisorSummary, GenerationMetadata, QuestionnaireAnswers, QuestionnaireField, QuestionnaireSection, TreeNode } from "@mag/shared";
-import { apiUrl, createAdvisorPlan, createGeneration, fetchAdvisorStatus, fetchQuestionnaire, listGenerations, previewProfile, type GenerationResponse, type PreviewResponse } from "./api";
+import type { AIProviderStatusSummary, ArchitectureAdvisorReport, ArchitectureAdvisorStatus, GeneratedArtifactSummary, GenerationAdvisorSummary, GenerationMetadata, GenerationMode, QuestionnaireAnswers, QuestionnaireField, QuestionnaireSection, TreeNode } from "@mag/shared";
+import { apiUrl, createAdvisorPlan, createGeneration, fetchAdvisorStatus, fetchProviderStatuses, fetchQuestionnaire, listGenerations, previewProfile, type GenerationResponse, type PreviewResponse } from "./api";
 
 const initialForm: QuestionnaireAnswers = {
   projectName: "",
@@ -23,6 +23,43 @@ const initialForm: QuestionnaireAnswers = {
 };
 
 const hiddenFieldKeys = new Set(["generationMode", "includeLLMNotes"]);
+
+const generationModeOptions: Array<{
+  mode: GenerationMode;
+  title: string;
+  subtitle: string;
+  badge: string;
+  provider: "deterministic" | "openai" | "huggingface" | "hybrid";
+}> = [
+  {
+    mode: "baseline",
+    title: "Кодом",
+    subtitle: "Стабільна deterministic-генерація без ШІ.",
+    badge: "STABLE",
+    provider: "deterministic"
+  },
+  {
+    mode: "commercial",
+    title: "GPT",
+    subtitle: "OpenAI provider для архітектурного advisor-звіту.",
+    badge: "OPENAI",
+    provider: "openai"
+  },
+  {
+    mode: "hf-open",
+    title: "Qwen",
+    subtitle: "Hugging Face / Qwen open-model advisor path.",
+    badge: "HF",
+    provider: "huggingface"
+  },
+  {
+    mode: "hybrid",
+    title: "Гібрид",
+    subtitle: "Baseline-структура + ШІ-пояснення і рекомендації.",
+    badge: "AI + CODE",
+    provider: "hybrid"
+  }
+];
 
 const platformLabels: Record<string, string> = {
   ios: "iOS / Swift",
@@ -128,6 +165,7 @@ export default function App() {
   const [loadingGenerate, setLoadingGenerate] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [advisorStatus, setAdvisorStatus] = useState<ArchitectureAdvisorStatus | null>(null);
+  const [providerStatuses, setProviderStatuses] = useState<AIProviderStatusSummary[]>([]);
   const [advisorPlan, setAdvisorPlan] = useState<ArchitectureAdvisorReport | null>(null);
   const [advisorLoading, setAdvisorLoading] = useState(false);
   const [advisorError, setAdvisorError] = useState<string | null>(null);
@@ -136,6 +174,7 @@ export default function App() {
     fetchQuestionnaire().then(setSections).catch((err) => setError(humanError(err.message)));
     listGenerations().then(setGenerations).catch((err) => setError(humanError(err.message)));
     fetchAdvisorStatus().then(setAdvisorStatus).catch(() => setAdvisorStatus(null));
+    fetchProviderStatuses().then(setProviderStatuses).catch(() => setProviderStatuses([]));
   }, []);
 
   const displayedSections = useMemo(
@@ -162,12 +201,21 @@ export default function App() {
   const activeAdvisor = advisorPlan ?? latestGeneration?.advisor ?? null;
   const advisorSummary = latestGeneration?.advisorSummary ?? advisorSummaryFromReport(activeAdvisor);
   const advisorWarnings = advisorSummary?.warnings?.filter(Boolean) ?? [];
+  const selectedMode = form.generationMode ?? "baseline";
+  const selectedModeOption = generationModeOptions.find((option) => option.mode === selectedMode) ?? generationModeOptions[0];
+  const providerById = useMemo(
+    () => new Map(providerStatuses.map((provider) => [provider.provider, provider])),
+    [providerStatuses]
+  );
+  const selectedProviderStatus = selectedModeOption.provider === "hybrid"
+    ? providerById.get("openai") ?? providerById.get("huggingface") ?? providerById.get("deterministic")
+    : providerById.get(selectedModeOption.provider);
 
   function buildRequestPayload() {
     return {
       ...form,
-      generationMode: form.includeLLMNotes ? "hybrid" : "baseline",
-      includeLLMNotes: form.includeLLMNotes
+      generationMode: selectedMode,
+      includeLLMNotes: selectedMode !== "baseline"
     } as const;
   }
 
@@ -176,6 +224,16 @@ export default function App() {
       ...current,
       [key]: value
     }));
+  }
+
+  function updateGenerationMode(mode: GenerationMode) {
+    setForm((current) => ({
+      ...current,
+      generationMode: mode,
+      includeLLMNotes: mode !== "baseline"
+    }));
+    setAdvisorPlan(null);
+    setCreatedGeneration(null);
   }
 
   async function handlePreview() {
@@ -237,31 +295,13 @@ export default function App() {
 
   return (
     <div className="shell">
-      <header className="hero">
-        <div className="hero-copy">
-          <div className="eyebrow">Mobile App Architect</div>
-          <h1>Стартова архітектура мобільного застосунку за кілька кліків</h1>
-          <p>
-            Обери платформу, базову структуру та потрібні модулі. Сервіс збере готовий ZIP з файлами,
-            README та зрозумілою структурою проєкту.
-          </p>
-          <div className="hero-actions">
-            <button className="primary" onClick={handleGenerate} disabled={!canSubmit || isBusy}>
-              {loadingGenerate ? "Створюємо ZIP..." : "Створити ZIP"}
-            </button>
-            <button className="secondary" onClick={handlePreview} disabled={!canSubmit || isBusy}>
-              {loadingPreview ? "Перевіряємо..." : "Переглянути структуру"}
-            </button>
-          </div>
-        </div>
-        <div className="hero-card" aria-label="Короткий план роботи">
-          <span>1</span>
-          <strong>Заповни форму</strong>
-          <span>2</span>
-          <strong>Перевір структуру</strong>
-          <span>3</span>
-          <strong>Завантаж ZIP</strong>
-        </div>
+      <header className="top-bar">
+        <h1>App architector</h1>
+        <nav className="top-steps" aria-label="Основні кроки генерації">
+          <span><strong>1</strong> Заповни форму</span>
+          <span><strong>2</strong> Перевір структуру</span>
+          <span><strong>3</strong> Завантаж ZIP</span>
+        </nav>
       </header>
 
       {error ? <div className="error-banner">{error}</div> : null}
@@ -273,7 +313,35 @@ export default function App() {
               <span className="section-kicker">Налаштування</span>
               <h2>Опиши майбутній додаток</h2>
             </div>
-            <span className="status-pill">Стабільний режим</span>
+            <span className="status-pill">{selectedModeOption.title}</span>
+          </div>
+
+          <div className="mode-selector" aria-label="Вибір режиму генерації">
+            {generationModeOptions.map((option) => {
+              const providerStatus = option.provider === "hybrid"
+                ? providerById.get("openai") ?? providerById.get("huggingface") ?? providerById.get("deterministic")
+                : providerById.get(option.provider);
+              const active = selectedMode === option.mode;
+
+              return (
+                <button
+                  key={option.mode}
+                  type="button"
+                  className={active ? "mode-card active" : "mode-card"}
+                  onClick={() => updateGenerationMode(option.mode)}
+                  aria-pressed={active}
+                >
+                  <span className="mode-card-top">
+                    <strong>{option.title}</strong>
+                    <em>{option.badge}</em>
+                  </span>
+                  <small>{option.subtitle}</small>
+                  <span className="mode-status">
+                    {providerStatus ? `${providerStatus.status}${providerStatus.model ? ` · ${providerStatus.model}` : ""}` : "status pending"}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
           {displayedSections.length === 0 ? (
@@ -339,17 +407,13 @@ export default function App() {
           ))}
 
           <div className="advisor-option">
-            <label className="toggle-line" htmlFor="advisor-notes">
-              <input
-                id="advisor-notes"
-                type="checkbox"
-                checked={Boolean(form.includeLLMNotes)}
-                onChange={(event) => updateField("includeLLMNotes", event.target.checked)}
-              />
-              <span>Додати архітектурний план у ZIP</span>
-            </label>
-            <p>У ZIP зʼявляться docs/architecture-decisions.md та .mag/architecture-advisor.json. Якщо зовнішній провайдер недоступний, буде створено стабільний локальний план.</p>
-            {advisorStatus ? <small>Статус: {advisorStatus.status}{advisorStatus.model ? ` · ${advisorStatus.model}` : ""}</small> : null}
+            <div className="advisor-mode-summary">
+              <strong>{selectedModeOption.title}</strong>
+              <span>{selectedMode === "baseline" ? "ZIP буде згенеровано кодом без ШІ." : "У ZIP буде додано AI/advisor артефакти."}</span>
+            </div>
+            <p>{selectedModeOption.subtitle} Якщо провайдер недоступний або поверне некоректний JSON, генерація не впаде: буде використано deterministic fallback.</p>
+            {selectedProviderStatus ? <small>Provider: {selectedProviderStatus.provider} · {selectedProviderStatus.status}{selectedProviderStatus.model ? ` · ${selectedProviderStatus.model}` : ""}</small> : null}
+            {advisorStatus ? <small>Advisor: {advisorStatus.status}{advisorStatus.model ? ` · ${advisorStatus.model}` : ""}</small> : null}
             <button className="secondary small-button" onClick={handleAdvisorPlan} disabled={!canSubmit || isBusy || advisorLoading}>
               {advisorLoading ? "Готуємо план..." : "Показати план"}
             </button>
@@ -437,7 +501,7 @@ export default function App() {
                     </div>
                     <div>
                       <span>Advisor</span>
-                      <strong>{advisorSummary?.mode ?? (form.includeLLMNotes ? "requested" : "off")}</strong>
+                      <strong>{advisorSummary?.mode ?? selectedModeOption.title}</strong>
                     </div>
                   </div>
                   {latestGeneration ? (
