@@ -903,8 +903,8 @@
     "outputs": {
       "default": [
         {
-          "path": ".mag/architecture-advice.json",
-          "template": "common/architecture-advice.json.tpl"
+          "path": ".mag/architecture-advisor.json",
+          "template": "common/architecture-advisor.json.tpl"
         },
         {
           "path": "docs/architecture-decisions.md",

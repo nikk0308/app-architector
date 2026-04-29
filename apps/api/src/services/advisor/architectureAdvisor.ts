@@ -1,7 +1,7 @@
 import type {
   ArchitectureAdvisorReport,
   ArchitectureAdvisorStatus,
-  ArchitectureManifest,
+  ArtifactManifest,
   ArchitectureSpec,
   GenerationMode,
   QuestionnaireAnswers,
@@ -16,7 +16,7 @@ import { buildDeterministicAdvisorReport } from "./deterministic.js";
 export interface AdvisorBuildInput {
   answers: QuestionnaireAnswers;
   spec: ArchitectureSpec;
-  manifest: ArchitectureManifest;
+  manifest: ArtifactManifest;
   validation: ValidationReport;
   mode?: GenerationMode;
 }

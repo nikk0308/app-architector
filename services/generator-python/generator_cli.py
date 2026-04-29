@@ -180,6 +180,8 @@ def write_metadata_files(output_root: Path, payload: Dict[str, Any], diagnostics
     write_json(metadata_root / "generation-plan.json", payload.get("generationPlan", payload.get("generation_plan", payload.get("plan", {}))))
     write_json(metadata_root / "legacy-plan.json", payload.get("plan", {}))
     write_json(metadata_root / "template-context.json", payload.get("templateContext", {}))
+    if payload.get("advisorReport") is not None:
+        write_json(metadata_root / "architecture-advisor.json", payload.get("advisorReport", {}))
     write_json(metadata_root / "generation-input.json", {
         "generationId": payload.get("generationId"),
         "outputDir": payload.get("outputDir"),
@@ -253,7 +255,10 @@ def write_failure_diagnostics(payload: Dict[str, Any], error: BaseException) -> 
         "zipPath": payload.get("zipPath"),
         "profile": payload.get("profile"),
         "manifestSummary": payload.get("manifest", {}).get("summary") if isinstance(payload.get("manifest"), dict) else None,
+        "advisorStatus": payload.get("advisorReport", {}).get("status") if isinstance(payload.get("advisorReport"), dict) else None,
     })
+    if payload.get("advisorReport") is not None:
+        write_json(metadata_root / "architecture-advisor.json", payload.get("advisorReport", {}))
 
 
 def parse_payload() -> Dict[str, Any]:

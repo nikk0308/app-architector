@@ -1,8 +1,0 @@
-{
-  "name": "mind-boost-rn",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "start": "react-native start"
-  }
-}

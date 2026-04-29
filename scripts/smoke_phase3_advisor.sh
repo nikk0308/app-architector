@@ -2,13 +2,14 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WORK_DIR="${TMPDIR:-/tmp}/mag_phase3_smoke"
+WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/mag_phase3_smoke.XXXXXX")"
 PAYLOAD_FILE="$WORK_DIR/payload.json"
 OUT_DIR="$WORK_DIR/out"
 ZIP_PATH="$WORK_DIR/generated.zip"
 
 rm -rf "$WORK_DIR"
 mkdir -p "$OUT_DIR"
+trap 'rm -rf "$WORK_DIR"' EXIT
 
 jq empty "$ROOT_DIR/config/artifact-registry.json"
 
@@ -102,7 +103,7 @@ sed -i "s#__OUT_DIR__#$OUT_DIR#g; s#__ZIP_PATH__#$ZIP_PATH#g" "$PAYLOAD_FILE"
 /usr/bin/python3 "$ROOT_DIR/services/generator-python/generator_cli.py" < "$PAYLOAD_FILE" >/dev/null
 
 test -f "$OUT_DIR/phase-three/docs/architecture-decisions.md"
-test -f "$OUT_DIR/phase-three/.mag/architecture-advice.json"
+test -f "$OUT_DIR/phase-three/.mag/architecture-advisor.json"
 test -f "$ZIP_PATH"
 
 echo "phase3 advisor smoke ok"

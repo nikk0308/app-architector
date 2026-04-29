@@ -160,6 +160,24 @@ export default function App() {
     }
   }
 
+  async function handleAdvisorPlan() {
+    if (!canSubmit) {
+      setAdvisorError("Заповни назву проєкту і назву додатка, щоб підготувати рекомендації.");
+      return;
+    }
+
+    try {
+      setAdvisorLoading(true);
+      setAdvisorError(null);
+      const result = await createAdvisorPlan(buildRequestPayload());
+      setAdvisorPlan(result.advisor);
+    } catch (err) {
+      setAdvisorError(err instanceof Error ? humanError(err.message) : "Не вдалося підготувати рекомендації архітектурного радника.");
+    } finally {
+      setAdvisorLoading(false);
+    }
+  }
+
   return (
     <div className="shell">
       <header className="hero">
@@ -273,8 +291,8 @@ export default function App() {
               />
               <span>Додати архітектурний план у ZIP</span>
             </label>
-            <p>У ZIP зʼявляться docs/architecture-decisions.md та .mag/architecture-advice.json. Якщо зовнішній провайдер недоступний, буде створено стабільний локальний план.</p>
-            {advisorStatus ? <small>Статус: {advisorStatus.status}{advisorStatus.model ? ` · ` : ""}</small> : null}
+            <p>У ZIP зʼявляться docs/architecture-decisions.md та .mag/architecture-advisor.json. Якщо зовнішній провайдер недоступний, буде створено стабільний локальний план.</p>
+            {advisorStatus ? <small>Статус: {advisorStatus.status}{advisorStatus.model ? ` · ${advisorStatus.model}` : ""}</small> : null}
             <button className="secondary small-button" onClick={handleAdvisorPlan} disabled={!canSubmit || isBusy || advisorLoading}>
               {advisorLoading ? "Готуємо план..." : "Показати план"}
             </button>

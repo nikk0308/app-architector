@@ -15,9 +15,10 @@
     "lint": "npm run lint -w @mag/api && npm run lint -w @mag/web",
     "start": "npm run start -w @mag/api",
     "verify:source": "bash scripts/verify/no_stale_source_artifacts.sh",
-    "verify:release": "npm run verify:source && npm run build && npm test",
+    "verify:release": "npm run verify:source && npm run verify:phase3 && npm run build && npm test",
     "clean:source-artifacts": "bash scripts/verify/clean_stale_source_artifacts.sh",
     "diagnostics:local": "bash scripts/diagnostics/collect_local_diagnostics.sh",
-    "diagnostics:build": "bash scripts/diagnostics/collect_build_outputs.sh"
+    "diagnostics:build": "bash scripts/diagnostics/collect_build_outputs.sh",
+    "verify:phase3": "node scripts/verify/phase3_contracts.mjs"
   }
 }

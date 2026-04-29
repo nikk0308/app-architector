@@ -101,7 +101,8 @@ export function createApp(): FastifyInstance {
     const preview = buildPreviewPayload(request.body);
     const directories = createRunDirectories(preview.profile.projectSlug);
 
-    const advisorReport = preview.profile.includeLLMNotes || preview.profile.generationMode !== "baseline"
+    const shouldBuildAdvisorReport = preview.spec.features.llmNotes || preview.profile.generationMode !== "baseline";
+    const advisorReport = shouldBuildAdvisorReport
       ? await buildArchitectureAdvisorReport({
         answers: request.body,
         spec: preview.spec,
