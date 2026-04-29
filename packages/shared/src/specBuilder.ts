@@ -1,4 +1,5 @@
 import { getProjectProfile } from "./profiles.js";
+import { ARCHITECTURE_SPEC_VERSION } from "./version.js";
 import type {
   ArchitectureSpec,
   ModuleSelection,
@@ -201,7 +202,7 @@ export function buildArchitectureSpec(answers: QuestionnaireAnswerSet): Architec
   normalizedProfile.explanation = explain(normalizedProfile);
 
   return {
-    version: "1.0",
+    version: ARCHITECTURE_SPEC_VERSION,
     profileId: answers.profile,
     generationMode,
     projectName: normalizedProfile.projectName,

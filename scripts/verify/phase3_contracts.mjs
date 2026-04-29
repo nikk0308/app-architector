@@ -161,8 +161,12 @@ try {
 
   const sharedIndex = read("packages/shared/src/index.ts");
   const sharedTypes = read("packages/shared/src/types.ts");
+  const sharedVersion = read("packages/shared/src/version.ts");
+  const sharedDomainIndex = read("packages/shared/src/domain/index.ts");
+  const sharedProviderDomain = read("packages/shared/src/domain/provider.ts");
   const appSource = read("apps/api/src/app.ts");
   const advisorSource = read("apps/api/src/services/advisor/architectureAdvisor.ts");
+  const openAiProviderSource = read("apps/api/src/services/advisor/openaiProvider.ts");
   const deterministicSource = read("apps/api/src/services/advisor/deterministic.ts");
   const generatorRunnerSource = read("apps/api/src/services/generatorRunner.ts");
   const templateVariablesSource = read("apps/api/src/services/templateVariables.ts");
@@ -187,6 +191,41 @@ try {
     (contains(sharedIndex, "ArchitectureAdvisorReport") || contains(sharedIndex, "export * from \"./types.js\"")) && contains(sharedTypes, "interface ArchitectureAdvisorReport"),
     "shared.advisor-report-export",
     "@mag/shared exposes the phase 3 advisor report contract."
+  );
+
+  check(
+    contains(sharedVersion, "CONTRACT_VERSIONS")
+      && contains(sharedVersion, "ARCHITECTURE_SPEC_VERSION")
+      && contains(sharedVersion, "AI_PROVIDER_CONTRACT_VERSION"),
+    "shared.contract-version-constants",
+    "@mag/shared exposes explicit phase 5 contract version constants."
+  );
+
+  check(
+    contains(sharedIndex, "export * as domain")
+      && contains(sharedDomainIndex, "provider")
+      && contains(sharedDomainIndex, "generation")
+      && contains(sharedDomainIndex, "hybrid"),
+    "shared.ai-ready-domain-barrel",
+    "@mag/shared exposes modular domain barrels without breaking compatibility exports."
+  );
+
+  check(
+    contains(sharedProviderDomain, "ProviderAdapter")
+      && contains(sharedProviderDomain, "ModelExecutionResult")
+      && contains(sharedProviderDomain, "AI_PROVIDER_IDS")
+      && contains(sharedProviderDomain, "allowFileWrites: false"),
+    "shared.provider-contract",
+    "AI provider contracts are explicit and keep providers from writing generated files directly."
+  );
+
+  check(
+    contains(advisorSource, "runOpenAIAdvisor")
+      && contains(openAiProviderSource, "https://api.openai.com/v1/responses")
+      && contains(openAiProviderSource, "json_schema")
+      && contains(openAiProviderSource, "OPENAI_API_KEY"),
+    "api.openai-provider-advisor",
+    "OpenAI advisor provider uses the Responses API with structured JSON output and optional credentials."
   );
 
   check(
@@ -262,6 +301,15 @@ try {
     contains(deployWorkflow, "build.log") && contains(deployWorkflow, "test.log") && contains(deployWorkflow, "advisor-smoke.log"),
     "workflow.core-diagnostic-logs",
     "Deploy workflow captures build, test and advisor smoke logs."
+  );
+
+  check(
+    contains(deployWorkflow, "secrets.OPENAI_API_KEY")
+      && contains(deployWorkflow, "secrets.HF_TOKEN")
+      && contains(deployWorkflow, "vars.OPENAI_MODEL")
+      && contains(deployWorkflow, "ai-runtime-env-summary.env"),
+    "workflow.ai-runtime-env",
+    "Deploy workflow maps GitHub AI secrets and variables into remote runtime env without logging secret values."
   );
 
   check(

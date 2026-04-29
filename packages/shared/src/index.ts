@@ -1,3 +1,4 @@
+export * from "./version.js";
 export * from "./types.js";
 export * from "./questionnaire.js";
 export * from "./profiles.js";
@@ -6,3 +7,6 @@ export * from "./manifestBuilder.js";
 export * from "./validators.js";
 export * from "./profileBuilder.js";
 export * from "./ruleEngine.js";
+export * from "./domain/provider.js";
+export * from "./domain/hybrid.js";
+export * as domain from "./domain/index.js";

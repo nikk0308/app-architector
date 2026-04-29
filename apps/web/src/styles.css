@@ -83,7 +83,6 @@ a:hover {
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #3454d1;
   color: var(--accent-2);
 }
 
@@ -208,7 +207,6 @@ a:hover {
 
 .status-pill {
   padding: 8px 12px;
-  background: #eef4ff;
   color: #f8fafc;
   background: var(--card-2);
   border: 1px solid var(--line);
@@ -626,9 +624,9 @@ pre {
   gap: 8px;
   margin-top: 18px;
   padding: 16px;
-  border: 1px solid #dbeafe;
+  border: 1px solid rgba(239, 68, 68, 0.26);
   border-radius: 18px;
-  background: #f8fbff;
+  background: rgba(239, 68, 68, 0.06);
 }
 
 .toggle-line {
@@ -636,7 +634,7 @@ pre {
   align-items: center;
   gap: 10px;
   font-weight: 700;
-  color: #172033;
+  color: var(--text);
 }
 
 .toggle-line input {
@@ -647,7 +645,7 @@ pre {
 .advisor-option p,
 .advisor-option small {
   margin: 0;
-  color: #5b6b80;
+  color: var(--muted);
   line-height: 1.5;
 }
 

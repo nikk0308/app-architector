@@ -16,7 +16,8 @@ import {
   type GeneratedArtifactSummary,
   type GenerationAdvisorSummary,
   type ArchitectureAdvisorReport,
-  type TreeNode
+  type TreeNode,
+  CONTRACT_VERSIONS
 } from "@mag/shared";
 import { env } from "./env.js";
 import { generationRepository } from "./services/database.js";
@@ -25,6 +26,7 @@ import { buildFileTreePreview } from "./services/preview.js";
 import { buildTemplateVariables } from "./services/templateVariables.js";
 import { createRunDirectories } from "./services/storage.js";
 import { buildArchitectureAdvisorReport, getAdvisorStatus } from "./services/advisor/architectureAdvisor.js";
+import { getProviderStatusSummaries } from "./services/providers/status.js";
 
 function buildPreviewPayload(answers: QuestionnaireAnswers) {
   const spec = buildArchitectureSpec(answers);
@@ -115,9 +117,16 @@ export function createApp(): FastifyInstance {
   const corsOrigin = env.CORS_ORIGIN === "*" ? true : env.CORS_ORIGIN.split(",").map((item) => item.trim()).filter(Boolean);
   void app.register(cors, { origin: corsOrigin });
 
-  app.get("/api/health", async () => ({ status: "ok" }));
+  app.get("/api/health", async () => ({
+    status: "ok",
+    contractVersions: CONTRACT_VERSIONS
+  }));
 
   app.get("/api/advisor/status", async () => getAdvisorStatus());
+
+  app.get("/api/providers/status", async () => ({
+    items: getProviderStatusSummaries()
+  }));
 
   app.get("/api/questionnaire", async () => ({ sections: questionnaireSchema }));
 

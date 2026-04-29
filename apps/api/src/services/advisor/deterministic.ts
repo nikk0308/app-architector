@@ -6,6 +6,7 @@ import type {
   QuestionnaireAnswers,
   ValidationReport
 } from "@mag/shared";
+import { ADVISOR_REPORT_VERSION } from "@mag/shared";
 
 export interface DeterministicAdvisorInput {
   answers: QuestionnaireAnswers;
@@ -121,7 +122,7 @@ export function buildDeterministicAdvisorReport(input: DeterministicAdvisorInput
   ];
 
   return {
-    version: "1.0",
+    version: ADVISOR_REPORT_VERSION,
     status: input.status ?? "fallback",
     provider: input.provider ?? "deterministic",
     model: input.model,

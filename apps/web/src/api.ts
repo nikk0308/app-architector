@@ -10,6 +10,7 @@ import type {
   NormalizedProfile,
   QuestionnaireAnswers,
   QuestionnaireSection,
+  AIProviderStatusSummary,
   ValidationReport,
   TreeNode
 } from "@mag/shared";
@@ -101,6 +102,11 @@ export async function listGenerations(): Promise<GenerationMetadata[]> {
 
 export async function fetchAdvisorStatus(): Promise<ArchitectureAdvisorStatus> {
   return request<ArchitectureAdvisorStatus>(apiUrl("/api/advisor/status"));
+}
+
+export async function fetchProviderStatuses(): Promise<AIProviderStatusSummary[]> {
+  const response = await request<{ items: AIProviderStatusSummary[] }>(apiUrl("/api/providers/status"));
+  return response.items;
 }
 
 export async function createAdvisorPlan(payload: QuestionnaireAnswers): Promise<AdvisorPlanResponse> {

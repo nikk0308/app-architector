@@ -1,4 +1,5 @@
 import { getProjectProfile } from "./profiles.js";
+import { ARTIFACT_MANIFEST_VERSION } from "./version.js";
 import type {
   ArchitectureSpec,
   ArtifactDefinition,
@@ -126,7 +127,7 @@ export function buildArtifactManifest(spec: ArchitectureSpec): ArtifactManifest 
   });
 
   return {
-    version: "1.0",
+    version: ARTIFACT_MANIFEST_VERSION,
     profileId: spec.profileId,
     generationMode: spec.generationMode,
     rootFolderName: spec.naming.rootDirectoryName,

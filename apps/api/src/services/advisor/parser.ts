@@ -1,4 +1,4 @@
-import type { ArchitectureAdvisorReport, ArchitectureDecision } from "@mag/shared";
+import { ADVISOR_REPORT_VERSION, type ArchitectureAdvisorReport, type ArchitectureDecision } from "@mag/shared";
 
 interface RawAdvisorShape {
   summary?: unknown;
@@ -66,7 +66,7 @@ export function parseAdvisorResponse(text: string, createdAt = new Date().toISOS
   if (!summary || decisions.length === 0) return null;
 
   return {
-    version: "1.0",
+    version: ADVISOR_REPORT_VERSION,
     summary,
     decisions,
     nextSteps: asStringArray(parsed.nextSteps),

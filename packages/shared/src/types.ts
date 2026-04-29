@@ -4,7 +4,7 @@ export type ProfileId = typeof PROFILE_IDS[number];
 export const GENERATION_MODES = ["baseline", "hf-open", "commercial", "hybrid"] as const;
 export type GenerationMode = typeof GENERATION_MODES[number];
 
-export const ADVISOR_PROVIDERS = ["deterministic", "huggingface"] as const;
+export const ADVISOR_PROVIDERS = ["deterministic", "huggingface", "openai"] as const;
 export type AdvisorProvider = typeof ADVISOR_PROVIDERS[number];
 
 export type AdvisorStatus = "disabled" | "ready" | "fallback" | "failed";

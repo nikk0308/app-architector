@@ -166,15 +166,59 @@ jobs:
       - name: Encode runtime env
         env:
           APP_RUNTIME_ENV_CONTENT: ${{ secrets.APP_RUNTIME_ENV }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
+          HF_MODEL: ${{ vars.HF_MODEL }}
+          LLM_ENABLED_VAR: ${{ vars.LLM_ENABLED }}
+          ENABLE_LLM_ENRICHMENT_VAR: ${{ vars.ENABLE_LLM_ENRICHMENT }}
         shell: bash
         run: |
           set -euo pipefail
+          runtime_env="$(mktemp)"
+
           if [ -n "$APP_RUNTIME_ENV_CONTENT" ]; then
-            printf '%s' "$APP_RUNTIME_ENV_CONTENT" | base64 -w 0 > /tmp/runtime_env.b64
-            echo "RUNTIME_ENV_B64=$(cat /tmp/runtime_env.b64)" >> "$GITHUB_ENV"
+            printf '%s\n' "$APP_RUNTIME_ENV_CONTENT" > "$runtime_env"
           else
             echo "APP_RUNTIME_ENV secret is empty; remote defaults will be used." | tee "$DIAGNOSTICS_DIR/runtime-env.log"
           fi
+
+          append_if_set() {
+            local name="$1"
+            local value="$2"
+            if [ -n "$value" ]; then
+              printf '%s=%s\n' "$name" "$value" >> "$runtime_env"
+            fi
+          }
+
+          append_if_set OPENAI_API_KEY "$OPENAI_API_KEY"
+          append_if_set HF_TOKEN "$HF_TOKEN"
+          append_if_set OPENAI_MODEL "$OPENAI_MODEL"
+          append_if_set HF_MODEL "$HF_MODEL"
+
+          if [ -n "$LLM_ENABLED_VAR" ]; then
+            append_if_set LLM_ENABLED "$LLM_ENABLED_VAR"
+          elif [ -n "$OPENAI_API_KEY" ] || [ -n "$HF_TOKEN" ]; then
+            printf 'LLM_ENABLED=true\n' >> "$runtime_env"
+          fi
+
+          if [ -n "$ENABLE_LLM_ENRICHMENT_VAR" ]; then
+            append_if_set ENABLE_LLM_ENRICHMENT "$ENABLE_LLM_ENRICHMENT_VAR"
+          elif [ -n "$OPENAI_API_KEY" ] || [ -n "$HF_TOKEN" ]; then
+            printf 'ENABLE_LLM_ENRICHMENT=true\n' >> "$runtime_env"
+          fi
+
+          if [ -s "$runtime_env" ]; then
+            base64 -w 0 "$runtime_env" > /tmp/runtime_env.b64
+            echo "RUNTIME_ENV_B64=$(cat /tmp/runtime_env.b64)" >> "$GITHUB_ENV"
+          fi
+
+          {
+            echo "openai_api_key_configured=$([ -n "$OPENAI_API_KEY" ] && echo yes || echo no)"
+            echo "hf_token_configured=$([ -n "$HF_TOKEN" ] && echo yes || echo no)"
+            echo "openai_model_configured=$([ -n "$OPENAI_MODEL" ] && echo yes || echo no)"
+            echo "hf_model_configured=$([ -n "$HF_MODEL" ] && echo yes || echo no)"
+          } > "$DIAGNOSTICS_DIR/ai-runtime-env-summary.env"
 
       - name: Create release directory
         shell: bash

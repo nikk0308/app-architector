@@ -159,7 +159,8 @@ export default function App() {
     [latestGeneration, preview]
   );
   const generatedFileCount = preview?.fileTree.filter((node) => node.type === "file").length ?? 0;
-  const advisorSummary = latestGeneration?.advisorSummary ?? advisorSummaryFromReport(advisorPlan);
+  const activeAdvisor = advisorPlan ?? latestGeneration?.advisor ?? null;
+  const advisorSummary = latestGeneration?.advisorSummary ?? advisorSummaryFromReport(activeAdvisor);
   const advisorWarnings = advisorSummary?.warnings?.filter(Boolean) ?? [];
 
   function buildRequestPayload() {
@@ -483,18 +484,18 @@ export default function App() {
                   </div>
                 ) : null}
 
-                {advisorPlan ? (
+                {activeAdvisor || advisorSummary ? (
                   <div className="card advisor-card">
                     <div className="card-row">
                       <h3>Архітектурний план</h3>
-                      <span className="status-pill accent-pill">{advisorSummary?.mode ?? advisorPlan.status}</span>
+                      <span className="status-pill accent-pill">{advisorSummary?.mode ?? activeAdvisor?.status ?? "summary"}</span>
                     </div>
-                    <p>{advisorSummary?.summary ?? advisorPlan.summary}</p>
-                    {advisorPlan.recommendations && advisorPlan.recommendations.length > 0 ? (
+                    <p>{advisorSummary?.summary ?? activeAdvisor?.summary}</p>
+                    {activeAdvisor?.recommendations && activeAdvisor.recommendations.length > 0 ? (
                       <div className="advisor-section">
                         <h4>Recommendations</h4>
                         <ul className="note-list">
-                          {advisorPlan.recommendations.slice(0, 3).map((recommendation) => <li key={recommendation}>{recommendation}</li>)}
+                          {activeAdvisor.recommendations.slice(0, 3).map((recommendation) => <li key={recommendation}>{recommendation}</li>)}
                         </ul>
                       </div>
                     ) : null}
@@ -506,13 +507,15 @@ export default function App() {
                         </ul>
                       </div>
                     ) : null}
-                    <ul className="note-list">
-                      {advisorPlan.decisions.slice(0, 4).map((decision) => (
-                        <li key={decision.id}>
-                          <strong>{decision.title}:</strong> {decision.recommendation}
-                        </li>
-                      ))}
-                    </ul>
+                    {activeAdvisor?.decisions && activeAdvisor.decisions.length > 0 ? (
+                      <ul className="note-list">
+                        {activeAdvisor.decisions.slice(0, 4).map((decision) => (
+                          <li key={decision.id}>
+                            <strong>{decision.title}:</strong> {decision.recommendation}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
                   </div>
                 ) : null}
 

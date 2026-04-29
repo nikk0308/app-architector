@@ -1,15 +1,18 @@
-import type {
-  ArchitectureAdvisorReport,
-  ArchitectureAdvisorStatus,
-  ArtifactManifest,
-  ArchitectureSpec,
-  GenerationMode,
-  QuestionnaireAnswers,
-  ValidationReport
+import {
+  ADVISOR_PHASE_VERSION,
+  ADVISOR_REPORT_VERSION,
+  type ArchitectureAdvisorReport,
+  type ArchitectureAdvisorStatus,
+  type ArtifactManifest,
+  type ArchitectureSpec,
+  type GenerationMode,
+  type QuestionnaireAnswers,
+  type ValidationReport
 } from "@mag/shared";
 import { env } from "../../env.js";
 import { buildAdvisorPrompt } from "./prompt.js";
 import { runHuggingFaceAdvisor } from "./provider.js";
+import { runOpenAIAdvisor } from "./openaiProvider.js";
 import { parseAdvisorResponse } from "./parser.js";
 import { buildDeterministicAdvisorReport } from "./deterministic.js";
 
@@ -31,13 +34,22 @@ export function getAdvisorStatus(): ArchitectureAdvisorStatus {
     };
   }
 
+  if (env.OPENAI_API_KEY) {
+    return {
+      enabled: true,
+      provider: "openai",
+      status: "ready",
+      model: env.OPENAI_MODEL
+    };
+  }
+
   if (!env.HF_TOKEN) {
     return {
       enabled: false,
       provider: "huggingface",
       status: "fallback",
       model: env.HF_MODEL,
-      reason: "HF_TOKEN is not configured. The API will use deterministic advisor output."
+      reason: "No AI provider token is configured. The API will use deterministic advisor output."
     };
   }
 
@@ -50,14 +62,27 @@ export function getAdvisorStatus(): ArchitectureAdvisorStatus {
 }
 
 function wantsProvider(mode?: GenerationMode): boolean {
-  return mode === "hf-open" || mode === "hybrid";
+  return mode === "hf-open" || mode === "commercial" || mode === "hybrid";
+}
+
+function preferredProvider(mode?: GenerationMode): "huggingface" | "openai" {
+  if (mode === "hf-open") {
+    return "huggingface";
+  }
+  if (mode === "commercial") {
+    return "openai";
+  }
+  if (env.OPENAI_API_KEY) {
+    return "openai";
+  }
+  return "huggingface";
 }
 
 function advisorMode(input: {
   status: ArchitectureAdvisorReport["status"];
   provider: ArchitectureAdvisorReport["provider"];
 }): NonNullable<ArchitectureAdvisorReport["mode"]> {
-  if (input.provider === "huggingface" && input.status === "ready") {
+  if ((input.provider === "huggingface" || input.provider === "openai") && input.status === "ready") {
     return "llm";
   }
   if (input.status === "disabled") {
@@ -92,13 +117,13 @@ function featureRecommendations(spec: ArchitectureSpec): string[] {
 }
 
 function withReportMetadata(report: ArchitectureAdvisorReport, input: AdvisorBuildInput): ArchitectureAdvisorReport {
-  const llmUsed = report.provider === "huggingface" && report.status === "ready";
+  const llmUsed = (report.provider === "huggingface" || report.provider === "openai") && report.status === "ready";
   const llmWarnings = report.provider === "deterministic" ? report.warnings : [];
 
   return {
     ...report,
-    schemaVersion: report.schemaVersion ?? "1.0",
-    advisorVersion: report.advisorVersion ?? "phase3",
+    schemaVersion: report.schemaVersion ?? ADVISOR_REPORT_VERSION,
+    advisorVersion: report.advisorVersion ?? ADVISOR_PHASE_VERSION,
     mode: report.mode ?? advisorMode({ status: report.status, provider: report.provider }),
     architecture: report.architecture ?? {
       style: input.spec.architecture.style,
@@ -144,7 +169,10 @@ export async function buildArchitectureAdvisorReport(input: AdvisorBuildInput): 
   }
 
   const prompt = buildAdvisorPrompt(input);
-  const providerResult = await runHuggingFaceAdvisor(prompt);
+  const provider = preferredProvider(input.mode);
+  const providerResult = provider === "openai"
+    ? await runOpenAIAdvisor(prompt)
+    : await runHuggingFaceAdvisor(prompt);
 
   if (!providerResult.ok || !providerResult.text) {
     return withReportMetadata(buildDeterministicAdvisorReport({
@@ -172,7 +200,7 @@ export async function buildArchitectureAdvisorReport(input: AdvisorBuildInput): 
   return withReportMetadata({
     ...parsed,
     status: "ready",
-    provider: "huggingface",
+    provider,
     model: providerResult.model
   }, input);
 }
