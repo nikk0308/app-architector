@@ -14,7 +14,7 @@ interface HuggingFaceGeneratedItem {
 
 function getEndpoint(): string {
   if (env.HF_ENDPOINT) return env.HF_ENDPOINT;
-  return `https://api-inference.huggingface.co/models/${encodeURIComponent(env.HF_MODEL)}`;
+  return "https://router.huggingface.co/v1/responses";
 }
 
 function extractText(payload: unknown): string | undefined {
@@ -25,8 +25,38 @@ function extractText(payload: unknown): string | undefined {
   }
   if (payload && typeof payload === "object") {
     const object = payload as Record<string, unknown>;
+    if (typeof object.output_text === "string") return object.output_text;
     if (typeof object.generated_text === "string") return object.generated_text;
     if (typeof object.error === "string") throw new Error(object.error);
+
+    const choices = object.choices;
+    if (Array.isArray(choices)) {
+      const first = choices[0] as { message?: { content?: unknown } } | undefined;
+      if (typeof first?.message?.content === "string") return first.message.content;
+    }
+
+    const output = object.output;
+    if (Array.isArray(output)) {
+      for (const item of output) {
+        if (!item || typeof item !== "object") continue;
+        const content = (item as { content?: unknown }).content;
+        if (typeof content === "string") return content;
+        if (Array.isArray(content)) {
+          const text = content
+            .map((part) => {
+              if (!part || typeof part !== "object") return "";
+              const value = part as { text?: unknown; content?: unknown };
+              return typeof value.text === "string"
+                ? value.text
+                : typeof value.content === "string"
+                  ? value.content
+                  : "";
+            })
+            .join("");
+          if (text.trim()) return text;
+        }
+      }
+    }
   }
   return undefined;
 }
@@ -48,15 +78,14 @@ export async function runHuggingFaceAdvisor(prompt: string): Promise<HuggingFace
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        inputs: prompt,
-        parameters: {
-          max_new_tokens: env.LLM_MAX_NEW_TOKENS,
-          return_full_text: false,
-          temperature: 0.2
+        model: env.HF_MODEL,
+        instructions: "Return only valid JSON. Do not wrap the response in Markdown.",
+        input: prompt,
+        max_output_tokens: env.LLM_MAX_NEW_TOKENS,
+        temperature: 0.2,
+        response_format: {
+          type: "json_object"
         },
-        options: {
-          wait_for_model: true
-        }
       })
     });
 
