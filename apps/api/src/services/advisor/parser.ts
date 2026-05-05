@@ -3,6 +3,7 @@ import { ADVISOR_REPORT_VERSION, type ArchitectureAdvisorReport, type Architectu
 interface RawAdvisorShape {
   summary?: unknown;
   decisions?: unknown;
+  recommendations?: unknown;
   nextSteps?: unknown;
   risks?: unknown;
   warnings?: unknown;
@@ -39,6 +40,20 @@ function normalizeDecision(value: unknown, index: number): ArchitectureDecision 
   };
 }
 
+function decisionFromRecommendation(value: unknown, index: number): ArchitectureDecision | null {
+  const recommendation = asString(value);
+  if (!recommendation) return null;
+
+  return {
+    id: `advisor-recommendation-${index + 1}`,
+    title: `Recommendation ${index + 1}`,
+    recommendation,
+    rationale: "The model returned this as a practical recommendation for the generated starter architecture.",
+    impact: "medium",
+    files: []
+  };
+}
+
 function extractJson(text: string): RawAdvisorShape | null {
   const trimmed = text.trim();
   const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
@@ -61,14 +76,18 @@ export function parseAdvisorResponse(text: string, createdAt = new Date().toISOS
   const decisions = Array.isArray(parsed.decisions)
     ? parsed.decisions.map((item, index) => normalizeDecision(item, index)).filter((item): item is ArchitectureDecision => Boolean(item)).slice(0, 8)
     : [];
+  const repairedDecisions = decisions.length > 0
+    ? decisions
+    : asStringArray(parsed.recommendations).map((item, index) => decisionFromRecommendation(item, index)).filter((item): item is ArchitectureDecision => Boolean(item)).slice(0, 8);
 
   const summary = asString(parsed.summary);
-  if (!summary || decisions.length === 0) return null;
+  if (!summary || repairedDecisions.length === 0) return null;
 
   return {
     version: ADVISOR_REPORT_VERSION,
     summary,
-    decisions,
+    decisions: repairedDecisions,
+    recommendations: asStringArray(parsed.recommendations),
     nextSteps: asStringArray(parsed.nextSteps),
     risks: asStringArray(parsed.risks),
     warnings: asStringArray(parsed.warnings),

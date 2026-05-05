@@ -6,7 +6,7 @@ import {
   type QuestionnaireAnswers
 } from "@mag/shared";
 import { env } from "../env.js";
-import { runHuggingFaceAdvisor } from "./advisor/provider.js";
+import { runHuggingFaceJson } from "./advisor/provider.js";
 import { runOpenAIJson } from "./advisor/openaiProvider.js";
 
 type ProviderName = "deterministic" | "huggingface" | "openai";
@@ -16,6 +16,7 @@ interface RawArchitecturePatch {
   stateManagement?: unknown;
   navigationStyle?: unknown;
   environmentMode?: unknown;
+  architecture?: unknown;
   features?: unknown;
   includeExampleScreen?: unknown;
   explanation?: unknown;
@@ -68,6 +69,12 @@ function asStringArray(value: unknown): string[] {
 
 function asBoolean(value: unknown): boolean | undefined {
   return typeof value === "boolean" ? value : undefined;
+}
+
+function objectField(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
 }
 
 function extractJson(text: string): RawArchitecturePatch | null {
@@ -163,7 +170,28 @@ function buildPrompt(answers: QuestionnaireAnswers, baseline: ArchitectureSpec, 
     }, null, 2),
     "",
     "Choose architectureStyle/stateManagement/navigationStyle/features for the starter architecture.",
-    "Prefer practical, platform-appropriate defaults and do not enable unsupported or excessive modules without a clear reason."
+    "Prefer practical, platform-appropriate defaults and do not enable unsupported or excessive modules without a clear reason.",
+    "",
+    "Required JSON shape:",
+    JSON.stringify({
+      architectureStyle: baseline.architecture.style,
+      stateManagement: baseline.architecture.stateManagement,
+      navigationStyle: baseline.architecture.navigationStyle,
+      environmentMode: answers.environmentMode ?? "single",
+      features: {
+        auth: Boolean(answers.hasAuth),
+        analytics: Boolean(answers.hasAnalytics),
+        localization: Boolean(answers.hasLocalization),
+        push: Boolean(answers.hasPush),
+        networking: Boolean(answers.hasNetworking),
+        persistence: Boolean(answers.hasPersistence)
+      },
+      includeExampleScreen: Boolean(answers.includeExampleScreen),
+      explanation: "One concise explanation of the selected architecture.",
+      assumptions: ["Concrete assumption about product or delivery context."],
+      risks: ["Concrete implementation risk."],
+      recommendations: ["Concrete next engineering recommendation."]
+    }, null, 2)
   ].join("\n");
 }
 
@@ -174,9 +202,15 @@ function normalizePatch(
   warnings: string[]
 ): { answers: QuestionnaireAnswers; assumptions: string[]; risks: string[]; recommendations: string[]; explanation?: string } {
   const nextAnswers: QuestionnaireAnswers = { ...answers, generationMode: answers.generationMode ?? "baseline", includeLLMNotes: true };
+  const architecture = objectField(patch.architecture);
+  const fieldAliases: Record<(typeof stringFields)[number], unknown[]> = {
+    architectureStyle: [patch.architectureStyle, architecture.style, architecture.architectureStyle],
+    stateManagement: [patch.stateManagement, architecture.stateManagement, architecture.state],
+    navigationStyle: [patch.navigationStyle, architecture.navigationStyle, architecture.navigation]
+  };
 
   for (const field of stringFields) {
-    const value = asString(patch[field]);
+    const value = fieldAliases[field].map(asString).find(Boolean);
     if (value) {
       nextAnswers[field] = value;
     } else {
@@ -184,15 +218,14 @@ function normalizePatch(
     }
   }
 
-  if (patch.environmentMode === "single" || patch.environmentMode === "multi") {
-    nextAnswers.environmentMode = patch.environmentMode;
+  const environmentMode = patch.environmentMode ?? architecture.environmentMode;
+  if (environmentMode === "single" || environmentMode === "multi") {
+    nextAnswers.environmentMode = environmentMode;
   } else {
     warnings.push("AI spec patch missed environmentMode; deterministic baseline value was kept.");
   }
 
-  const features = patch.features && typeof patch.features === "object"
-    ? patch.features as Record<string, unknown>
-    : {};
+  const features = objectField(patch.features);
   const featureMap: Record<(typeof featureFields)[number], string> = {
     hasAuth: "auth",
     hasAnalytics: "analytics",
@@ -290,7 +323,13 @@ export async function synthesizeArchitectureSpec(
       systemPrompt: "You generate controlled JSON patches for a mobile ArchitectureSpec. Return only valid JSON.",
       maxOutputTokens: Math.max(env.LLM_MAX_NEW_TOKENS, 900)
     })
-    : await runHuggingFaceAdvisor(prompt));
+    : await runHuggingFaceJson({
+      prompt,
+      schema: architecturePatchSchema(),
+      schemaName: "architecture_spec_patch",
+      systemPrompt: "You generate controlled JSON patches for a mobile ArchitectureSpec. Return only valid JSON matching the requested schema.",
+      maxOutputTokens: Math.max(env.LLM_MAX_NEW_TOKENS, 900)
+    }));
 
   if (!providerResult.ok || !providerResult.text) {
     const metadata: ArchitectureSynthesisSummary = {

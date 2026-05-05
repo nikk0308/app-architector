@@ -7,9 +7,55 @@ export interface HuggingFaceProviderResult {
   model?: string;
 }
 
+export interface HuggingFaceJsonRequest {
+  prompt: string;
+  schema?: Record<string, unknown>;
+  schemaName?: string;
+  systemPrompt?: string;
+  maxOutputTokens?: number;
+}
+
 interface HuggingFaceGeneratedItem {
   generated_text?: string;
   summary_text?: string;
+}
+
+function advisorJsonSchema(): Record<string, unknown> {
+  const stringArray = {
+    type: "array",
+    items: { type: "string" },
+    maxItems: 12
+  };
+
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: ["summary", "decisions", "nextSteps", "risks", "warnings"],
+    properties: {
+      summary: { type: "string" },
+      decisions: {
+        type: "array",
+        minItems: 1,
+        maxItems: 8,
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["id", "title", "recommendation", "rationale", "impact", "files"],
+          properties: {
+            id: { type: "string" },
+            title: { type: "string" },
+            recommendation: { type: "string" },
+            rationale: { type: "string" },
+            impact: { type: "string", enum: ["low", "medium", "high"] },
+            files: stringArray
+          }
+        }
+      },
+      nextSteps: stringArray,
+      risks: stringArray,
+      warnings: stringArray
+    }
+  };
 }
 
 function getEndpoint(): string {
@@ -62,6 +108,15 @@ function extractText(payload: unknown): string | undefined {
 }
 
 export async function runHuggingFaceAdvisor(prompt: string): Promise<HuggingFaceProviderResult> {
+  return runHuggingFaceJson({
+    prompt,
+    schema: advisorJsonSchema(),
+    schemaName: "architecture_advisor_report",
+    systemPrompt: "You are an architecture reviewer for generated mobile starter projects. Return only valid JSON matching the requested schema."
+  });
+}
+
+export async function runHuggingFaceJson(request: HuggingFaceJsonRequest): Promise<HuggingFaceProviderResult> {
   if (!env.HF_TOKEN) {
     return { ok: false, error: "HF_TOKEN is not configured", model: env.HF_MODEL };
   }
@@ -79,13 +134,20 @@ export async function runHuggingFaceAdvisor(prompt: string): Promise<HuggingFace
       },
       body: JSON.stringify({
         model: env.HF_MODEL,
-        instructions: "Return only valid JSON. Do not wrap the response in Markdown.",
-        input: prompt,
-        max_output_tokens: env.LLM_MAX_NEW_TOKENS,
+        instructions: request.systemPrompt ?? "Return only valid JSON. Do not wrap the response in Markdown.",
+        input: request.prompt,
+        max_output_tokens: request.maxOutputTokens ?? env.LLM_MAX_NEW_TOKENS,
         temperature: 0.2,
-        response_format: {
-          type: "json_object"
-        },
+        response_format: request.schema
+          ? {
+            type: "json_schema",
+            json_schema: {
+              name: request.schemaName ?? "mag_json_response",
+              schema: request.schema,
+              strict: true
+            }
+          }
+          : { type: "json_object" }
       })
     });
 
