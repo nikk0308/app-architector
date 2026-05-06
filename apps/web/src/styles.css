@@ -852,6 +852,29 @@ pre {
   margin-top: 8px;
 }
 
+.synthesis-footnote {
+  color: #bfdbfe;
+}
+
+.inline-debug-details {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(11, 12, 15, 0.7);
+}
+
+.inline-debug-details summary {
+  cursor: pointer;
+  padding: 10px 12px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.inline-debug-details .note-list {
+  padding: 0 14px 12px 28px;
+}
+
 .result-metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

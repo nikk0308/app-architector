@@ -97,6 +97,25 @@ function featureAnswers(answers: QuestionnaireAnswerSet): Record<UniversalFeatur
   };
 }
 
+function hasExplicitFeatureAnswer(answers: QuestionnaireAnswerSet, featureId: UniversalFeatureId): boolean {
+  switch (featureId) {
+    case "auth":
+      return typeof answers.hasAuth === "boolean";
+    case "analytics":
+      return typeof answers.hasAnalytics === "boolean";
+    case "localization":
+      return typeof answers.hasLocalization === "boolean";
+    case "push":
+      return typeof answers.hasPush === "boolean";
+    case "networking":
+      return typeof answers.hasNetworking === "boolean";
+    case "storage":
+      return typeof answers.hasPersistence === "boolean";
+    default:
+      return false;
+  }
+}
+
 function entryPointForProfile(profileId: QuestionnaireAnswerSet["profile"]): string {
   switch (profileId) {
     case "unity":
@@ -139,12 +158,14 @@ export function buildArchitectureSpec(answers: QuestionnaireAnswerSet): Architec
   const modules: ModuleSelection[] = Object.entries(profileDefinition.capabilities).map(([featureId, capability]) => {
     const typedFeatureId = featureId as UniversalFeatureId;
     const requested = profileFeatures[typedFeatureId];
-    const enabled = capability.required || (capability.supported && (requested || capability.defaultEnabled));
+    const explicitAnswer = hasExplicitFeatureAnswer(answers, typedFeatureId);
+    const usesProfileDefault = !explicitAnswer && capability.defaultEnabled;
+    const enabled = capability.required || (capability.supported && (requested || usesProfileDefault));
     const source = capability.required
       ? "mandatory"
       : requested
         ? "answer"
-        : capability.defaultEnabled
+        : usesProfileDefault
           ? "profile-default"
           : "derived";
 

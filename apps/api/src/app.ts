@@ -55,7 +55,7 @@ async function buildPreviewPayload(answers: QuestionnaireAnswers) {
     },
     fileTree,
     artifacts: buildGeneratedArtifacts(fileTree),
-    notes: [...plan.notes, ...manifest.notes, ...synthesis.metadata.warnings],
+    notes: [...plan.notes, ...manifest.notes, ...synthesisNotes(synthesis.metadata)],
     architectureSynthesis: synthesis.metadata
   };
 }
@@ -74,6 +74,19 @@ function withArchitectureSynthesisNode(
     return fileTree;
   }
   return [...fileTree, { path, type: "file" }];
+}
+
+function synthesisNotes(synthesis: ArchitectureSynthesisSummary): string[] {
+  if (synthesis.status === "ai-applied") {
+    return ["AI produced the ArchitectureSpec; the deterministic generator materialized the ZIP structure."];
+  }
+  if (synthesis.status === "repaired") {
+    return ["AI produced the ArchitectureSpec with deterministic safeguards for incomplete fields."];
+  }
+  if (synthesis.status === "fallback") {
+    return ["AI ArchitectureSpec synthesis was unavailable; deterministic fallback kept generation stable."];
+  }
+  return [];
 }
 
 function artifactKindForPath(filePath: string): GeneratedArtifactKind {

@@ -7,7 +7,7 @@ export function getProviderStatusSummaries(): AIProviderStatusSummary[] {
       provider: "deterministic",
       enabled: true,
       status: "ready",
-      capabilities: ["advisor"],
+      capabilities: ["advisor", "spec-synthesis"],
       reason: "Deterministic fallback is always available and does not require model credentials."
     },
     {
@@ -15,11 +15,11 @@ export function getProviderStatusSummaries(): AIProviderStatusSummary[] {
       enabled: env.LLM_ENABLED && Boolean(env.HF_TOKEN),
       status: !env.LLM_ENABLED ? "disabled" : env.HF_TOKEN ? "ready" : "fallback",
       model: env.HF_MODEL,
-      capabilities: ["advisor"],
+      capabilities: ["advisor", "spec-synthesis"],
       reason: !env.LLM_ENABLED
         ? "LLM_ENABLED is false."
         : env.HF_TOKEN
-          ? "Hugging Face token is configured; runtime availability is checked during advisor execution."
+          ? "Hugging Face token is configured; runtime availability is checked during spec synthesis and advisor execution."
           : "HF_TOKEN is not configured."
     },
     {
@@ -31,7 +31,7 @@ export function getProviderStatusSummaries(): AIProviderStatusSummary[] {
       reason: !env.LLM_ENABLED
         ? "LLM_ENABLED is false."
         : env.OPENAI_API_KEY
-          ? "OpenAI key is configured; provider execution will be added behind the shared adapter contract."
+          ? "OpenAI key is configured for controlled spec synthesis, advisor output and hybrid refinement."
           : "OPENAI_API_KEY is not configured."
     }
   ];

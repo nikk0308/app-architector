@@ -43,21 +43,21 @@ const generationModeOptions: Array<{
   {
     mode: "commercial",
     title: "GPT",
-    subtitle: "OpenAI provider для архітектурного advisor-звіту.",
+    subtitle: "OpenAI provider для ArchitectureSpec і advisor-звіту.",
     badge: "OPENAI",
     provider: "openai"
   },
   {
     mode: "hf-open",
     title: "Qwen",
-    subtitle: "Hugging Face / Qwen open-model advisor path.",
+    subtitle: "Hugging Face / Qwen open-model path для ArchitectureSpec і advisor.",
     badge: "HF",
     provider: "huggingface"
   },
   {
     mode: "hybrid",
     title: "Гібрид",
-    subtitle: "Baseline-структура + ШІ-пояснення і рекомендації.",
+    subtitle: "Baseline-структура + контрольоване ШІ-покращення і advisor.",
     badge: "AI + CODE",
     provider: "hybrid"
   }
@@ -157,6 +157,35 @@ function compactArtifactPath(path: string): string {
   return parts.length > 4 ? `${parts[0]}/.../${parts.slice(-2).join("/")}` : path;
 }
 
+function readyOrFallback(...statuses: Array<AIProviderStatusSummary | undefined>): AIProviderStatusSummary | undefined {
+  return statuses.find((status) => status?.status === "ready") ?? statuses.find(Boolean);
+}
+
+function providerStatusForMode(
+  mode: GenerationMode,
+  providerById: Map<AIProviderStatusSummary["provider"], AIProviderStatusSummary>
+): AIProviderStatusSummary | undefined {
+  if (mode === "baseline") return providerById.get("deterministic");
+  if (mode === "commercial") return providerById.get("openai");
+  if (mode === "hf-open") return providerById.get("huggingface");
+  return readyOrFallback(providerById.get("openai"), providerById.get("huggingface"), providerById.get("deterministic"));
+}
+
+function synthesisStatusLabel(status?: string): string | undefined {
+  switch (status) {
+    case "ai-applied":
+      return "AI spec applied";
+    case "repaired":
+      return "AI spec repaired";
+    case "fallback":
+      return "Fallback";
+    case "baseline":
+      return "Code baseline";
+    default:
+      return status;
+  }
+}
+
 export default function App() {
   const [sections, setSections] = useState<QuestionnaireSection[]>([]);
   const [form, setForm] = useState<QuestionnaireAnswers>(initialForm);
@@ -211,8 +240,9 @@ export default function App() {
     [providerStatuses]
   );
   const selectedProviderStatus = selectedModeOption.provider === "hybrid"
-    ? providerById.get("openai") ?? providerById.get("huggingface") ?? providerById.get("deterministic")
+    ? readyOrFallback(providerById.get("openai"), providerById.get("huggingface"), providerById.get("deterministic"))
     : providerById.get(selectedModeOption.provider);
+  const selectedAdvisorProviderStatus = providerStatusForMode(selectedMode, providerById);
 
   function buildRequestPayload() {
     return {
@@ -335,7 +365,7 @@ export default function App() {
           <div className="mode-selector" aria-label="Вибір режиму генерації">
             {generationModeOptions.map((option) => {
               const providerStatus = option.provider === "hybrid"
-                ? providerById.get("openai") ?? providerById.get("huggingface") ?? providerById.get("deterministic")
+                ? readyOrFallback(providerById.get("openai"), providerById.get("huggingface"), providerById.get("deterministic"))
                 : providerById.get(option.provider);
               const active = selectedMode === option.mode;
 
@@ -428,8 +458,12 @@ export default function App() {
               <span>{selectedMode === "baseline" ? "ZIP буде згенеровано кодом без ШІ." : "У ZIP буде додано AI/advisor артефакти."}</span>
             </div>
             <p>{selectedModeOption.subtitle} Якщо провайдер недоступний або поверне некоректний JSON, генерація не впаде: буде використано deterministic fallback.</p>
-            {selectedProviderStatus ? <small>Provider: {selectedProviderStatus.provider} · {selectedProviderStatus.status}{selectedProviderStatus.model ? ` · ${selectedProviderStatus.model}` : ""}</small> : null}
-            {advisorStatus ? <small>Advisor: {advisorStatus.status}{advisorStatus.model ? ` · ${advisorStatus.model}` : ""}</small> : null}
+            {selectedProviderStatus ? <small>Architecture provider: {selectedProviderStatus.provider} · {selectedProviderStatus.status}{selectedProviderStatus.model ? ` · ${selectedProviderStatus.model}` : ""}</small> : null}
+            {selectedAdvisorProviderStatus ? (
+              <small>Advisor provider: {selectedAdvisorProviderStatus.provider} · {selectedAdvisorProviderStatus.status}{selectedAdvisorProviderStatus.model ? ` · ${selectedAdvisorProviderStatus.model}` : ""}</small>
+            ) : advisorStatus ? (
+              <small>Advisor provider: {advisorStatus.provider} · {advisorStatus.status}{advisorStatus.model ? ` · ${advisorStatus.model}` : ""}</small>
+            ) : null}
             <button className="secondary small-button" onClick={handleAdvisorPlan} disabled={!canSubmit || isBusy || advisorLoading}>
               {advisorLoading ? "Готуємо план..." : "Показати план"}
             </button>
@@ -516,8 +550,8 @@ export default function App() {
                       <strong>{preview.manifest.summary.totalArtifacts}</strong>
                     </div>
                     <div>
-                      <span>Spec</span>
-                      <strong>{architectureSynthesis?.status ?? selectedModeOption.title}</strong>
+                      <span>AI spec</span>
+                      <strong>{synthesisStatusLabel(architectureSynthesis?.status) ?? selectedModeOption.title}</strong>
                     </div>
                   </div>
                   {latestGeneration ? (
@@ -558,11 +592,19 @@ export default function App() {
                         ? `ArchitectureSpec was synthesized by ${architectureSynthesis.provider}${architectureSynthesis.model ? ` (${architectureSynthesis.model})` : ""}.`
                         : "ArchitectureSpec was built by deterministic code."}
                     </p>
-                    <small>Status: {architectureSynthesis.status} · Mode: {architectureSynthesis.mode}</small>
+                    <small>Status: {synthesisStatusLabel(architectureSynthesis.status)} · Mode: {architectureSynthesis.mode}</small>
+                    <small className="synthesis-footnote">
+                      {architectureSynthesis.usedAi
+                        ? "AI produced the ArchitectureSpec; the ZIP file tree is still materialized by the deterministic generator."
+                        : "The deterministic generator produced both the ArchitectureSpec and ZIP file tree."}
+                    </small>
                     {architectureSynthesis.warnings.length > 0 ? (
-                      <ul className="note-list">
-                        {architectureSynthesis.warnings.slice(0, 3).map((warning) => <li key={warning}>{warning}</li>)}
-                      </ul>
+                      <details className="inline-debug-details">
+                        <summary>Provider safeguards: {architectureSynthesis.warnings.length}</summary>
+                        <ul className="note-list">
+                          {architectureSynthesis.warnings.slice(0, 5).map((warning) => <li key={warning}>{warning}</li>)}
+                        </ul>
+                      </details>
                     ) : null}
                   </div>
                 ) : null}
