@@ -256,11 +256,15 @@ function run() {
   const hybrid = fs.existsSync(hybridPath) ? JSON.parse(fs.readFileSync(hybridPath, "utf8")) : null;
   const hybridDocText = fs.existsSync(hybridDocPath) ? fs.readFileSync(hybridDocPath, "utf8") : "";
   const markdownText = fs.existsSync(decisionsPath) ? fs.readFileSync(decisionsPath, "utf8") : "";
+  const duplicateZipEntries = zipEntries.filter((entry, index, list) => list.indexOf(entry) !== index);
+  const invalidZipEntries = zipEntries.filter((entry) => entry.startsWith("/") || entry.split("/").includes(".."));
 
   const checks = [
     { id: "generator.exit-code", status: generator.status === 0 ? "passed" : "failed", message: `Generator exited with code ${generator.status}.` },
     { id: "zip.exists", status: fs.existsSync(zipPath) ? "passed" : "failed", message: "Generated ZIP exists." },
     { id: "zip.not-empty", status: fs.existsSync(zipPath) && fs.statSync(zipPath).size > 0 ? "passed" : "failed", message: "Generated ZIP is not empty." },
+    { id: "zip.no-duplicate-entries", status: duplicateZipEntries.length === 0 ? "passed" : "failed", message: "Generated ZIP has no duplicate entries." },
+    { id: "zip.safe-relative-entries", status: invalidZipEntries.length === 0 ? "passed" : "failed", message: "Generated ZIP entries are safe relative paths." },
     { id: "advisor-json.present", status: requiredArtifacts[0].present ? "passed" : "failed", message: ".mag/architecture-advisor.json exists in output and ZIP." },
     { id: "synthesis-json.present", status: requiredArtifacts[1].present ? "passed" : "failed", message: ".mag/architecture-synthesis.json exists in output and ZIP." },
     { id: "hybrid-json.present", status: requiredArtifacts[2].present ? "passed" : "failed", message: ".mag/hybrid-refinement.json exists in output and ZIP." },
@@ -282,6 +286,8 @@ function run() {
     zipSize: fs.existsSync(zipPath) ? fs.statSync(zipPath).size : 0,
     requiredArtifacts,
     zipEntries,
+    duplicateZipEntries,
+    invalidZipEntries,
     advisorSummary: advisor?.summary,
     hybridStatus: hybrid?.status,
     checks,

@@ -999,6 +999,221 @@ pre {
   border-color: rgba(245, 158, 11, 0.28);
 }
 
+.validation-console-card {
+  border-color: rgba(34, 197, 94, 0.22);
+  background: rgba(34, 197, 94, 0.05);
+}
+
+.validation-stage-grid,
+.metric-strip,
+.compare-run-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.validation-stage-card,
+.metric-strip div,
+.compare-run-card,
+.artifact-mini-row,
+.run-validation-row,
+.delta-row {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--input);
+}
+
+.validation-stage-card span,
+.metric-strip span,
+.run-validation-row span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.validation-stage-card strong,
+.metric-strip strong,
+.run-validation-row strong,
+.compare-run-card strong,
+.artifact-mini-row strong,
+.delta-row strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+
+.validation-stage-card small,
+.artifact-mini-row small,
+.compare-run-card small {
+  display: block;
+  margin-top: 5px;
+}
+
+.validation-passed {
+  color: #86efac;
+}
+
+.validation-passed_with_warnings {
+  color: #fde68a;
+}
+
+.validation-failed {
+  color: #fecaca;
+}
+
+.validation-missing {
+  color: var(--muted);
+}
+
+.history-card.selected {
+  border-color: rgba(239, 68, 68, 0.5);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.history-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.history-actions .small-button,
+.history-actions a {
+  min-height: 38px;
+  padding: 8px 12px;
+}
+
+.active-toggle {
+  border-color: var(--accent) !important;
+  color: #fecaca !important;
+  background: var(--accent-soft) !important;
+}
+
+.console-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.console-card {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--card-2);
+}
+
+.run-details-panel,
+.comparison-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.metric-strip {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 0;
+}
+
+.secondary-strip {
+  margin-top: 0;
+}
+
+.run-validation-row {
+  display: grid;
+  gap: 4px;
+}
+
+.artifact-mini-list {
+  display: grid;
+  gap: 8px;
+}
+
+.artifact-mini-list h4 {
+  margin: 0;
+  color: var(--text);
+}
+
+.artifact-mini-row {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.artifact-mini-row span {
+  color: #bfdbfe;
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.compare-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.compare-actions span {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.compare-run-grid {
+  margin-top: 0;
+}
+
+.compare-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.compare-metrics span {
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: var(--card-2);
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.delta-table {
+  display: grid;
+  gap: 8px;
+}
+
+.delta-row {
+  display: grid;
+  grid-template-columns: 90px repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  align-items: center;
+}
+
+.delta-row span {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.error-muted {
+  border-color: rgba(245, 158, 11, 0.28);
+}
+
+@media (max-width: 1120px) {
+  .console-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 760px) {
   .result-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1006,5 +1221,20 @@ pre {
 
   .compact-download {
     width: 100%;
+  }
+
+  .validation-stage-grid,
+  .metric-strip,
+  .compare-run-grid,
+  .delta-row {
+    grid-template-columns: 1fr;
+  }
+
+  .artifact-mini-row {
+    grid-template-columns: 1fr;
+  }
+
+  .history-actions {
+    justify-content: flex-start;
   }
 }

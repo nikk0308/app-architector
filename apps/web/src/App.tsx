@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import type { AIProviderStatusSummary, ArchitectureAdvisorReport, ArchitectureAdvisorStatus, GeneratedArtifactSummary, GenerationAdvisorSummary, GenerationMetadata, GenerationMode, QuestionnaireAnswers, QuestionnaireField, QuestionnaireSection, TreeNode } from "@mag/shared";
-import { apiUrl, createAdvisorPlan, createGeneration, fetchAdvisorStatus, fetchProviderStatuses, fetchQuestionnaire, listGenerations, previewProfile, type GenerationResponse, type PreviewResponse } from "./api";
+import type { AIProviderStatusSummary, ArchitectureAdvisorReport, ArchitectureAdvisorStatus, GeneratedArtifactSummary, GenerationAdvisorSummary, GenerationMetadata, GenerationMode, GenerationRunDetails, QuestionnaireAnswers, QuestionnaireField, QuestionnaireSection, RunComparison, TreeNode } from "@mag/shared";
+import { apiUrl, compareGenerations, createAdvisorPlan, createGeneration, fetchAdvisorStatus, fetchGenerationDetails, fetchProviderStatuses, fetchQuestionnaire, listGenerations, previewProfile, type GenerationResponse, type PreviewResponse } from "./api";
+import { RunComparisonPanel } from "./components/RunComparisonPanel";
+import { RunDetailsPanel } from "./components/RunDetailsPanel";
+import { ValidationSummary } from "./components/ValidationSummary";
 
 const initialForm: QuestionnaireAnswers = {
   projectName: "AI Commerce Demo",
@@ -206,6 +209,13 @@ export default function App() {
   const [advisorPlan, setAdvisorPlan] = useState<ArchitectureAdvisorReport | null>(null);
   const [advisorLoading, setAdvisorLoading] = useState(false);
   const [advisorError, setAdvisorError] = useState<string | null>(null);
+  const [selectedRunDetails, setSelectedRunDetails] = useState<GenerationRunDetails | null>(null);
+  const [runDetailsLoading, setRunDetailsLoading] = useState(false);
+  const [runDetailsError, setRunDetailsError] = useState<string | null>(null);
+  const [compareSelection, setCompareSelection] = useState<string[]>([]);
+  const [runComparison, setRunComparison] = useState<RunComparison | null>(null);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
+  const [comparisonError, setComparisonError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchQuestionnaire().then(setSections).catch((err) => setError(humanError(err.message)));
@@ -240,6 +250,7 @@ export default function App() {
   const advisorWarnings = advisorSummary?.warnings?.filter(Boolean) ?? [];
   const architectureSynthesis = latestGeneration?.architectureSynthesis ?? preview?.architectureSynthesis;
   const hybridRefinement = latestGeneration?.hybridRefinement;
+  const validationV2 = latestGeneration?.validationV2 ?? preview?.validationV2;
   const selectedMode = form.generationMode ?? "baseline";
   const selectedModeOption = generationModeOptions.find((option) => option.mode === selectedMode) ?? generationModeOptions[0];
   const providerById = useMemo(
@@ -348,6 +359,47 @@ export default function App() {
       setAdvisorError(err instanceof Error ? humanError(err.message) : "Не вдалося підготувати рекомендації архітектурного радника.");
     } finally {
       setAdvisorLoading(false);
+    }
+  }
+
+  async function handleRunDetails(id: string) {
+    try {
+      setRunDetailsLoading(true);
+      setRunDetailsError(null);
+      const details = await fetchGenerationDetails(id);
+      setSelectedRunDetails(details);
+    } catch (err) {
+      setRunDetailsError(err instanceof Error ? humanError(err.message) : "Could not load generation details.");
+    } finally {
+      setRunDetailsLoading(false);
+    }
+  }
+
+  function toggleCompareRun(id: string) {
+    setComparisonError(null);
+    setRunComparison(null);
+    setCompareSelection((current) => {
+      if (current.includes(id)) {
+        return current.filter((item) => item !== id);
+      }
+      return [...current.slice(-3), id];
+    });
+  }
+
+  async function handleCompareRuns() {
+    if (compareSelection.length < 2) {
+      setComparisonError("Select at least two generation runs for comparison.");
+      return;
+    }
+
+    try {
+      setComparisonLoading(true);
+      setComparisonError(null);
+      setRunComparison(await compareGenerations(compareSelection));
+    } catch (err) {
+      setComparisonError(err instanceof Error ? humanError(err.message) : "Could not compare generation runs.");
+    } finally {
+      setComparisonLoading(false);
     }
   }
 
@@ -582,6 +634,8 @@ export default function App() {
                   ) : null}
                 </div>
 
+                <ValidationSummary validationV2={validationV2} />
+
                 {displayedArtifacts.length > 0 ? (
                   <div className="card artifact-card">
                     <div className="card-row">
@@ -737,6 +791,10 @@ export default function App() {
                       <h3>Validation</h3>
                       <pre>{JSON.stringify(preview.validation, null, 2)}</pre>
                     </div>
+                    <div className="card">
+                      <h3>Validation v2</h3>
+                      <pre>{JSON.stringify(validationV2 ?? null, null, 2)}</pre>
+                    </div>
                   </div>
                 </details>
               </div>
@@ -768,16 +826,44 @@ export default function App() {
 
         <div className="history-list">
           {generations.map((item) => (
-            <article className="history-card" key={item.id}>
+            <article className={compareSelection.includes(item.id) ? "history-card selected" : "history-card"} key={item.id}>
               <div>
                 <strong>{item.projectName}</strong>
                 <div>{platformLabels[item.profile] ?? item.profile} · {item.status === "completed" ? "готово" : "помилка"}</div>
                 <small>{formatDate(item.createdAt)}</small>
               </div>
-              <a href={downloadUrlForGeneration(item.id)}>ZIP</a>
+              <div className="history-actions">
+                <button className="secondary small-button" type="button" onClick={() => handleRunDetails(item.id)}>
+                  Details
+                </button>
+                <button
+                  className={compareSelection.includes(item.id) ? "secondary small-button active-toggle" : "secondary small-button"}
+                  type="button"
+                  onClick={() => toggleCompareRun(item.id)}
+                  aria-pressed={compareSelection.includes(item.id)}
+                >
+                  Compare
+                </button>
+                <a href={downloadUrlForGeneration(item.id)}>ZIP</a>
+              </div>
             </article>
           ))}
           {generations.length === 0 ? <div className="empty-state">Після першої генерації тут з’явиться посилання на архів.</div> : null}
+        </div>
+
+        <div className="console-grid">
+          <section className="console-card">
+            <RunDetailsPanel details={selectedRunDetails} loading={runDetailsLoading} error={runDetailsError} />
+          </section>
+          <section className="console-card">
+            <div className="compare-actions">
+              <button className="primary" type="button" onClick={handleCompareRuns} disabled={compareSelection.length < 2 || comparisonLoading}>
+                Compare selected
+              </button>
+              <span>{compareSelection.length} selected</span>
+            </div>
+            <RunComparisonPanel comparison={runComparison} selectedCount={compareSelection.length} loading={comparisonLoading} error={comparisonError} />
+          </section>
         </div>
       </section>
     </div>

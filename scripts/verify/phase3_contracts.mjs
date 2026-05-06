@@ -163,9 +163,19 @@ try {
   const sharedTypes = read("packages/shared/src/types.ts");
   const sharedVersion = read("packages/shared/src/version.ts");
   const sharedDomainIndex = read("packages/shared/src/domain/index.ts");
+  const sharedGenerationDomain = read("packages/shared/src/domain/generation.ts");
+  const sharedValidationDomain = read("packages/shared/src/domain/validation.ts");
   const sharedProviderDomain = read("packages/shared/src/domain/provider.ts");
   const sharedHybridDomain = read("packages/shared/src/domain/hybrid.ts");
   const appSource = read("apps/api/src/app.ts");
+  const databaseSource = read("apps/api/src/services/database.ts");
+  const runArtifactsSource = read("apps/api/src/services/runArtifacts.ts");
+  const validationV2Source = read("apps/api/src/services/validationV2.ts");
+  const webAppSource = read("apps/web/src/App.tsx");
+  const webApiSource = read("apps/web/src/api.ts");
+  const webValidationSummarySource = read("apps/web/src/components/ValidationSummary.tsx");
+  const webRunDetailsSource = read("apps/web/src/components/RunDetailsPanel.tsx");
+  const webRunComparisonSource = read("apps/web/src/components/RunComparisonPanel.tsx");
   const advisorSource = read("apps/api/src/services/advisor/architectureAdvisor.ts");
   const architectureSynthesisSource = read("apps/api/src/services/architectureSynthesis.ts");
   const hybridRefinementSource = read("apps/api/src/services/hybridRefinement.ts");
@@ -231,6 +241,24 @@ try {
       && contains(sharedHybridDomain, "Hybrid refinement cannot modify .mag metadata contracts"),
     "shared.hybrid-refinement-policy",
     "Hybrid refinement has an explicit allowlisted patch policy that protects metadata and root structure."
+  );
+
+  check(
+    contains(sharedGenerationDomain, "interface GenerationRunDetails")
+      && contains(sharedGenerationDomain, "interface RunMetrics")
+      && contains(sharedGenerationDomain, "interface RunComparison")
+      && contains(sharedGenerationDomain, "compareGenerationRunDetails"),
+    "shared.phase8-run-contracts",
+    "Shared domain exposes run details, metrics and compare contracts for Phase 8."
+  );
+
+  check(
+    contains(sharedValidationDomain, "interface ValidationV2Report")
+      && contains(sharedValidationDomain, "validateGeneratedOutputStructure")
+      && contains(sharedValidationDomain, "validateRegistryTemplateDrift")
+      && contains(sharedValidationDomain, "zipIntegrityPassed"),
+    "shared.phase9-validation-v2-contracts",
+    "Shared domain exposes pre/post materialization validation v2 contracts and helpers."
   );
 
   check(
@@ -300,6 +328,60 @@ try {
       && contains(generatorPythonSource, "hybridRefinementFiles"),
     "generator.materializes-hybrid-refinements",
     "Python materializer writes accepted hybrid documentation patches and records hybrid metadata."
+  );
+
+  check(
+    contains(databaseSource, "CREATE TABLE IF NOT EXISTS run_artifacts")
+      && contains(databaseSource, "metricsJson")
+      && contains(databaseSource, "getDetailsById")
+      && contains(databaseSource, "compare(ids"),
+    "api.phase8-run-repository",
+    "SQLite repository stores structured run metrics, artifact rows and compare-ready details."
+  );
+
+  check(
+    contains(appSource, "/api/generations/compare")
+      && contains(appSource, "/api/generations/:id/details")
+      && contains(appSource, "scoreRunMetrics")
+      && contains(runArtifactsSource, "buildRunArtifactRecords"),
+    "api.phase8-run-endpoints",
+    "API exposes run details and compare data without changing existing history/download endpoints."
+  );
+
+  check(
+    contains(webApiSource, "fetchGenerationDetails")
+      && contains(webApiSource, "compareGenerations")
+      && contains(webAppSource, "handleRunDetails")
+      && contains(webAppSource, "handleCompareRuns"),
+    "web.phase10-run-console-api",
+    "Web console consumes run details and compare endpoints through typed API helpers."
+  );
+
+  check(
+    contains(webValidationSummarySource, "ValidationSummary")
+      && contains(webRunDetailsSource, "RunDetailsPanel")
+      && contains(webRunComparisonSource, "RunComparisonPanel")
+      && contains(webAppSource, "<ValidationSummary")
+      && contains(webAppSource, "<RunDetailsPanel")
+      && contains(webAppSource, "<RunComparisonPanel"),
+    "web.phase10-console-components",
+    "Phase 10 UI has dedicated validation, run details and comparison panels."
+  );
+
+  check(
+    contains(validationV2Source, "buildPreMaterializationValidation")
+      && contains(validationV2Source, "buildPostMaterializationValidation")
+      && contains(validationV2Source, "readZipEntries")
+      && contains(appSource, "validationV2Json"),
+    "api.phase9-validation-v2-integration",
+    "API runs validation v2 before and after materialization and stores the reports with each run."
+  );
+
+  check(
+    contains(smokeGeneratedZipSource, "zip.no-duplicate-entries")
+      && contains(smokeGeneratedZipSource, "zip.safe-relative-entries"),
+    "smoke.phase9-zip-integrity",
+    "Generated ZIP smoke checks duplicate and unsafe ZIP entries."
   );
 
   check(

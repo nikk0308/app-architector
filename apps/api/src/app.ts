@@ -18,6 +18,8 @@ import {
   type HybridRefinementReport,
   type TreeNode,
   type ArchitectureSynthesisSummary,
+  type ValidationV2Report,
+  scoreRunMetrics,
   CONTRACT_VERSIONS
 } from "@mag/shared";
 import { env } from "./env.js";
@@ -30,6 +32,8 @@ import { buildArchitectureAdvisorReport, getAdvisorStatus } from "./services/adv
 import { getProviderStatusSummaries } from "./services/providers/status.js";
 import { synthesizeArchitectureSpec } from "./services/architectureSynthesis.js";
 import { buildHybridRefinementReport } from "./services/hybridRefinement.js";
+import { buildRunArtifactRecords } from "./services/runArtifacts.js";
+import { buildPostMaterializationValidation, buildPreMaterializationValidation } from "./services/validationV2.js";
 
 async function buildPreviewPayload(answers: QuestionnaireAnswers) {
   const synthesis = await synthesizeArchitectureSpec(answers);
@@ -45,6 +49,13 @@ async function buildPreviewPayload(answers: QuestionnaireAnswers) {
     manifest.rootFolderName,
     synthesis.metadata
   );
+  const validationV2 = {
+    preMaterialization: buildPreMaterializationValidation({
+      manifest,
+      fileTree,
+      architectureSynthesis: synthesis.metadata
+    })
+  };
 
   return {
     profile,
@@ -55,11 +66,19 @@ async function buildPreviewPayload(answers: QuestionnaireAnswers) {
       spec: specValidation,
       manifest: manifestValidation
     },
+    validationV2,
     fileTree,
     artifacts: buildGeneratedArtifacts(fileTree),
     notes: [...plan.notes, ...manifest.notes, ...synthesisNotes(synthesis.metadata)],
     architectureSynthesis: synthesis.metadata
   };
+}
+
+function validationV2Warnings(...reports: Array<ValidationV2Report | undefined>): string[] {
+  return reports
+    .flatMap((report) => report?.issues ?? [])
+    .filter((issue) => issue.level === "warning")
+    .map((issue) => issue.message);
 }
 
 function withArchitectureSynthesisNode(
@@ -204,6 +223,25 @@ export function createApp(): FastifyInstance {
 
   app.get("/api/generations", async () => ({ items: generationRepository.list() }));
 
+  app.get<{ Querystring: { ids?: string } }>("/api/generations/compare", async (request) => {
+    const ids = (request.query.ids ?? "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .slice(0, 6);
+
+    return generationRepository.compare(ids);
+  });
+
+  app.get<{ Params: { id: string } }>("/api/generations/:id/details", async (request, reply) => {
+    const generation = generationRepository.getDetailsById(request.params.id);
+    if (!generation) {
+      reply.code(404);
+      return { error: "Generation not found" };
+    }
+    return generation;
+  });
+
   app.get<{ Params: { id: string } }>("/api/generations/:id", async (request, reply) => {
     const generation = generationRepository.getById(request.params.id);
     if (!generation) {
@@ -243,6 +281,7 @@ export function createApp(): FastifyInstance {
   });
 
   app.post<{ Body: QuestionnaireAnswers }>("/api/generations", async (request, reply) => {
+    const generationStartedAt = Date.now();
     const preview = await buildPreviewPayload(request.body);
     const directories = createRunDirectories(preview.profile.projectSlug);
 
@@ -270,6 +309,12 @@ export function createApp(): FastifyInstance {
       : undefined;
 
     const responseFileTree = withHybridRefinementNodes(preview.fileTree, preview.manifest.rootFolderName, hybridRefinement);
+    const preMaterializationValidation = buildPreMaterializationValidation({
+      manifest: preview.manifest,
+      fileTree: responseFileTree,
+      architectureSynthesis: preview.architectureSynthesis,
+      hybridRefinement
+    });
 
     const generationResult = await generatorRunner.run({
       generationId: directories.generationId,
@@ -285,6 +330,45 @@ export function createApp(): FastifyInstance {
       zipPath: directories.zipPath
     });
 
+    const generatedArtifacts = buildGeneratedArtifacts(responseFileTree);
+    const postMaterializationValidation = generationResult.success
+      ? buildPostMaterializationValidation({
+        outputDir: directories.outputDir,
+        zipPath: directories.zipPath,
+        manifest: preview.manifest,
+        architectureSynthesis: preview.architectureSynthesis,
+        hybridRefinement
+      })
+      : undefined;
+    const validationV2 = {
+      preMaterialization: preMaterializationValidation,
+      postMaterialization: postMaterializationValidation
+    };
+    const runMetrics = scoreRunMetrics({
+      generationTimeMs: Date.now() - generationStartedAt,
+      artifactCount: preview.manifest.summary.totalArtifacts,
+      fileCount: responseFileTree.filter((node) => node.type === "file").length,
+      validation: preview.validation.manifest,
+      advisor: advisorReport ? {
+        ...advisorReport,
+        warnings: [
+          ...advisorReport.warnings,
+          ...validationV2Warnings(preMaterializationValidation, postMaterializationValidation)
+        ]
+      } : undefined,
+      architectureSynthesis: preview.architectureSynthesis,
+      hybridRefinement,
+      zipAvailable: Boolean(generationResult.success && generationResult.zipPath)
+    });
+    const runArtifacts = generationResult.success
+      ? buildRunArtifactRecords({
+        runId: directories.generationId,
+        rootFolderName: preview.manifest.rootFolderName,
+        outputDir: directories.outputDir,
+        artifacts: generatedArtifacts
+      })
+      : [];
+
     const metadata: GenerationMetadata = {
       id: directories.generationId,
       profile: preview.profile.profile,
@@ -295,20 +379,23 @@ export function createApp(): FastifyInstance {
       zipPath: generationResult.success ? generationResult.zipPath : undefined,
       outputDir: directories.outputDir,
       fileTree: responseFileTree,
+      answersJson: JSON.stringify(request.body),
       profileJson: JSON.stringify(preview.profile),
       planJson: JSON.stringify(preview.plan),
       specJson: JSON.stringify(preview.spec),
       manifestJson: JSON.stringify(preview.manifest),
       validationJson: JSON.stringify(preview.validation),
+      validationV2Json: JSON.stringify(validationV2),
       architectureSynthesisJson: JSON.stringify(preview.architectureSynthesis),
       advisorJson: advisorReport ? JSON.stringify(advisorReport) : undefined,
       hybridRefinementJson: hybridRefinement ? JSON.stringify(hybridRefinement) : undefined,
+      metricsJson: JSON.stringify(runMetrics),
       generatorLogPath: generationResult.logFilePath,
       diagnosticsPath: generationResult.diagnosticsPath,
       errorMessage: generationResult.error
     };
 
-    generationRepository.save(metadata);
+    generationRepository.save(metadata, runArtifacts);
 
     if (!generationResult.success) {
       reply.code(500);
@@ -327,7 +414,10 @@ export function createApp(): FastifyInstance {
       zipPath: generationResult.zipPath,
       logFilePath: generationResult.logFilePath,
       diagnosticsPath: generationResult.diagnosticsPath,
-      artifacts: buildGeneratedArtifacts(responseFileTree),
+      artifacts: generatedArtifacts,
+      runArtifacts,
+      runMetrics,
+      validationV2,
       advisorSummary: buildAdvisorSummary(advisorReport),
       advisor: advisorReport,
       hybridRefinement

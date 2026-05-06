@@ -123,4 +123,48 @@ describe("API smoke", () => {
     expect(payload.advisorSummary.mode).toBeTruthy();
     await app.close();
   });
+
+  it("returns structured run details and compare-ready metrics", async () => {
+    const app = createApp();
+    const first = await app.inject({
+      method: "POST",
+      url: "/api/generations",
+      payload: phaseFourPayload
+    });
+    const second = await app.inject({
+      method: "POST",
+      url: "/api/generations",
+      payload: aiModePayload
+    });
+
+    const firstPayload = first.json();
+    const secondPayload = second.json();
+    expect(first.statusCode).toBe(200);
+    expect(second.statusCode).toBe(200);
+    expect(firstPayload.runMetrics.fileCount).toBeGreaterThan(0);
+    expect(firstPayload.runArtifacts.length).toBeGreaterThan(0);
+    expect(firstPayload.validationV2.preMaterialization.status).toMatch(/passed/);
+    expect(firstPayload.validationV2.postMaterialization.status).toMatch(/passed/);
+
+    const details = await app.inject({
+      method: "GET",
+      url: `/api/generations/${firstPayload.generationId}/details`
+    });
+    const detailsPayload = details.json();
+    expect(details.statusCode).toBe(200);
+    expect(detailsPayload.metadata.id).toBe(firstPayload.generationId);
+    expect(detailsPayload.metrics.artifactCount).toBeGreaterThan(0);
+    expect(detailsPayload.artifacts.some((artifact: { generated: boolean }) => artifact.generated)).toBe(true);
+    expect(detailsPayload.validationV2.postMaterialization.metrics.zipIntegrityPassed).toBe(true);
+
+    const compare = await app.inject({
+      method: "GET",
+      url: `/api/generations/compare?ids=${firstPayload.generationId},${secondPayload.generationId}`
+    });
+    const comparePayload = compare.json();
+    expect(compare.statusCode).toBe(200);
+    expect(comparePayload.runs).toHaveLength(2);
+    expect(comparePayload.baselineRunId).toBeTruthy();
+    await app.close();
+  });
 });

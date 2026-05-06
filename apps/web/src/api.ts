@@ -8,10 +8,15 @@ import type {
   GenerationAdvisorSummary,
   GenerationMetadata,
   GenerationPlan,
+  GenerationRunDetails,
   HybridRefinementReport,
   NormalizedProfile,
   QuestionnaireAnswers,
   QuestionnaireSection,
+  RunArtifactRecord,
+  RunComparison,
+  RunMetrics,
+  ValidationV2Report,
   AIProviderStatusSummary,
   ValidationReport,
   TreeNode
@@ -45,6 +50,10 @@ export interface PreviewResponse {
     spec: ValidationReport;
     manifest: ValidationReport;
   };
+  validationV2?: {
+    preMaterialization?: ValidationV2Report;
+    postMaterialization?: ValidationV2Report;
+  };
   plan: GenerationPlan;
   fileTree: TreeNode[];
   artifacts?: GeneratedArtifactSummary[];
@@ -68,6 +77,8 @@ export interface GenerationResponse extends PreviewResponse {
   advisorSummary?: GenerationAdvisorSummary;
   advisor?: ArchitectureAdvisorReport;
   hybridRefinement?: HybridRefinementReport;
+  runArtifacts?: RunArtifactRecord[];
+  runMetrics?: RunMetrics;
 }
 
 async function request<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
@@ -103,6 +114,15 @@ export async function createGeneration(payload: QuestionnaireAnswers): Promise<G
 export async function listGenerations(): Promise<GenerationMetadata[]> {
   const response = await request<{ items: GenerationMetadata[] }>(apiUrl("/api/generations"));
   return response.items;
+}
+
+export async function fetchGenerationDetails(id: string): Promise<GenerationRunDetails> {
+  return request<GenerationRunDetails>(apiUrl(`/api/generations/${id}/details`));
+}
+
+export async function compareGenerations(ids: string[]): Promise<RunComparison> {
+  const query = encodeURIComponent(ids.join(","));
+  return request<RunComparison>(apiUrl(`/api/generations/compare?ids=${query}`));
 }
 
 export async function fetchAdvisorStatus(): Promise<ArchitectureAdvisorStatus> {

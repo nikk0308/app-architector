@@ -341,14 +341,17 @@ export interface GenerationMetadata {
   zipPath?: string;
   outputDir?: string;
   fileTree?: TreeNode[];
+  answersJson?: string;
   profileJson?: string;
   planJson?: string;
   specJson?: string;
   manifestJson?: string;
   validationJson?: string;
+  validationV2Json?: string;
   architectureSynthesisJson?: string;
   advisorJson?: string;
   hybridRefinementJson?: string;
+  metricsJson?: string;
   generatorLogPath?: string;
   diagnosticsPath?: string;
   errorMessage?: string;

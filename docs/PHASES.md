@@ -1,6 +1,6 @@
 # App Architector phase roadmap
 
-This document captures the current engineering roadmap after Phase 7. The system is no longer treated as a broken MVP: baseline generation, AI ArchitectureSpec synthesis, advisor artifacts, hybrid documentation refinements, diagnostics and the result UI are considered the working baseline.
+This document captures the current engineering roadmap after Phase 10. The system is no longer treated as a broken MVP: baseline generation, AI ArchitectureSpec synthesis, advisor artifacts, hybrid documentation refinements, structured run history, validation v2, diagnostics and the web console are considered the working baseline.
 
 ## Current position
 
@@ -14,7 +14,10 @@ Phase 4    done
 Phase 5    done
 Phase 6    done
 Phase 7    done
-Phase 8    next
+Phase 8    done
+Phase 9    done
+Phase 10   done
+Phase 11   next
 ```
 
 ## Completed baseline
@@ -92,17 +95,19 @@ Acceptance:
 - Generated ZIPs can include `.mag/hybrid-refinement.json` and accepted documentation patches such as `docs/next-steps.md`.
 - The smoke test validates hybrid metadata and allowlisted documentation output.
 
-## Active phase
+## Completed run history foundation
 
 ### Phase 8: run repository, metrics and compare data
 
 Goal: make generation history useful for product work and diploma evaluation.
 
-Implementation direction:
+Completed direction:
 
 - Store spec, manifest, validation, advisor, provider metadata, hybrid refinement metadata, artifacts and metrics per run.
 - Prepare baseline/HF/commercial/hybrid comparison without re-running generation.
 - Keep existing history and download endpoints backward-compatible.
+- Expose run details via `/api/generations/:id/details`.
+- Expose compare-ready data via `/api/generations/compare?ids=...`.
 
 Acceptance:
 
@@ -111,17 +116,31 @@ Acceptance:
 - API can return run details suitable for compare UI.
 - Compare data can be built without regenerating packages.
 
-## Upcoming phases
+## Completed validation foundation
 
 ### Phase 9: validation v2
 
+Goal: add stronger validation before and after materialization.
+
 - Add stronger pre-materialization and post-materialization checks.
 - Validate required artifacts, duplicate paths, naming, profile compatibility, ZIP integrity and registry drift.
+- Store validation v2 reports with each run.
+- Keep existing `ValidationReport` compatibility while adding `ValidationV2Report`.
+- Extend ZIP smoke checks for duplicate and unsafe entries.
+
+## Completed web console foundation
 
 ### Phase 10: web console v2
 
-- Split the current UI into durable pages and components.
-- Add run details, validation summary, provider status and compare view.
+Goal: make the UI expose the richer run history, validation and compare data now available in the API.
+
+- Add durable console components for validation, run details and run comparison.
+- Show Validation v2 pre/post materialization status in the result flow.
+- Let users inspect saved run details without downloading the ZIP.
+- Let users select saved runs and compare artifacts, files, warnings and generation time.
+- Keep the existing generate/download flow backward-compatible.
+
+## Upcoming phases
 
 ### Phase 11: platform packs v2
 

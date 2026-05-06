@@ -9,4 +9,6 @@ export * from "./profileBuilder.js";
 export * from "./ruleEngine.js";
 export * from "./domain/provider.js";
 export * from "./domain/hybrid.js";
+export * from "./domain/generation.js";
+export * from "./domain/validation.js";
 export * as domain from "./domain/index.js";
