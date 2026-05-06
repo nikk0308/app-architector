@@ -40,7 +40,7 @@ function selectArchitectureStyle(answers: QuestionnaireAnswerSet): string {
     case "unity":
       return "game-flow";
     case "ios":
-      return "coordinator";
+      return "mvvm";
     case "flutter":
       return "feature-first";
     case "react-native":
@@ -56,9 +56,9 @@ function selectStateManagement(answers: QuestionnaireAnswerSet): string {
     case "unity":
       return "scriptable-object";
     case "flutter":
-      return "provider";
+      return "riverpod";
     case "react-native":
-      return "redux-toolkit";
+      return "zustand";
     case "ios":
       return "native";
   }

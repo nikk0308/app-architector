@@ -81,6 +81,7 @@ export const UNIVERSAL_FEATURES = [
   "testing-skeleton"
 ] as const;
 export type UniversalFeatureId = typeof UNIVERSAL_FEATURES[number];
+export type FeatureSupportLevel = "full" | "partial" | "reserved";
 
 export type ArchitectureFeatureId =
   | "auth"
@@ -133,9 +134,33 @@ export type QuestionnaireAnswerSet = QuestionnaireAnswers;
 
 export interface ProfileCapability {
   supported: boolean;
+  supportLevel: FeatureSupportLevel;
   defaultEnabled: boolean;
   required: boolean;
   notes?: string[];
+}
+
+export interface PlatformPackDependencyPlan {
+  runtime: string[];
+  dev: string[];
+  optional: string[];
+}
+
+export interface PlatformPackDefinition {
+  profileId: ProfileId;
+  label: string;
+  architectureBaseline: string;
+  stateManagement: string;
+  navigation: string;
+  networking: string;
+  storage: string;
+  dependencyInjection: string;
+  testing: string;
+  dependencies: PlatformPackDependencyPlan;
+  qualityGates: string[];
+  setupSteps: string[];
+  directories: string[];
+  featureMatrix: Record<UniversalFeatureId, FeatureSupportLevel>;
 }
 
 export interface ProfileNamingRules {
@@ -157,6 +182,7 @@ export interface ProjectProfileDefinition {
   requiredArtifactIds: string[];
   featureArtifacts: Partial<Record<UniversalFeatureId, string[]>>;
   platformNotes: string[];
+  platformPack: PlatformPackDefinition;
 }
 
 export interface NormalizedProfile {
@@ -355,4 +381,30 @@ export interface GenerationMetadata {
   generatorLogPath?: string;
   diagnosticsPath?: string;
   errorMessage?: string;
+}
+
+export type RuntimeHealthStatus = "ready" | "degraded";
+export type RuntimeHealthCheckStatus = "passed" | "warning" | "failed";
+
+export interface RuntimeHealthCheck {
+  id: string;
+  status: RuntimeHealthCheckStatus;
+  message: string;
+  details?: Record<string, string | number | boolean>;
+}
+
+export interface RuntimeProviderHealth {
+  provider: AdvisorProvider;
+  enabled: boolean;
+  status: string;
+  model?: string;
+  reason?: string;
+}
+
+export interface RuntimeHealthReport {
+  status: RuntimeHealthStatus;
+  generatedAt: string;
+  checks: RuntimeHealthCheck[];
+  providers: RuntimeProviderHealth[];
+  contractVersions: Record<string, string>;
 }

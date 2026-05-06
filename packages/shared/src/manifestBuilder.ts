@@ -44,6 +44,15 @@ export function buildArtifactManifest(spec: ArchitectureSpec): ArtifactManifest 
   });
 
   pushArtifact(artifacts, {
+    id: "docs.platform-pack",
+    title: "Platform pack guide",
+    reason: "Every generation documents the selected platform baseline, support matrix and setup gates.",
+    required: true,
+    category: "metadata",
+    source: "baseline"
+  });
+
+  pushArtifact(artifacts, {
     id: "common.env",
     title: "Environment configuration",
     reason: "Environment scaffold is part of the canonical baseline output.",

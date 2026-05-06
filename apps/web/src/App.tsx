@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import type { AIProviderStatusSummary, ArchitectureAdvisorReport, ArchitectureAdvisorStatus, GeneratedArtifactSummary, GenerationAdvisorSummary, GenerationMetadata, GenerationMode, GenerationRunDetails, QuestionnaireAnswers, QuestionnaireField, QuestionnaireSection, RunComparison, TreeNode } from "@mag/shared";
-import { apiUrl, compareGenerations, createAdvisorPlan, createGeneration, fetchAdvisorStatus, fetchGenerationDetails, fetchProviderStatuses, fetchQuestionnaire, listGenerations, previewProfile, type GenerationResponse, type PreviewResponse } from "./api";
+import { getProjectProfile, type AIProviderStatusSummary, type ArchitectureAdvisorReport, type ArchitectureAdvisorStatus, type GeneratedArtifactSummary, type GenerationAdvisorSummary, type GenerationMetadata, type GenerationMode, type GenerationRunDetails, type ProfileId, type QuestionnaireAnswers, type QuestionnaireField, type QuestionnaireSection, type RunComparison, type RuntimeHealthReport, type TreeNode } from "@mag/shared";
+import { apiUrl, compareGenerations, createAdvisorPlan, createGeneration, fetchAdvisorStatus, fetchGenerationDetails, fetchProviderStatuses, fetchQuestionnaire, fetchRuntimeHealth, listGenerations, previewProfile, type GenerationResponse, type PreviewResponse } from "./api";
+import { PlatformPackPanel } from "./components/PlatformPackPanel";
 import { RunComparisonPanel } from "./components/RunComparisonPanel";
 import { RunDetailsPanel } from "./components/RunDetailsPanel";
+import { RuntimeHealthPanel } from "./components/RuntimeHealthPanel";
 import { ValidationSummary } from "./components/ValidationSummary";
 
 const initialForm: QuestionnaireAnswers = {
@@ -216,12 +218,14 @@ export default function App() {
   const [runComparison, setRunComparison] = useState<RunComparison | null>(null);
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [comparisonError, setComparisonError] = useState<string | null>(null);
+  const [runtimeHealth, setRuntimeHealth] = useState<RuntimeHealthReport | null>(null);
 
   useEffect(() => {
     fetchQuestionnaire().then(setSections).catch((err) => setError(humanError(err.message)));
     listGenerations().then(setGenerations).catch((err) => setError(humanError(err.message)));
     fetchAdvisorStatus().then(setAdvisorStatus).catch(() => setAdvisorStatus(null));
     fetchProviderStatuses().then(setProviderStatuses).catch(() => setProviderStatuses([]));
+    fetchRuntimeHealth().then(setRuntimeHealth).catch(() => setRuntimeHealth(null));
   }, []);
 
   const displayedSections = useMemo(
@@ -253,6 +257,7 @@ export default function App() {
   const validationV2 = latestGeneration?.validationV2 ?? preview?.validationV2;
   const selectedMode = form.generationMode ?? "baseline";
   const selectedModeOption = generationModeOptions.find((option) => option.mode === selectedMode) ?? generationModeOptions[0];
+  const selectedPlatformPack = getProjectProfile(form.profile as ProfileId).platformPack;
   const providerById = useMemo(
     () => new Map(providerStatuses.map((provider) => [provider.provider, provider])),
     [providerStatuses]
@@ -594,6 +599,8 @@ export default function App() {
               )}
             </div>
 
+            <PlatformPackPanel pack={selectedPlatformPack} />
+
             {preview ? (
               <div className="preview-stack">
                 <div className="card success-card">
@@ -810,6 +817,12 @@ export default function App() {
               <h2>Архів готовий</h2>
               <p>Остання генерація успішно зібрана. ZIP можна завантажити прямо зараз.</p>
               <a className="download-link" href={downloadUrlForGeneration(latestGeneration.generationId)}>Завантажити ZIP</a>
+            </section>
+          ) : null}
+
+          {runtimeHealth ? (
+            <section className="panel runtime-panel">
+              <RuntimeHealthPanel health={runtimeHealth} />
             </section>
           ) : null}
         </aside>

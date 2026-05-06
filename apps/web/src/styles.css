@@ -1004,6 +1004,132 @@ pre {
   background: rgba(34, 197, 94, 0.05);
 }
 
+.platform-pack-card {
+  border-color: rgba(59, 130, 246, 0.26);
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.platform-pack-grid,
+.health-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.platform-pack-grid div,
+.health-metrics span {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--input);
+}
+
+.platform-pack-grid span {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.platform-pack-grid strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 0.86rem;
+}
+
+.feature-matrix {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.feature-support {
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: var(--input);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.support-full {
+  color: #86efac;
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.support-partial {
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.support-reserved {
+  color: #fecaca;
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.runtime-panel {
+  padding: 0;
+}
+
+.runtime-health-card {
+  margin-top: 0;
+  border: 0;
+  background: transparent;
+}
+
+.health-ready {
+  border-color: rgba(34, 197, 94, 0.32);
+  color: #86efac;
+}
+
+.health-degraded {
+  border-color: rgba(245, 158, 11, 0.32);
+  color: #fde68a;
+}
+
+.health-metrics span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+  text-align: center;
+}
+
+.health-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.health-list li {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--input);
+}
+
+.health-list strong {
+  color: var(--accent-2);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+}
+
+.health-list span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
 .validation-stage-grid,
 .metric-strip,
 .compare-run-grid {
@@ -1225,6 +1351,8 @@ pre {
 
   .validation-stage-grid,
   .metric-strip,
+  .platform-pack-grid,
+  .health-metrics,
   .compare-run-grid,
   .delta-row {
     grid-template-columns: 1fr;

@@ -31,6 +31,19 @@
     }
   },
   {
+    "id": "docs.platform-pack",
+    "title": "Platform pack guide",
+    "description": "Typed platform baseline, feature matrix and setup guidance.",
+    "outputs": {
+      "default": [
+        {
+          "path": "docs/platform-pack.md",
+          "template": "common/platform-pack.md.tpl"
+        }
+      ]
+    }
+  },
+  {
     "id": "common.env",
     "title": "Environment configs",
     "description": "Environment and runtime config files.",

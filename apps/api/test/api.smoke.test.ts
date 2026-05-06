@@ -27,6 +27,22 @@ describe("API smoke", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json().status).toBe("ok");
     expect(response.json().contractVersions.architectureSpec).toBe("1.0");
+    expect(response.json().runtime.checks.length).toBeGreaterThan(0);
+    await app.close();
+  });
+
+  it("returns runtime readiness checks without leaking secrets", async () => {
+    const app = createApp();
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/health/ready"
+    });
+
+    const payload = response.json();
+    expect([200, 503]).toContain(response.statusCode);
+    expect(["ready", "degraded"]).toContain(payload.status);
+    expect(JSON.stringify(payload)).not.toContain("OPENAI_API_KEY");
+    expect(JSON.stringify(payload)).not.toContain("HF_TOKEN");
     await app.close();
   });
 
@@ -68,6 +84,8 @@ describe("API smoke", () => {
     expect(response.statusCode).toBe(200);
     expect(payload.artifacts.length).toBeGreaterThan(0);
     expect(payload.artifacts.some((artifact: { path: string }) => artifact.path.endsWith(".mag/architecture-advisor.json"))).toBe(true);
+    expect(payload.artifacts.some((artifact: { path: string }) => artifact.path.endsWith("docs/platform-pack.md"))).toBe(true);
+    expect(payload.fileTree.some((node: { path: string }) => node.path.endsWith(".mag/platform-pack.json"))).toBe(true);
     await app.close();
   });
 

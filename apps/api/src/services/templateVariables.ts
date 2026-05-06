@@ -1,4 +1,4 @@
-import type { ArchitectureAdvisorReport, ArtifactManifest, ArchitectureSpec, NormalizedProfile } from "@mag/shared";
+import { getProjectProfile, UNIVERSAL_FEATURES, type ArchitectureAdvisorReport, type ArtifactManifest, type ArchitectureSpec, type NormalizedProfile, type PlatformPackDefinition } from "@mag/shared";
 
 function text(value: unknown): string {
   if (value === null || value === undefined) {
@@ -52,6 +52,62 @@ function advisorToMarkdown(advisor?: ArchitectureAdvisorReport): string {
   return `# Architecture Decisions\n\nGenerated at: ${advisor.createdAt}\n\n## Overview\n\n${advisor.summary}\n\n## Selected Architecture\n\n${architecture}\n\n## Generated Modules\n\n${modules}\n\n## Key Assumptions\n\n${assumptions}\n\n## Decisions\n\n${decisions}\n\n## Risks\n\n${risks}\n\n## Recommendations\n\n${recommendations}\n\n## Next Steps\n\n${nextSteps}\n\n## Notes About Advisor Mode\n\n- Status: ${advisor.status}\n- Mode: ${mode}\n- Provider: ${advisor.provider}${advisor.model ? ` (${advisor.model})` : ""}\n- LLM: ${llmStatus}\n\n## Warnings\n\n${warnings}\n`;
 }
 
+function markdownList(items: string[]): string {
+  return items.length > 0 ? items.map((item) => `- ${item}`).join("\n") : "- Not specified.";
+}
+
+function featureMatrixMarkdown(platformPack: PlatformPackDefinition): string {
+  return UNIVERSAL_FEATURES
+    .map((featureId) => `| ${featureId} | ${platformPack.featureMatrix[featureId]} |`)
+    .join("\n");
+}
+
+function platformPackToMarkdown(platformPack: PlatformPackDefinition): string {
+  return [
+    `# ${platformPack.label}`,
+    "",
+    "## Baseline",
+    "",
+    `- Architecture: ${platformPack.architectureBaseline}`,
+    `- State management: ${platformPack.stateManagement}`,
+    `- Navigation: ${platformPack.navigation}`,
+    `- Networking: ${platformPack.networking}`,
+    `- Storage: ${platformPack.storage}`,
+    `- Dependency injection: ${platformPack.dependencyInjection}`,
+    `- Testing: ${platformPack.testing}`,
+    "",
+    "## Feature Support Matrix",
+    "",
+    "| Feature | Support |",
+    "| --- | --- |",
+    featureMatrixMarkdown(platformPack),
+    "",
+    "## Runtime Dependencies",
+    "",
+    markdownList(platformPack.dependencies.runtime),
+    "",
+    "## Development Dependencies",
+    "",
+    markdownList(platformPack.dependencies.dev),
+    "",
+    "## Optional Integrations",
+    "",
+    markdownList(platformPack.dependencies.optional),
+    "",
+    "## Directory Map",
+    "",
+    markdownList(platformPack.directories),
+    "",
+    "## Setup Steps",
+    "",
+    markdownList(platformPack.setupSteps),
+    "",
+    "## Quality Gates",
+    "",
+    markdownList(platformPack.qualityGates)
+  ].join("\n");
+}
+
 /**
  * Single source of truth for template and path substitutions.
  *
@@ -67,6 +123,8 @@ export function buildTemplateVariables(
 ): Record<string, string> {
   const notes = [...spec.dependencyPlan.warnings, ...manifest.notes].join("\n");
   const advisorJson = JSON.stringify(advisor ?? null, null, 2);
+  const platformPack = getProjectProfile(spec.profileId).platformPack;
+  const platformPackMarkdown = platformPackToMarkdown(platformPack);
 
   return {
     rootFolderName: manifest.rootFolderName,
@@ -114,6 +172,23 @@ export function buildTemplateVariables(
     explanation: profile.explanation,
     profile_notes: notes,
     notes,
+    platform_pack_label: platformPack.label,
+    platform_pack_summary: platformPack.architectureBaseline,
+    platform_pack_architecture: platformPack.architectureBaseline,
+    platform_pack_state_management: platformPack.stateManagement,
+    platform_pack_navigation: platformPack.navigation,
+    platform_pack_networking: platformPack.networking,
+    platform_pack_storage: platformPack.storage,
+    platform_pack_testing: platformPack.testing,
+    platform_pack_dependencies_runtime: markdownList(platformPack.dependencies.runtime),
+    platform_pack_dependencies_dev: markdownList(platformPack.dependencies.dev),
+    platform_pack_dependencies_optional: markdownList(platformPack.dependencies.optional),
+    platform_pack_setup_steps: markdownList(platformPack.setupSteps),
+    platform_pack_quality_gates: markdownList(platformPack.qualityGates),
+    platform_pack_directories: markdownList(platformPack.directories),
+    platform_pack_feature_matrix: featureMatrixMarkdown(platformPack),
+    platform_pack_markdown: platformPackMarkdown,
+    platform_pack_json: JSON.stringify(platformPack, null, 2),
 
     feature_auth: bool(spec.features.auth),
     feature_analytics: bool(spec.features.analytics),

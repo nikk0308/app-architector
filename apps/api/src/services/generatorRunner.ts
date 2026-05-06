@@ -123,7 +123,7 @@ class GeneratorRunner {
       let settled = false;
       let stdout = "";
       let stderr = "";
-      const timeoutMs = Number(process.env.GENERATOR_TIMEOUT_MS ?? 120_000);
+      const timeoutMs = env.GENERATOR_TIMEOUT_MS;
       const timeout = setTimeout(() => {
         if (settled) {
           return;

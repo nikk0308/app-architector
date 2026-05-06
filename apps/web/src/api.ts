@@ -16,6 +16,7 @@ import type {
   RunArtifactRecord,
   RunComparison,
   RunMetrics,
+  RuntimeHealthReport,
   ValidationV2Report,
   AIProviderStatusSummary,
   ValidationReport,
@@ -132,6 +133,11 @@ export async function fetchAdvisorStatus(): Promise<ArchitectureAdvisorStatus> {
 export async function fetchProviderStatuses(): Promise<AIProviderStatusSummary[]> {
   const response = await request<{ items: AIProviderStatusSummary[] }>(apiUrl("/api/providers/status"));
   return response.items;
+}
+
+export async function fetchRuntimeHealth(): Promise<RuntimeHealthReport> {
+  const response = await request<{ runtime?: RuntimeHealthReport } & RuntimeHealthReport>(apiUrl("/api/health"));
+  return response.runtime ?? response;
 }
 
 export async function createAdvisorPlan(payload: QuestionnaireAnswers): Promise<AdvisorPlanResponse> {

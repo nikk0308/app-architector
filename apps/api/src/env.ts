@@ -20,11 +20,15 @@ function numberFromEnv(name: string, fallback: number): number {
 }
 
 const port = numberFromEnv("PORT", 3000);
+const apiRequestTimeoutMs = numberFromEnv("API_REQUEST_TIMEOUT_MS", 120_000);
+const requestBodyLimitBytes = numberFromEnv("REQUEST_BODY_LIMIT_BYTES", 1_048_576);
+const generatorTimeoutMs = numberFromEnv("GENERATOR_TIMEOUT_MS", 120_000);
 const outputRoot = process.env.OUTPUT_ROOT
   ? path.resolve(process.env.OUTPUT_ROOT)
   : path.resolve(storageRoot, "generated");
 
 export const env = {
+  NODE_ENV: process.env.NODE_ENV ?? "development",
   PORT: port,
   HOST: process.env.HOST ?? "0.0.0.0",
   OUTPUT_ROOT: outputRoot,
@@ -34,6 +38,10 @@ export const env = {
   REGISTRY_PATH: process.env.REGISTRY_PATH ?? path.resolve(repoRoot, "config", "artifact-registry.json"),
   CORS_ORIGIN: process.env.CORS_ORIGIN ?? "*",
   LOG_LEVEL: process.env.LOG_LEVEL ?? "info",
+  API_REQUEST_TIMEOUT_MS: apiRequestTimeoutMs,
+  REQUEST_BODY_LIMIT_BYTES: requestBodyLimitBytes,
+  GENERATOR_TIMEOUT_MS: generatorTimeoutMs,
+  STORAGE_RETENTION_DAYS: numberFromEnv("STORAGE_RETENTION_DAYS", 14),
   OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "",
   OPENAI_MODEL: process.env.OPENAI_MODEL ?? "gpt-5.4-mini",
   ENABLE_LLM_ENRICHMENT: process.env.ENABLE_LLM_ENRICHMENT === "true",

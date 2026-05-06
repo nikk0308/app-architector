@@ -161,6 +161,8 @@ try {
 
   const sharedIndex = read("packages/shared/src/index.ts");
   const sharedTypes = read("packages/shared/src/types.ts");
+  const sharedProfiles = read("packages/shared/src/profiles.ts");
+  const sharedManifestBuilder = read("packages/shared/src/manifestBuilder.ts");
   const sharedVersion = read("packages/shared/src/version.ts");
   const sharedDomainIndex = read("packages/shared/src/domain/index.ts");
   const sharedGenerationDomain = read("packages/shared/src/domain/generation.ts");
@@ -171,8 +173,11 @@ try {
   const databaseSource = read("apps/api/src/services/database.ts");
   const runArtifactsSource = read("apps/api/src/services/runArtifacts.ts");
   const validationV2Source = read("apps/api/src/services/validationV2.ts");
+  const runtimeHealthSource = read("apps/api/src/services/runtimeHealth.ts");
   const webAppSource = read("apps/web/src/App.tsx");
   const webApiSource = read("apps/web/src/api.ts");
+  const webPlatformPackSource = read("apps/web/src/components/PlatformPackPanel.tsx");
+  const webRuntimeHealthSource = read("apps/web/src/components/RuntimeHealthPanel.tsx");
   const webValidationSummarySource = read("apps/web/src/components/ValidationSummary.tsx");
   const webRunDetailsSource = read("apps/web/src/components/RunDetailsPanel.tsx");
   const webRunComparisonSource = read("apps/web/src/components/RunComparisonPanel.tsx");
@@ -185,6 +190,8 @@ try {
   const generatorPythonSource = read("services/generator-python/generator_cli.py");
   const templateVariablesSource = read("apps/api/src/services/templateVariables.ts");
   const smokeGeneratedZipSource = read("scripts/smoke_generated_zip.mjs");
+  const runtimeHealthSmokeSource = read("scripts/smoke_runtime_health.mjs");
+  const cleanupStorageSource = read("scripts/cleanup_generated_storage.mjs");
   const deployWorkflow = read(".github/workflows/03_deploy.yml");
   const registry = readJson("config/artifact-registry.json");
 
@@ -250,6 +257,16 @@ try {
       && contains(sharedGenerationDomain, "compareGenerationRunDetails"),
     "shared.phase8-run-contracts",
     "Shared domain exposes run details, metrics and compare contracts for Phase 8."
+  );
+
+  check(
+    contains(sharedTypes, "FeatureSupportLevel")
+      && contains(sharedTypes, "PlatformPackDefinition")
+      && contains(sharedProfiles, "platformPack")
+      && contains(sharedProfiles, "getPlatformPack")
+      && contains(sharedManifestBuilder, "docs.platform-pack"),
+    "shared.phase11-platform-packs",
+    "Shared profile registry exposes typed platform packs, support levels and platform-pack docs artifact."
   );
 
   check(
@@ -361,11 +378,27 @@ try {
     contains(webValidationSummarySource, "ValidationSummary")
       && contains(webRunDetailsSource, "RunDetailsPanel")
       && contains(webRunComparisonSource, "RunComparisonPanel")
+      && contains(webPlatformPackSource, "PlatformPackPanel")
+      && contains(webRuntimeHealthSource, "RuntimeHealthPanel")
       && contains(webAppSource, "<ValidationSummary")
       && contains(webAppSource, "<RunDetailsPanel")
-      && contains(webAppSource, "<RunComparisonPanel"),
+      && contains(webAppSource, "<RunComparisonPanel")
+      && contains(webAppSource, "<PlatformPackPanel")
+      && contains(webAppSource, "<RuntimeHealthPanel"),
     "web.phase10-console-components",
-    "Phase 10 UI has dedicated validation, run details and comparison panels."
+    "Web UI has dedicated validation, run details, comparison, platform pack and runtime health panels."
+  );
+
+  check(
+    contains(appSource, "/api/health/ready")
+      && contains(appSource, "requestTimeout")
+      && contains(appSource, "setErrorHandler")
+      && contains(runtimeHealthSource, "buildRuntimeHealthReport")
+      && contains(runtimeHealthSource, "storage.output-writable")
+      && contains(runtimeHealthSource, "generator.script")
+      && contains(webApiSource, "fetchRuntimeHealth"),
+    "api.phase12-production-health",
+    "API exposes runtime readiness checks, request timeout policy and typed health data without leaking secrets."
   );
 
   check(
@@ -417,9 +450,28 @@ try {
   check(
     contains(smokeGeneratedZipSource, ".mag/hybrid-refinement.json")
       && contains(smokeGeneratedZipSource, "docs/next-steps.md")
+      && contains(smokeGeneratedZipSource, "docs/platform-pack.md")
+      && contains(smokeGeneratedZipSource, ".mag/platform-pack.json")
       && contains(smokeGeneratedZipSource, "hybrid-json.parseable"),
     "smoke.hybrid-refinement-inspection",
-    "Generated ZIP smoke validates hybrid refinement metadata and allowlisted documentation output."
+    "Generated ZIP smoke validates hybrid refinement and platform pack metadata/documentation output."
+  );
+
+  check(
+    contains(rootPackage.scripts?.["smoke:runtime"] ?? "", "smoke_runtime_health.mjs")
+      && contains(rootPackage.scripts?.doctor ?? "", "smoke:runtime")
+      && contains(runtimeHealthSmokeSource, "/api/health/ready")
+      && contains(runtimeHealthSmokeSource, "runtime.no-secret-names"),
+    "smoke.phase12-runtime-health",
+    "Doctor runs runtime health smoke after build and verifies readiness output without secret names."
+  );
+
+  check(
+    contains(rootPackage.scripts?.["storage:cleanup"] ?? "", "cleanup_generated_storage.mjs")
+      && contains(cleanupStorageSource, "--apply")
+      && contains(cleanupStorageSource, "Refusing cleanup outside"),
+    "scripts.phase12-safe-storage-cleanup",
+    "Generated storage cleanup is dry-run by default and refuses paths outside the intended storage root."
   );
 
   check(

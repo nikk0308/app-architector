@@ -10,7 +10,7 @@ describe("buildConfigProfile", () => {
     });
 
     expect(result.projectSlug).toBe("mind-boost");
-    expect(result.stateManagement).toBe("provider");
+    expect(result.stateManagement).toBe("riverpod");
     expect(result.navigationStyle).toBe("router");
     expect(result.packageId).toBe("com.example.mindboost");
   });

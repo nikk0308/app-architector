@@ -1,6 +1,6 @@
 # App Architector phase roadmap
 
-This document captures the current engineering roadmap after Phase 10. The system is no longer treated as a broken MVP: baseline generation, AI ArchitectureSpec synthesis, advisor artifacts, hybrid documentation refinements, structured run history, validation v2, diagnostics and the web console are considered the working baseline.
+This document captures the current engineering roadmap after Phase 12. The system is no longer treated as a broken MVP: baseline generation, AI ArchitectureSpec synthesis, advisor artifacts, hybrid documentation refinements, structured run history, validation v2, diagnostics, platform packs, runtime health and the web console are considered the working baseline.
 
 ## Current position
 
@@ -17,7 +17,9 @@ Phase 7    done
 Phase 8    done
 Phase 9    done
 Phase 10   done
-Phase 11   next
+Phase 11   done
+Phase 12   done
+Phase 13   next
 ```
 
 ## Completed baseline
@@ -140,16 +142,28 @@ Goal: make the UI expose the richer run history, validation and compare data now
 - Let users select saved runs and compare artifacts, files, warnings and generation time.
 - Keep the existing generate/download flow backward-compatible.
 
-## Upcoming phases
+## Completed platform pack foundation
 
 ### Phase 11: platform packs v2
 
-- Deepen iOS, Flutter, React Native and Unity starter packs.
+- Add typed platform pack definitions for iOS, Flutter, React Native and Unity.
 - Add explicit feature support levels: `full`, `partial`, `reserved`.
+- Generate `docs/platform-pack.md` and `.mag/platform-pack.json` for each package.
+- Surface the selected platform baseline and support matrix in the web UI.
+- Keep the ZIP contract additive and deterministic.
+
+## Completed production hardening foundation
 
 ### Phase 12: production hardening
 
-- Add stronger environment validation, logging, health checks, timeout policy and deploy smoke.
+- Add runtime readiness checks through `/api/health` and `/api/health/ready`.
+- Add request/body/generator timeout configuration.
+- Add a normalized API error handler that avoids leaking internals.
+- Add runtime health smoke diagnostics.
+- Add dry-run-first generated storage cleanup tooling.
+- Surface production readiness status in the web UI.
+
+## Upcoming phases
 
 ### Phase 13: diploma packaging and evaluation
 

@@ -173,10 +173,17 @@ def write_json(path: Path, value: Any) -> None:
 def write_metadata_files(output_root: Path, payload: Dict[str, Any], diagnostics: Dict[str, Any]) -> None:
     metadata_root = output_root / ".mag"
     metadata_root.mkdir(parents=True, exist_ok=True)
+    template_context = payload.get("templateContext", {})
     write_json(metadata_root / "normalized-profile.json", payload.get("profile", {}))
     write_json(metadata_root / "architecture-spec.json", payload.get("spec", {}))
     write_json(metadata_root / "artifact-manifest.json", payload.get("manifest", {}))
     write_json(metadata_root / "validation-report.json", payload.get("validation", {}))
+    platform_pack_raw = template_context.get("platform_pack_json") if isinstance(template_context, dict) else None
+    if isinstance(platform_pack_raw, str) and platform_pack_raw.strip():
+        try:
+            write_json(metadata_root / "platform-pack.json", json.loads(platform_pack_raw))
+        except json.JSONDecodeError:
+            write_json(metadata_root / "platform-pack.json", {"raw": platform_pack_raw})
     if payload.get("architectureSynthesis") is not None:
         write_json(metadata_root / "architecture-synthesis.json", payload.get("architectureSynthesis", {}))
     write_json(metadata_root / "generation-plan.json", payload.get("generationPlan", payload.get("generation_plan", payload.get("plan", {}))))

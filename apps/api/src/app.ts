@@ -34,6 +34,7 @@ import { synthesizeArchitectureSpec } from "./services/architectureSynthesis.js"
 import { buildHybridRefinementReport } from "./services/hybridRefinement.js";
 import { buildRunArtifactRecords } from "./services/runArtifacts.js";
 import { buildPostMaterializationValidation, buildPreMaterializationValidation } from "./services/validationV2.js";
+import { buildRuntimeHealthReport } from "./services/runtimeHealth.js";
 
 async function buildPreviewPayload(answers: QuestionnaireAnswers) {
   const synthesis = await synthesizeArchitectureSpec(answers);
@@ -162,8 +163,14 @@ function artifactDescription(filePath: string): string {
   if (filePath.endsWith(".mag/hybrid-refinement.json")) {
     return "Hybrid refinement report with accepted patches, rejected patches and policy warnings.";
   }
+  if (filePath.endsWith(".mag/platform-pack.json")) {
+    return "Typed platform pack metadata with support levels and quality gates.";
+  }
   if (filePath.endsWith("docs/architecture-decisions.md")) {
     return "Readable architecture decisions and next steps for the generated starter.";
+  }
+  if (filePath.endsWith("docs/platform-pack.md")) {
+    return "Platform-specific architecture baseline, feature matrix and setup guidance.";
   }
   if (filePath.endsWith("docs/next-steps.md")) {
     return "AI-refined next steps generated within the hybrid documentation allowlist.";
@@ -202,16 +209,54 @@ function buildAdvisorSummary(advisorReport?: ArchitectureAdvisorReport): Generat
   };
 }
 
+function publicErrorStatusCode(error: unknown): number {
+  if (error && typeof error === "object" && "statusCode" in error) {
+    const statusCode = Number((error as { statusCode?: unknown }).statusCode);
+    if (Number.isInteger(statusCode) && statusCode >= 400 && statusCode < 500) {
+      return statusCode;
+    }
+  }
+  return 500;
+}
+
+function publicErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return "Request failed";
+}
+
 export function createApp(): FastifyInstance {
-  const app = Fastify({ logger: { level: env.LOG_LEVEL } });
+  const app = Fastify({
+    logger: { level: env.LOG_LEVEL },
+    requestTimeout: env.API_REQUEST_TIMEOUT_MS,
+    bodyLimit: env.REQUEST_BODY_LIMIT_BYTES
+  });
 
   const corsOrigin = env.CORS_ORIGIN === "*" ? true : env.CORS_ORIGIN.split(",").map((item) => item.trim()).filter(Boolean);
   void app.register(cors, { origin: corsOrigin });
 
+  app.setErrorHandler((error, request, reply) => {
+    request.log.error({ err: error }, "request failed");
+    const statusCode = publicErrorStatusCode(error);
+    reply.status(statusCode).send({
+      error: statusCode >= 500 ? "Internal server error" : publicErrorMessage(error)
+    });
+  });
+
   app.get("/api/health", async () => ({
     status: "ok",
+    runtime: buildRuntimeHealthReport(),
     contractVersions: CONTRACT_VERSIONS
   }));
+
+  app.get("/api/health/ready", async (_request, reply) => {
+    const runtime = buildRuntimeHealthReport();
+    if (runtime.status !== "ready") {
+      reply.code(503);
+    }
+    return runtime;
+  });
 
   app.get("/api/advisor/status", async () => getAdvisorStatus());
 

@@ -82,8 +82,13 @@ export function requiredGeneratedPaths(input: {
   const required = new Set([
     `${root}/README.md`,
     `${root}/.mag/artifact-manifest.json`,
+    `${root}/.mag/platform-pack.json`,
     `${root}/.mag/validation-report.json`
   ]);
+
+  if (input.manifest.artifacts.some((artifact) => artifact.id === "docs.platform-pack")) {
+    required.add(`${root}/docs/platform-pack.md`);
+  }
 
   if (input.manifest.artifacts.some((artifact) => artifact.id === "meta.advisor")) {
     required.add(`${root}/.mag/architecture-advisor.json`);

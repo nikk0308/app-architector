@@ -29,6 +29,7 @@ export function buildFileTreePreview(
   paths.add(`${manifest.rootFolderName}/.mag/`);
   paths.add(`${manifest.rootFolderName}/.mag/architecture-spec.json`);
   paths.add(`${manifest.rootFolderName}/.mag/artifact-manifest.json`);
+  paths.add(`${manifest.rootFolderName}/.mag/platform-pack.json`);
   paths.add(`${manifest.rootFolderName}/.mag/validation-report.json`);
   paths.add(`${manifest.rootFolderName}/.mag/legacy-plan.json`);
 
