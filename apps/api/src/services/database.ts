@@ -48,6 +48,7 @@ ensureColumn("generations", "manifestJson", "TEXT");
 ensureColumn("generations", "validationJson", "TEXT");
 ensureColumn("generations", "architectureSynthesisJson", "TEXT");
 ensureColumn("generations", "advisorJson", "TEXT");
+ensureColumn("generations", "hybridRefinementJson", "TEXT");
 ensureColumn("generations", "generatorLogPath", "TEXT");
 ensureColumn("generations", "diagnosticsPath", "TEXT");
 ensureColumn("generations", "errorMessage", "TEXT");
@@ -55,10 +56,10 @@ ensureColumn("generations", "errorMessage", "TEXT");
 const insertStatement = db.prepare(`
   INSERT INTO generations (
     id, profile, generationMode, projectName, status, zipPath, outputDir, fileTreeJson, profileJson,
-    planJson, specJson, manifestJson, validationJson, architectureSynthesisJson, advisorJson, generatorLogPath, diagnosticsPath, errorMessage
+    planJson, specJson, manifestJson, validationJson, architectureSynthesisJson, advisorJson, hybridRefinementJson, generatorLogPath, diagnosticsPath, errorMessage
   ) VALUES (
     @id, @profile, @generationMode, @projectName, @status, @zipPath, @outputDir, @fileTreeJson, @profileJson,
-    @planJson, @specJson, @manifestJson, @validationJson, @architectureSynthesisJson, @advisorJson, @generatorLogPath, @diagnosticsPath, @errorMessage
+    @planJson, @specJson, @manifestJson, @validationJson, @architectureSynthesisJson, @advisorJson, @hybridRefinementJson, @generatorLogPath, @diagnosticsPath, @errorMessage
   )
   ON CONFLICT(id) DO UPDATE SET
     profile = excluded.profile,
@@ -75,6 +76,7 @@ const insertStatement = db.prepare(`
     validationJson = excluded.validationJson,
     architectureSynthesisJson = excluded.architectureSynthesisJson,
     advisorJson = excluded.advisorJson,
+    hybridRefinementJson = excluded.hybridRefinementJson,
     generatorLogPath = excluded.generatorLogPath,
     diagnosticsPath = excluded.diagnosticsPath,
     errorMessage = excluded.errorMessage
@@ -98,6 +100,7 @@ function mapRow(row: Record<string, unknown>): GenerationMetadata {
     validationJson: row.validationJson ? String(row.validationJson) : undefined,
     architectureSynthesisJson: row.architectureSynthesisJson ? String(row.architectureSynthesisJson) : undefined,
     advisorJson: row.advisorJson ? String(row.advisorJson) : undefined,
+    hybridRefinementJson: row.hybridRefinementJson ? String(row.hybridRefinementJson) : undefined,
     generatorLogPath: row.generatorLogPath ? String(row.generatorLogPath) : undefined,
     diagnosticsPath: row.diagnosticsPath ? String(row.diagnosticsPath) : undefined,
     errorMessage: row.errorMessage ? String(row.errorMessage) : undefined
@@ -122,6 +125,7 @@ export const generationRepository = {
       validationJson: metadata.validationJson ?? null,
       architectureSynthesisJson: metadata.architectureSynthesisJson ?? null,
       advisorJson: metadata.advisorJson ?? null,
+      hybridRefinementJson: metadata.hybridRefinementJson ?? null,
       generatorLogPath: metadata.generatorLogPath ?? null,
       diagnosticsPath: metadata.diagnosticsPath ?? null,
       errorMessage: metadata.errorMessage ?? null

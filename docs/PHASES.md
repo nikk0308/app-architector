@@ -1,6 +1,6 @@
 # App Architector phase roadmap
 
-This document captures the current engineering roadmap after Phase 4. The system is no longer treated as a broken MVP: baseline generation, advisor artifacts, diagnostics and the result UI are considered the working baseline.
+This document captures the current engineering roadmap after Phase 7. The system is no longer treated as a broken MVP: baseline generation, AI ArchitectureSpec synthesis, advisor artifacts, hybrid documentation refinements, diagnostics and the result UI are considered the working baseline.
 
 ## Current position
 
@@ -11,7 +11,10 @@ Phase 2    done
 Phase 3    done
 Phase 3.5  done
 Phase 4    done
-Phase 5    in progress
+Phase 5    done
+Phase 6    done
+Phase 7    done
+Phase 8    next
 ```
 
 ## Completed baseline
@@ -52,13 +55,13 @@ Phase 5    in progress
 - The API returns additive `artifacts` and `advisorSummary` fields.
 - Older responses remain valid because the UI keeps fallback rendering.
 
-## Active phase
+## Completed AI foundation
 
 ### Phase 5: AI-ready domain core v2
 
 Goal: prepare the shared domain for real AI modes without rewriting the working generator.
 
-Implementation direction:
+Completed direction:
 
 - Keep `@mag/shared` compatibility exports stable.
 - Add explicit contract version constants.
@@ -73,24 +76,42 @@ Acceptance:
 - Generated ZIP contract stays unchanged.
 - `npm run doctor` passes.
 
-## Upcoming phases
-
 ### Phase 6: AI provider layer v1
 
 - Introduce provider adapters for deterministic, Hugging Face and OpenAI-backed modes.
-- Providers return structured results or controlled patches.
+- Providers return structured `ArchitectureSpec`/advisor results or controlled patches.
 - Provider failures must produce fallback advisor output, not failed generation.
+- GPT/Qwen modes synthesize the ArchitectureSpec before deterministic materialization.
+- Hybrid mode keeps the ArchitectureSpec deterministic and applies AI only through the Phase 7 refinement policy.
 
 ### Phase 7: hybrid refinement policy
 
 - Baseline owns structure.
-- AI may only refine allowlisted docs, README sections, setup notes and comments.
+- AI may only refine allowlisted documentation files: README and selected `docs/*.md` outputs.
 - Required artifacts, profile and root structure cannot be changed by AI.
+- Generated ZIPs can include `.mag/hybrid-refinement.json` and accepted documentation patches such as `docs/next-steps.md`.
+- The smoke test validates hybrid metadata and allowlisted documentation output.
+
+## Active phase
 
 ### Phase 8: run repository, metrics and compare data
 
-- Store spec, manifest, validation, advisor, provider metadata, artifacts and metrics per run.
+Goal: make generation history useful for product work and diploma evaluation.
+
+Implementation direction:
+
+- Store spec, manifest, validation, advisor, provider metadata, hybrid refinement metadata, artifacts and metrics per run.
 - Prepare baseline/HF/commercial/hybrid comparison without re-running generation.
+- Keep existing history and download endpoints backward-compatible.
+
+Acceptance:
+
+- Old generations remain accessible.
+- New runs carry structured metadata.
+- API can return run details suitable for compare UI.
+- Compare data can be built without regenerating packages.
+
+## Upcoming phases
 
 ### Phase 9: validation v2
 

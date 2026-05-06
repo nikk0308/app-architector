@@ -7,7 +7,7 @@ The AI layer is intentionally constrained. It must improve the architecture pack
 AI providers may:
 
 - produce structured advisor reports;
-- synthesize structured spec notes for future review;
+- synthesize controlled `ArchitectureSpec` patches in GPT/Qwen modes before deterministic materialization;
 - propose allowlisted hybrid refinements;
 - report execution metadata, warnings and failures.
 
@@ -39,14 +39,19 @@ The key types are:
 
 Hybrid refinements live behind `packages/shared/src/domain/hybrid.ts`.
 
+Hybrid mode keeps the canonical `ArchitectureSpec` and manifest deterministic. AI is only used after that point to propose policy-validated documentation patches.
+
 Version 1 allows only documentation-oriented refinements:
 
-- README sections;
-- files under `docs/`;
-- `.env.example`;
-- comments or annotations in allowlisted starter stubs in future phases.
+- `README.md`;
+- `docs/architecture-decisions.md`;
+- `docs/next-steps.md`;
+- `docs/testing-strategy.md`;
+- `docs/deployment-notes.md`.
 
-The default policy forbids file creation, required artifact removal, profile changes and root structure changes.
+The default policy allows creation of those explicit documentation files only. It forbids `.mag` metadata changes, source-code changes, required artifact removal, profile changes, root structure changes and content that looks like credentials.
+
+Accepted hybrid patches are materialized by the deterministic Python generator and recorded in `.mag/hybrid-refinement.json`.
 
 ## Fallback rule
 

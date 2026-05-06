@@ -88,4 +88,43 @@ describe("architecture synthesis", () => {
     expect(result.spec.architecture.stateManagement.length).toBeGreaterThan(0);
     expect(result.metadata.warnings.length).toBeGreaterThan(0);
   });
+
+  it("keeps hybrid ArchitectureSpec deterministic before refinement policy is applied", async () => {
+    const result = await synthesizeArchitectureSpec({
+      ...payload,
+      generationMode: "hybrid"
+    }, {
+      llmEnabled: true,
+      forcedProvider: "openai",
+      providerResult: {
+        ok: true,
+        model: "test-gpt",
+        text: JSON.stringify({
+          architectureStyle: "layered",
+          stateManagement: "redux",
+          navigationStyle: "ai-router",
+          environmentMode: "multi",
+          features: {
+            auth: true,
+            analytics: true,
+            localization: true,
+            push: true,
+            networking: true,
+            persistence: true
+          },
+          includeExampleScreen: true,
+          explanation: "This patch must be ignored for hybrid mode.",
+          assumptions: [],
+          risks: [],
+          recommendations: []
+        })
+      }
+    });
+
+    expect(result.metadata.mode).toBe("hybrid");
+    expect(result.metadata.usedAi).toBe(false);
+    expect(result.metadata.status).toBe("baseline");
+    expect(result.spec.generationMode).toBe("hybrid");
+    expect(result.spec.architecture.stateManagement).not.toBe("redux");
+  });
 });

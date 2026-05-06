@@ -8,6 +8,7 @@ import type {
   GenerationAdvisorSummary,
   GenerationMetadata,
   GenerationPlan,
+  HybridRefinementReport,
   NormalizedProfile,
   QuestionnaireAnswers,
   QuestionnaireSection,
@@ -55,6 +56,7 @@ export interface PreviewResponse {
 export interface AdvisorPlanResponse {
   advisor: ArchitectureAdvisorReport;
   validation: ValidationReport;
+  preview?: PreviewResponse;
 }
 
 export interface GenerationResponse extends PreviewResponse {
@@ -65,6 +67,7 @@ export interface GenerationResponse extends PreviewResponse {
   artifacts?: GeneratedArtifactSummary[];
   advisorSummary?: GenerationAdvisorSummary;
   advisor?: ArchitectureAdvisorReport;
+  hybridRefinement?: HybridRefinementReport;
 }
 
 async function request<T>(input: RequestInfo, init?: RequestInit): Promise<T> {

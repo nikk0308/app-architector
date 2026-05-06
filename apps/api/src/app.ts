@@ -15,6 +15,7 @@ import {
   type GeneratedArtifactSummary,
   type GenerationAdvisorSummary,
   type ArchitectureAdvisorReport,
+  type HybridRefinementReport,
   type TreeNode,
   type ArchitectureSynthesisSummary,
   CONTRACT_VERSIONS
@@ -28,6 +29,7 @@ import { createRunDirectories } from "./services/storage.js";
 import { buildArchitectureAdvisorReport, getAdvisorStatus } from "./services/advisor/architectureAdvisor.js";
 import { getProviderStatusSummaries } from "./services/providers/status.js";
 import { synthesizeArchitectureSpec } from "./services/architectureSynthesis.js";
+import { buildHybridRefinementReport } from "./services/hybridRefinement.js";
 
 async function buildPreviewPayload(answers: QuestionnaireAnswers) {
   const synthesis = await synthesizeArchitectureSpec(answers);
@@ -76,6 +78,34 @@ function withArchitectureSynthesisNode(
   return [...fileTree, { path, type: "file" }];
 }
 
+function withHybridRefinementNodes(
+  fileTree: TreeNode[],
+  rootFolderName: string,
+  refinement?: HybridRefinementReport
+): TreeNode[] {
+  if (!refinement) {
+    return fileTree;
+  }
+
+  const existingPaths = new Set(fileTree.map((node) => node.path));
+  const additions: TreeNode[] = [];
+  const metadataPath = `${rootFolderName}/.mag/hybrid-refinement.json`;
+  if (!existingPaths.has(metadataPath)) {
+    additions.push({ path: metadataPath, type: "file" });
+    existingPaths.add(metadataPath);
+  }
+
+  for (const patch of refinement.acceptedPatches) {
+    const patchPath = `${rootFolderName}/${patch.path}`;
+    if (!existingPaths.has(patchPath)) {
+      additions.push({ path: patchPath, type: "file" });
+      existingPaths.add(patchPath);
+    }
+  }
+
+  return [...fileTree, ...additions];
+}
+
 function synthesisNotes(synthesis: ArchitectureSynthesisSummary): string[] {
   if (synthesis.status === "ai-applied") {
     return ["AI produced the ArchitectureSpec; the deterministic generator materialized the ZIP structure."];
@@ -110,8 +140,14 @@ function artifactDescription(filePath: string): string {
   if (filePath.endsWith(".mag/architecture-advisor.json")) {
     return "Structured advisor report with mode, assumptions, risks and recommendations.";
   }
+  if (filePath.endsWith(".mag/hybrid-refinement.json")) {
+    return "Hybrid refinement report with accepted patches, rejected patches and policy warnings.";
+  }
   if (filePath.endsWith("docs/architecture-decisions.md")) {
     return "Readable architecture decisions and next steps for the generated starter.";
+  }
+  if (filePath.endsWith("docs/next-steps.md")) {
+    return "AI-refined next steps generated within the hybrid documentation allowlist.";
   }
   if (filePath.endsWith(".mag/artifact-manifest.json")) {
     return "Generated artifact manifest for auditability.";
@@ -203,7 +239,7 @@ export function createApp(): FastifyInstance {
       mode: preview.profile.generationMode
     });
 
-    return { advisor, validation: preview.validation.manifest };
+    return { advisor, validation: preview.validation.manifest, preview };
   });
 
   app.post<{ Body: QuestionnaireAnswers }>("/api/generations", async (request, reply) => {
@@ -221,6 +257,20 @@ export function createApp(): FastifyInstance {
       })
       : undefined;
 
+    const hybridRefinement = preview.profile.generationMode === "hybrid"
+      ? await buildHybridRefinementReport({
+        answers: request.body,
+        spec: preview.spec,
+        manifest: preview.manifest,
+        validation: preview.validation.manifest,
+        fileTree: preview.fileTree,
+        advisorReport,
+        mode: preview.profile.generationMode
+      })
+      : undefined;
+
+    const responseFileTree = withHybridRefinementNodes(preview.fileTree, preview.manifest.rootFolderName, hybridRefinement);
+
     const generationResult = await generatorRunner.run({
       generationId: directories.generationId,
       profile: preview.profile,
@@ -230,6 +280,7 @@ export function createApp(): FastifyInstance {
       validation: preview.validation.manifest,
       architectureSynthesis: preview.architectureSynthesis,
       advisorReport,
+      hybridRefinement,
       outputDir: directories.outputDir,
       zipPath: directories.zipPath
     });
@@ -243,7 +294,7 @@ export function createApp(): FastifyInstance {
       createdAt: new Date().toISOString(),
       zipPath: generationResult.success ? generationResult.zipPath : undefined,
       outputDir: directories.outputDir,
-      fileTree: preview.fileTree,
+      fileTree: responseFileTree,
       profileJson: JSON.stringify(preview.profile),
       planJson: JSON.stringify(preview.plan),
       specJson: JSON.stringify(preview.spec),
@@ -251,6 +302,7 @@ export function createApp(): FastifyInstance {
       validationJson: JSON.stringify(preview.validation),
       architectureSynthesisJson: JSON.stringify(preview.architectureSynthesis),
       advisorJson: advisorReport ? JSON.stringify(advisorReport) : undefined,
+      hybridRefinementJson: hybridRefinement ? JSON.stringify(hybridRefinement) : undefined,
       generatorLogPath: generationResult.logFilePath,
       diagnosticsPath: generationResult.diagnosticsPath,
       errorMessage: generationResult.error
@@ -270,13 +322,15 @@ export function createApp(): FastifyInstance {
 
     return {
       ...preview,
+      fileTree: responseFileTree,
       generationId: directories.generationId,
       zipPath: generationResult.zipPath,
       logFilePath: generationResult.logFilePath,
       diagnosticsPath: generationResult.diagnosticsPath,
-      artifacts: buildGeneratedArtifacts(preview.fileTree),
+      artifacts: buildGeneratedArtifacts(responseFileTree),
       advisorSummary: buildAdvisorSummary(advisorReport),
-      advisor: advisorReport
+      advisor: advisorReport,
+      hybridRefinement
     };
   });
 

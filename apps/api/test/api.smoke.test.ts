@@ -89,6 +89,23 @@ describe("API smoke", () => {
     await app.close();
   });
 
+  it("returns advisor plan together with preview data", async () => {
+    const app = createApp();
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/advisor/plan",
+      payload: aiModePayload
+    });
+
+    const payload = response.json();
+    expect(response.statusCode).toBe(200);
+    expect(payload.advisor.summary.length).toBeGreaterThan(0);
+    expect(payload.validation.status).toBe("passed");
+    expect(payload.preview.manifest.summary.totalArtifacts).toBeGreaterThan(0);
+    expect(payload.preview.architectureSynthesis.mode).toBe("commercial");
+    await app.close();
+  });
+
   it("returns generation artifacts and advisor summary after creating a ZIP", async () => {
     const app = createApp();
     const response = await app.inject({

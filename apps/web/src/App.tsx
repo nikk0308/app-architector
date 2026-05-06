@@ -89,6 +89,12 @@ function downloadUrlForGeneration(generationId: string): string {
   return apiUrl(`/api/generations/${generationId}/download`);
 }
 
+const actionDescriptions = {
+  advisorPlan: "AI-план показує архітектурні рішення, ризики й рекомендації без створення ZIP.",
+  structurePreview: "Preview структури показує майбутній вміст ZIP без запису архіву.",
+  generateZip: "Створення ZIP матеріалізує файли й додає архів у історію."
+} as const;
+
 function humanError(message: string): string {
   if (message === "Failed to fetch") {
     return "Не вдалося підключитися до серверної частини. Перевір, чи запущений API та чи правильно налаштований домен.";
@@ -233,6 +239,7 @@ export default function App() {
   const advisorSummary = latestGeneration?.advisorSummary ?? advisorSummaryFromReport(activeAdvisor);
   const advisorWarnings = advisorSummary?.warnings?.filter(Boolean) ?? [];
   const architectureSynthesis = latestGeneration?.architectureSynthesis ?? preview?.architectureSynthesis;
+  const hybridRefinement = latestGeneration?.hybridRefinement;
   const selectedMode = form.generationMode ?? "baseline";
   const selectedModeOption = generationModeOptions.find((option) => option.mode === selectedMode) ?? generationModeOptions[0];
   const providerById = useMemo(
@@ -242,6 +249,12 @@ export default function App() {
   const selectedProviderStatus = selectedModeOption.provider === "hybrid"
     ? readyOrFallback(providerById.get("openai"), providerById.get("huggingface"), providerById.get("deterministic"))
     : providerById.get(selectedModeOption.provider);
+  const selectedArchitectureProviderStatus = selectedMode === "hybrid"
+    ? providerById.get("deterministic")
+    : selectedProviderStatus;
+  const selectedHybridProviderStatus = selectedMode === "hybrid"
+    ? selectedProviderStatus
+    : undefined;
   const selectedAdvisorProviderStatus = providerStatusForMode(selectedMode, providerById);
 
   function buildRequestPayload() {
@@ -327,6 +340,10 @@ export default function App() {
       setAdvisorError(null);
       const result = await createAdvisorPlan(buildRequestPayload());
       setAdvisorPlan(result.advisor);
+      if (result.preview) {
+        setPreview(result.preview);
+        setCreatedGeneration(null);
+      }
     } catch (err) {
       setAdvisorError(err instanceof Error ? humanError(err.message) : "Не вдалося підготувати рекомендації архітектурного радника.");
     } finally {
@@ -458,25 +475,31 @@ export default function App() {
               <span>{selectedMode === "baseline" ? "ZIP буде згенеровано кодом без ШІ." : "У ZIP буде додано AI/advisor артефакти."}</span>
             </div>
             <p>{selectedModeOption.subtitle} Якщо провайдер недоступний або поверне некоректний JSON, генерація не впаде: буде використано deterministic fallback.</p>
-            {selectedProviderStatus ? <small>Architecture provider: {selectedProviderStatus.provider} · {selectedProviderStatus.status}{selectedProviderStatus.model ? ` · ${selectedProviderStatus.model}` : ""}</small> : null}
+            {selectedArchitectureProviderStatus ? <small>Architecture provider: {selectedArchitectureProviderStatus.provider} · {selectedArchitectureProviderStatus.status}{selectedArchitectureProviderStatus.model ? ` · ${selectedArchitectureProviderStatus.model}` : ""}</small> : null}
+            {selectedHybridProviderStatus ? <small>Hybrid refinement provider: {selectedHybridProviderStatus.provider} · {selectedHybridProviderStatus.status}{selectedHybridProviderStatus.model ? ` · ${selectedHybridProviderStatus.model}` : ""}</small> : null}
             {selectedAdvisorProviderStatus ? (
               <small>Advisor provider: {selectedAdvisorProviderStatus.provider} · {selectedAdvisorProviderStatus.status}{selectedAdvisorProviderStatus.model ? ` · ${selectedAdvisorProviderStatus.model}` : ""}</small>
             ) : advisorStatus ? (
               <small>Advisor provider: {advisorStatus.provider} · {advisorStatus.status}{advisorStatus.model ? ` · ${advisorStatus.model}` : ""}</small>
             ) : null}
             <button className="secondary small-button" onClick={handleAdvisorPlan} disabled={!canSubmit || isBusy || advisorLoading}>
-              {advisorLoading ? "Готуємо план..." : "Показати план"}
+              {advisorLoading ? "Готуємо AI-план..." : "AI-план без ZIP"}
             </button>
+            <small>{actionDescriptions.advisorPlan}</small>
             {advisorError ? <small className="error-text">{advisorError}</small> : null}
           </div>
 
           <div className="actions">
             <button className="secondary" onClick={handlePreview} disabled={!canSubmit || isBusy}>
-              {loadingPreview ? "Перевіряємо..." : "Переглянути структуру"}
+              {loadingPreview ? "Перевіряємо..." : "Preview структури ZIP"}
             </button>
             <button className="primary" onClick={handleGenerate} disabled={!canSubmit || isBusy}>
               {loadingGenerate ? "Створюємо ZIP..." : "Створити ZIP"}
             </button>
+          </div>
+          <div className="action-explainers">
+            <small>{actionDescriptions.structurePreview}</small>
+            <small>{actionDescriptions.generateZip}</small>
           </div>
         </section>
 
@@ -603,6 +626,38 @@ export default function App() {
                         <summary>Provider safeguards: {architectureSynthesis.warnings.length}</summary>
                         <ul className="note-list">
                           {architectureSynthesis.warnings.slice(0, 5).map((warning) => <li key={warning}>{warning}</li>)}
+                        </ul>
+                      </details>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {hybridRefinement ? (
+                  <div className="card synthesis-card">
+                    <div className="card-row">
+                      <h3>Hybrid refinement</h3>
+                      <span className="status-pill accent-pill">{hybridRefinement.status}</span>
+                    </div>
+                    <p>
+                      AI can refine only allowlisted documentation files. Source files, manifest, metadata and required tree contracts stay deterministic.
+                    </p>
+                    <small>
+                      Provider: {hybridRefinement.provider}{hybridRefinement.model ? ` - ${hybridRefinement.model}` : ""} - Accepted: {hybridRefinement.acceptedPatches.length} - Rejected: {hybridRefinement.rejectedPatches.length}
+                    </small>
+                    {hybridRefinement.acceptedPatches.length > 0 ? (
+                      <ul className="note-list">
+                        {hybridRefinement.acceptedPatches.slice(0, 4).map((patch) => (
+                          <li key={`${patch.operation}:${patch.path}`}>
+                            <strong>{patch.path}:</strong> {patch.rationale}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    {hybridRefinement.warnings.length > 0 ? (
+                      <details className="inline-debug-details">
+                        <summary>Hybrid safeguards: {hybridRefinement.warnings.length}</summary>
+                        <ul className="note-list">
+                          {hybridRefinement.warnings.slice(0, 5).map((warning) => <li key={warning}>{warning}</li>)}
                         </ul>
                       </details>
                     ) : null}

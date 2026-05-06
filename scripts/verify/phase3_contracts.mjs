@@ -164,13 +164,17 @@ try {
   const sharedVersion = read("packages/shared/src/version.ts");
   const sharedDomainIndex = read("packages/shared/src/domain/index.ts");
   const sharedProviderDomain = read("packages/shared/src/domain/provider.ts");
+  const sharedHybridDomain = read("packages/shared/src/domain/hybrid.ts");
   const appSource = read("apps/api/src/app.ts");
   const advisorSource = read("apps/api/src/services/advisor/architectureAdvisor.ts");
   const architectureSynthesisSource = read("apps/api/src/services/architectureSynthesis.ts");
+  const hybridRefinementSource = read("apps/api/src/services/hybridRefinement.ts");
   const openAiProviderSource = read("apps/api/src/services/advisor/openaiProvider.ts");
   const deterministicSource = read("apps/api/src/services/advisor/deterministic.ts");
   const generatorRunnerSource = read("apps/api/src/services/generatorRunner.ts");
+  const generatorPythonSource = read("services/generator-python/generator_cli.py");
   const templateVariablesSource = read("apps/api/src/services/templateVariables.ts");
+  const smokeGeneratedZipSource = read("scripts/smoke_generated_zip.mjs");
   const deployWorkflow = read(".github/workflows/03_deploy.yml");
   const registry = readJson("config/artifact-registry.json");
 
@@ -221,6 +225,15 @@ try {
   );
 
   check(
+    contains(sharedHybridDomain, "validateHybridRefinementPatches")
+      && contains(sharedHybridDomain, "DEFAULT_HYBRID_REFINEMENT_POLICY")
+      && contains(sharedHybridDomain, "allowRootStructureChanges: false")
+      && contains(sharedHybridDomain, "Hybrid refinement cannot modify .mag metadata contracts"),
+    "shared.hybrid-refinement-policy",
+    "Hybrid refinement has an explicit allowlisted patch policy that protects metadata and root structure."
+  );
+
+  check(
     contains(advisorSource, "runOpenAIAdvisor")
       && contains(openAiProviderSource, "https://api.openai.com/v1/responses")
       && contains(openAiProviderSource, "json_schema")
@@ -236,6 +249,22 @@ try {
       && contains(appSource, "await synthesizeArchitectureSpec"),
     "api.ai-architecture-spec-synthesis",
     "AI modes can synthesize a controlled ArchitectureSpec patch before manifest and ZIP generation."
+  );
+
+  check(
+    contains(architectureSynthesisSource, 'return mode === "commercial" || mode === "hf-open";'),
+    "api.hybrid-keeps-deterministic-spec",
+    "Hybrid mode keeps ArchitectureSpec deterministic; AI is applied later through refinement policy."
+  );
+
+  check(
+    contains(hybridRefinementSource, "buildHybridRefinementReport")
+      && contains(hybridRefinementSource, "validateHybridRefinementPatches")
+      && contains(hybridRefinementSource, "runOpenAIJson")
+      && contains(hybridRefinementSource, "runHuggingFaceJson")
+      && contains(appSource, "await buildHybridRefinementReport"),
+    "api.hybrid-refinement-layer",
+    "Hybrid mode can request provider-generated documentation patches and validate them before materialization."
   );
 
   check(
@@ -262,6 +291,15 @@ try {
     contains(generatorRunnerSource, "advisorReport") && contains(templateVariablesSource, "advisor_json") && contains(templateVariablesSource, "advisor_markdown"),
     "api.generator-carries-advisor-payload",
     "Generator payload carries advisor JSON and Markdown template variables."
+  );
+
+  check(
+    contains(generatorRunnerSource, "hybridRefinement")
+      && contains(generatorPythonSource, "write_hybrid_refinements")
+      && contains(generatorPythonSource, "hybrid-refinement.json")
+      && contains(generatorPythonSource, "hybridRefinementFiles"),
+    "generator.materializes-hybrid-refinements",
+    "Python materializer writes accepted hybrid documentation patches and records hybrid metadata."
   );
 
   check(
@@ -292,6 +330,14 @@ try {
     exists("scripts/smoke_generated_zip.mjs") && contains(read("scripts/smoke_phase3_advisor.sh"), "smoke_generated_zip.mjs"),
     "smoke.generated-zip-inspection",
     "Generated ZIP smoke inspection is available and wired into the phase 3 smoke wrapper."
+  );
+
+  check(
+    contains(smokeGeneratedZipSource, ".mag/hybrid-refinement.json")
+      && contains(smokeGeneratedZipSource, "docs/next-steps.md")
+      && contains(smokeGeneratedZipSource, "hybrid-json.parseable"),
+    "smoke.hybrid-refinement-inspection",
+    "Generated ZIP smoke validates hybrid refinement metadata and allowlisted documentation output."
   );
 
   check(

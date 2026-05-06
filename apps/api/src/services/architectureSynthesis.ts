@@ -47,7 +47,7 @@ const stringFields = ["architectureStyle", "stateManagement", "navigationStyle"]
 const featureFields = ["hasAuth", "hasAnalytics", "hasLocalization", "hasPush", "hasNetworking", "hasPersistence"] as const;
 
 function wantsAiSpec(mode?: GenerationMode): boolean {
-  return mode === "commercial" || mode === "hf-open" || mode === "hybrid";
+  return mode === "commercial" || mode === "hf-open";
 }
 
 function selectProvider(mode: GenerationMode): ProviderName {

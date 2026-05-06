@@ -184,6 +184,8 @@ def write_metadata_files(output_root: Path, payload: Dict[str, Any], diagnostics
     write_json(metadata_root / "template-context.json", payload.get("templateContext", {}))
     if payload.get("advisorReport") is not None:
         write_json(metadata_root / "architecture-advisor.json", payload.get("advisorReport", {}))
+    if payload.get("hybridRefinement") is not None:
+        write_json(metadata_root / "hybrid-refinement.json", payload.get("hybridRefinement", {}))
     write_json(metadata_root / "generation-input.json", {
         "generationId": payload.get("generationId"),
         "outputDir": payload.get("outputDir"),
@@ -213,6 +215,42 @@ def write_profile_specific_stub(output_root: Path, profile: str, context: Dict[s
             generated.append(str(path.relative_to(output_root)))
 
     return generated
+
+
+def write_hybrid_refinements(output_root: Path, payload: Dict[str, Any], context: Dict[str, Any]) -> List[str]:
+    refinement = payload.get("hybridRefinement")
+    if not isinstance(refinement, dict):
+        return []
+
+    accepted_patches = refinement.get("acceptedPatches")
+    if not isinstance(accepted_patches, list):
+        return []
+
+    generated: List[str] = []
+    for patch in accepted_patches:
+        if not isinstance(patch, dict):
+            continue
+
+        relative_path = patch.get("path")
+        content = patch.get("content")
+        operation = patch.get("operation")
+        if not isinstance(relative_path, str) or not isinstance(content, str):
+            continue
+
+        destination = safe_destination(output_root, relative_path, context)
+        ensure_parent(destination)
+        rendered_content = content.rstrip() + "\n"
+
+        if operation == "append-section" and destination.exists():
+            current = destination.read_text(encoding="utf-8").rstrip()
+            marker = "<!-- mag:hybrid-refinement -->"
+            destination.write_text(f"{current}\n\n{marker}\n{rendered_content}", encoding="utf-8")
+        else:
+            destination.write_text(rendered_content, encoding="utf-8")
+
+        generated.append(str(destination.relative_to(output_root)))
+
+    return sorted(set(generated))
 
 
 def zip_directory(source_dir: Path, zip_path: Path) -> None:
@@ -295,6 +333,8 @@ def main() -> int:
             context,
         )
         generated_files.extend(write_profile_specific_stub(output_root, profile["profile"], context))
+        hybrid_files = write_hybrid_refinements(output_root, payload, context)
+        generated_files.extend(hybrid_files)
         diagnostics = {
             "status": "passed" if not missing_artifacts else "warning",
             "generationId": payload.get("generationId"),
@@ -302,6 +342,7 @@ def main() -> int:
             "artifactIds": artifact_ids,
             "generatedFileCount": len(generated_files),
             "generatedFiles": sorted(generated_files),
+            "hybridRefinementFiles": hybrid_files,
             "missingRegistryArtifacts": missing_artifacts,
             "skippedOutputs": skipped_outputs,
             "outputRoot": str(output_root),

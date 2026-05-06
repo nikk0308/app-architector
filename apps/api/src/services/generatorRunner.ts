@@ -10,6 +10,7 @@ import {
   type ArchitectureSpec,
   type ArtifactManifest,
   type GenerationPlan,
+  type HybridRefinementReport,
   type NormalizedProfile,
   type QuestionnaireAnswers,
   type TreeNode,
@@ -29,6 +30,7 @@ export interface GeneratorExecutionInput {
   validation: ValidationReport;
   architectureSynthesis?: ArchitectureSynthesisSummary;
   advisorReport?: ArchitectureAdvisorReport;
+  hybridRefinement?: HybridRefinementReport;
   outputDir: string;
   zipPath: string;
 }
@@ -82,6 +84,7 @@ class GeneratorRunner {
       validation: input.validation,
       architectureSynthesis: input.architectureSynthesis ?? null,
       advisorReport: input.advisorReport ?? null,
+      hybridRefinement: input.hybridRefinement ?? null,
       templateContext,
       outputDir: input.outputDir,
       zipPath: input.zipPath
@@ -96,6 +99,7 @@ class GeneratorRunner {
       validation: input.validation,
       architectureSynthesis: input.architectureSynthesis ?? null,
       advisorReport: input.advisorReport ?? null,
+      hybridRefinement: input.hybridRefinement ?? null,
       templateContext,
       outputDir: input.outputDir,
       zipPath: input.zipPath

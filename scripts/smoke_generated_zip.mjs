@@ -24,6 +24,8 @@ let pythonBin = pythonCandidates[0];
 const requiredRelativePaths = [
   ".mag/architecture-advisor.json",
   ".mag/architecture-synthesis.json",
+  ".mag/hybrid-refinement.json",
+  "docs/next-steps.md",
   "docs/architecture-decisions.md"
 ];
 
@@ -189,6 +191,25 @@ function payload() {
       },
       createdAt: "2026-04-28T00:00:00.000Z"
     },
+    hybridRefinement: {
+      schemaVersion: "1.0",
+      enabled: true,
+      mode: "hybrid",
+      provider: "openai",
+      model: "smoke-provider",
+      status: "applied",
+      acceptedPatches: [
+        {
+          path: "docs/next-steps.md",
+          kind: "documentation",
+          operation: "replace-file",
+          content: "# Next Steps\n\n- Replace smoke endpoints with product APIs.\n- Confirm storage and auth boundaries before production wiring.\n",
+          rationale: "Smoke verifies that allowlisted hybrid documentation patches are materialized."
+        }
+      ],
+      rejectedPatches: [],
+      warnings: []
+    },
     templateContext: {
       advisor_json: JSON.stringify({ smoke: true, schemaVersion: "1.0", advisorVersion: "phase3" }, null, 2),
       advisor_markdown: "# Architecture Decisions\n\n## Overview\n\nSmoke-test architecture plan.\n\n## Next Steps\n\n- Add project-specific screens\n"
@@ -227,9 +248,13 @@ function run() {
 
   const advisorPath = path.join(outputRoot, ".mag", "architecture-advisor.json");
   const synthesisPath = path.join(outputRoot, ".mag", "architecture-synthesis.json");
+  const hybridPath = path.join(outputRoot, ".mag", "hybrid-refinement.json");
+  const hybridDocPath = path.join(outputRoot, "docs", "next-steps.md");
   const decisionsPath = path.join(outputRoot, "docs", "architecture-decisions.md");
   const advisor = fs.existsSync(advisorPath) ? JSON.parse(fs.readFileSync(advisorPath, "utf8")) : null;
   const synthesis = fs.existsSync(synthesisPath) ? JSON.parse(fs.readFileSync(synthesisPath, "utf8")) : null;
+  const hybrid = fs.existsSync(hybridPath) ? JSON.parse(fs.readFileSync(hybridPath, "utf8")) : null;
+  const hybridDocText = fs.existsSync(hybridDocPath) ? fs.readFileSync(hybridDocPath, "utf8") : "";
   const markdownText = fs.existsSync(decisionsPath) ? fs.readFileSync(decisionsPath, "utf8") : "";
 
   const checks = [
@@ -238,9 +263,13 @@ function run() {
     { id: "zip.not-empty", status: fs.existsSync(zipPath) && fs.statSync(zipPath).size > 0 ? "passed" : "failed", message: "Generated ZIP is not empty." },
     { id: "advisor-json.present", status: requiredArtifacts[0].present ? "passed" : "failed", message: ".mag/architecture-advisor.json exists in output and ZIP." },
     { id: "synthesis-json.present", status: requiredArtifacts[1].present ? "passed" : "failed", message: ".mag/architecture-synthesis.json exists in output and ZIP." },
-    { id: "decisions-md.present", status: requiredArtifacts[2].present ? "passed" : "failed", message: "docs/architecture-decisions.md exists in output and ZIP." },
+    { id: "hybrid-json.present", status: requiredArtifacts[2].present ? "passed" : "failed", message: ".mag/hybrid-refinement.json exists in output and ZIP." },
+    { id: "hybrid-doc.present", status: requiredArtifacts[3].present ? "passed" : "failed", message: "docs/next-steps.md exists in output and ZIP." },
+    { id: "decisions-md.present", status: requiredArtifacts[4].present ? "passed" : "failed", message: "docs/architecture-decisions.md exists in output and ZIP." },
     { id: "advisor-json.parseable", status: advisor && advisor.schemaVersion === "1.0" ? "passed" : "failed", message: "Advisor JSON is parseable and carries schemaVersion." },
     { id: "synthesis-json.parseable", status: synthesis && synthesis.mode === "hybrid" ? "passed" : "failed", message: "Architecture synthesis JSON is parseable and carries mode metadata." },
+    { id: "hybrid-json.parseable", status: hybrid && hybrid.status === "applied" && hybrid.acceptedPatches?.length === 1 ? "passed" : "failed", message: "Hybrid refinement JSON is parseable and carries accepted patches." },
+    { id: "hybrid-doc.meaningful", status: hybridDocText.length > 80 && hybridDocText.includes("Next Steps") ? "passed" : "failed", message: "Hybrid markdown patch has meaningful content." },
     { id: "decisions-md.meaningful", status: markdownText.length > 80 && markdownText.includes("Architecture Decisions") ? "passed" : "failed", message: "Advisor markdown has meaningful content." }
   ];
   const failed = checks.filter((item) => item.status === "failed");
@@ -254,6 +283,7 @@ function run() {
     requiredArtifacts,
     zipEntries,
     advisorSummary: advisor?.summary,
+    hybridStatus: hybrid?.status,
     checks,
     generator: {
       status: generator.status,
