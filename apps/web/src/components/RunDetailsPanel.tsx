@@ -75,7 +75,7 @@ export function RunDetailsPanel({ details, loading, error, labels }: RunDetailsP
   }
 
   if (!details) {
-    return <div className="empty-state">{text.empty}</div>;
+    return text.empty ? <div className="empty-state">{text.empty}</div> : null;
   }
 
   const metrics = details.metrics;

@@ -46,7 +46,6 @@ type StepId =
   | "module-delivery"
   | "extras"
   | "tree"
-  | "result"
   | "runs";
 
 type LocalText = Record<Lang, string>;
@@ -97,8 +96,8 @@ const copy: Record<Lang, Record<string, string>> = {
     demo: "Демо-дані",
     generateTree: "Згенерувати структурне дерево",
     generatingTree: "Генеруємо дерево...",
-    createZip: "Створити ZIP з цієї архітектури",
-    creatingZip: "Створюємо ZIP...",
+    createZip: "Завантажити ZIP",
+    creatingZip: "Готуємо ZIP...",
     downloadZip: "Завантажити ZIP",
     previewOutdated: "Попередній перегляд застарів: форма змінилася. Згенеруй дерево ще раз.",
     requiredError: "Заповни назву проєкту, назву для користувача, Bundle / Package ID і ціль публікації.",
@@ -109,7 +108,6 @@ const copy: Record<Lang, Record<string, string>> = {
     modules: "Модулі",
     extras: "Додатково",
     tree: "Структурне дерево",
-    result: "Результат",
     runsCompare: "Запуски та порівняння",
     projectName: "Назва проєкту",
     displayName: "Назва для користувача",
@@ -128,7 +126,7 @@ const copy: Record<Lang, Record<string, string>> = {
     compareSelected: "Порівняти обрані",
     latest: "Останні генерації",
     fullHistory: "Повний список",
-    selectRun: "Обери запуск, щоб подивитися деталі.",
+    selectRun: "",
     compareEmpty: "Обери мінімум два запуски для порівняння.",
     copyTree: "Копіювати дерево",
     copied: "Скопійовано",
@@ -209,7 +207,7 @@ const copy: Record<Lang, Record<string, string>> = {
     children: "Вміст",
     relationships: "Зв'язки файлів",
     uses: "Використовує",
-    usedBy: "Використовують",
+    usedBy: "Використовується в:",
     manages: "Керує",
     directChildren: "прямих",
     nestedFiles: "файлів усередині",
@@ -226,8 +224,8 @@ const copy: Record<Lang, Record<string, string>> = {
     demo: "Demo data",
     generateTree: "Generate structure tree",
     generatingTree: "Generating tree...",
-    createZip: "Create ZIP from this architecture",
-    creatingZip: "Creating ZIP...",
+    createZip: "Download ZIP",
+    creatingZip: "Preparing ZIP...",
     downloadZip: "Download ZIP",
     previewOutdated: "Preview outdated: the form changed. Generate the tree again.",
     requiredError: "Fill project name, display name, Bundle / Package ID and publishing target.",
@@ -238,7 +236,6 @@ const copy: Record<Lang, Record<string, string>> = {
     modules: "Modules",
     extras: "Extras",
     tree: "Structure Tree",
-    result: "Result",
     runsCompare: "Runs & Compare",
     projectName: "Project name",
     displayName: "Display name",
@@ -257,7 +254,7 @@ const copy: Record<Lang, Record<string, string>> = {
     compareSelected: "Compare selected",
     latest: "Latest generations",
     fullHistory: "Full list",
-    selectRun: "Select a run to inspect details.",
+    selectRun: "",
     compareEmpty: "Select at least two runs to compare.",
     copyTree: "Copy tree",
     copied: "Copied",
@@ -338,7 +335,7 @@ const copy: Record<Lang, Record<string, string>> = {
     children: "Children",
     relationships: "File relationships",
     uses: "Uses",
-    usedBy: "Used by",
+    usedBy: "Used in:",
     manages: "Manages",
     directChildren: "direct",
     nestedFiles: "files nested",
@@ -358,7 +355,6 @@ const steps: Array<{ id: StepId; labelKey: string }> = [
   { id: "architecture", labelKey: "architecture" },
   { id: "extras", labelKey: "extras" },
   { id: "tree", labelKey: "tree" },
-  { id: "result", labelKey: "result" },
   { id: "runs", labelKey: "runsCompare" }
 ];
 
@@ -969,7 +965,6 @@ export default function App() {
   const activeMode = form.generationMode ?? "baseline";
   const shown = generation ?? preview;
   const shownArtifacts = shown?.artifacts ?? [];
-  const fileCount = shown?.fileTree.filter((node) => node.type === "file").length ?? 0;
   const availableArchitecture = pickOptions(architectureOptions, platformRules[form.profile].architecture);
   const availableState = pickOptions(stateOptions, platformRules[form.profile].state);
   const availableNavigation = pickOptions(navOptions, platformRules[form.profile].navigation);
@@ -1057,6 +1052,7 @@ export default function App() {
     }
     try {
       setLoadingPreview(true);
+      setLoadingZip(true);
       setError(null);
       const request = payload();
       const result = await createArchitecturePreview(request);
@@ -1064,31 +1060,15 @@ export default function App() {
       setForm(nextForm);
       setPreview(result);
       setPreviewFingerprint(formFingerprint(nextForm));
-      setGeneration(null);
+      const generated = await createGenerationFromPreview(result.previewId);
+      setGeneration(generated);
+      setPreview({ ...result, ...generated, previewId: result.previewId, createdAt: result.createdAt });
+      await refreshHistory();
       setActiveStep("tree");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Preview failed");
     } finally {
       setLoadingPreview(false);
-    }
-  }
-
-  async function createZip() {
-    if (!preview || previewOutdated) {
-      setError(t.previewOutdated);
-      return;
-    }
-    try {
-      setLoadingZip(true);
-      setError(null);
-      const result = await createGenerationFromPreview(preview.previewId);
-      setGeneration(result);
-      setPreview((current) => current ? { ...current, ...result, previewId: current.previewId, createdAt: current.createdAt } : current);
-      await refreshHistory();
-      setActiveStep("result");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Generation failed");
-    } finally {
       setLoadingZip(false);
     }
   }
@@ -1169,9 +1149,8 @@ export default function App() {
 
   const stepState = (id: StepId): string => {
     if (id === activeStep) return "active";
-    if ((id === "tree" || id === "result") && !preview) return "locked";
-    if (id === "result" && !generation) return "locked";
-    if (!requiredValid && (id === "tree" || id === "result")) return "error";
+    if (id === "tree" && !preview) return "locked";
+    if (!requiredValid && id === "tree") return "error";
     return "ready";
   };
 
@@ -1449,9 +1428,16 @@ export default function App() {
             <div className="step-panel">
               <div className="section-head">
                 <div><span className="kicker">{stepLabel(7)}</span><h1>{t.tree}</h1></div>
-                <button className="primary-button" type="button" disabled={!requiredValid || loadingPreview} onClick={() => void generateTree()}>
-                  {loadingPreview ? t.generatingTree : t.generateTree}
-                </button>
+                <div className="tree-actions">
+                  <button className="primary-button" type="button" disabled={!requiredValid || loadingPreview || loadingZip} onClick={() => void generateTree()}>
+                    {loadingPreview || loadingZip ? t.generatingTree : t.generateTree}
+                  </button>
+                  {generation && !previewOutdated ? (
+                    <a className="primary-link" href={downloadUrlForGeneration(generation.generationId)}>{t.downloadZip}</a>
+                  ) : (
+                    <button className="primary-button disabled" type="button" disabled>{t.downloadZip}</button>
+                  )}
+                </div>
               </div>
               {shown ? (
                 <div className="tree-stack">
@@ -1530,31 +1516,10 @@ export default function App() {
             </div>
           ) : null}
 
-          {activeStep === "result" ? (
-            <div className="step-panel">
-              <div className="section-head">
-                <div><span className="kicker">{stepLabel(8)}</span><h1>{t.result}</h1></div>
-                <button className="primary-button" type="button" disabled={!preview || previewOutdated || loadingZip} onClick={() => void createZip()}>
-                  {loadingZip ? t.creatingZip : t.createZip}
-                </button>
-              </div>
-              {generation ? (
-                <div className="result-card">
-                  <span className="status-pill">{t.zipReady}</span>
-                  <h2>{generation.profile.projectName}</h2>
-                  <p>{generation.profile.profile} · {generation.profile.generationMode} · {generation.runMetrics?.fileCount ?? fileCount} {t.files.toLowerCase()} · {t.validation.toLowerCase()} {generation.runMetrics?.validationStatus ?? "passed"}</p>
-                  <a className="primary-link" href={downloadUrlForGeneration(generation.generationId)}>{t.downloadZip}</a>
-                </div>
-              ) : (
-                <div className="empty-state">{preview ? t.createZip : t.noPreview}</div>
-              )}
-            </div>
-          ) : null}
-
           {activeStep === "runs" ? (
             <div className="step-panel">
               <div className="section-head">
-                <div><span className="kicker">{stepLabel(9)}</span><h1>{t.runsCompare}</h1></div>
+                <div><span className="kicker">{stepLabel(8)}</span><h1>{t.runsCompare}</h1></div>
                 <button className="ghost-button danger-button" type="button" disabled={historyBusy || generations.length === 0} onClick={() => void removeAllHistory()}>{t.clearHistory}</button>
               </div>
               <div className="filters-row">

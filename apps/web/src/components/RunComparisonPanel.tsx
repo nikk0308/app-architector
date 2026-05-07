@@ -119,7 +119,7 @@ export function RunComparisonPanel({ comparison, selectedCount, loading, error, 
           <span className="kicker">{text.title}</span>
           <h2>{comparison.runs.length} {text.runs}</h2>
         </div>
-        {strongest ? <span className="status-pill">{text.strongest}: {strongest.projectName}</span> : null}
+        {strongest ? <span className="status-pill">{text.strongest}: {strongest.projectName} · {strongest.profileId}</span> : null}
       </div>
 
       <div className="compare-table">
@@ -134,7 +134,7 @@ export function RunComparisonPanel({ comparison, selectedCount, loading, error, 
         </div>
         {comparison.runs.map((run) => (
           <div className={run.id === strongest?.id ? "compare-row strongest-row" : "compare-row"} key={run.id}>
-            <strong>{run.projectName}</strong>
+            <strong>{run.projectName} · {run.profileId}</strong>
             <span>{run.mode}</span>
             <span>{run.profileId}</span>
             <span>{run.metrics?.fileCount ?? "-"}</span>
@@ -148,7 +148,7 @@ export function RunComparisonPanel({ comparison, selectedCount, loading, error, 
       <div className="compare-bars">
         {comparison.runs.map((run) => (
           <div className="compare-bar-card" key={`${run.id}:bars`}>
-            <strong>{run.projectName}</strong>
+            <strong>{run.projectName} · {run.profileId}</strong>
             <span>{text.files}</span>
             <i style={{ width: `${((run.metrics?.fileCount ?? 0) / maxFiles) * 100}%` }} />
             <span>{text.generationTime}</span>
@@ -163,7 +163,7 @@ export function RunComparisonPanel({ comparison, selectedCount, loading, error, 
           const values = metricsFor(run, maxFiles);
           return (
             <article className="evaluation-card" key={`${run.id}:evaluation`}>
-              <strong>{run.projectName}</strong>
+              <strong>{run.projectName} · {run.profileId}</strong>
               {metricLabels.map(([key, label]) => (
                 <div className="evaluation-row" key={`${run.id}:${key}`}>
                   <span>{label}</span>

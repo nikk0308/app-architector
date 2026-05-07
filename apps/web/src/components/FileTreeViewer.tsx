@@ -13,7 +13,7 @@ type ExplorerNode = {
 
 type Relationship = {
   label: string;
-  value: string;
+  values: string[];
 };
 
 interface FileTreeViewerProps {
@@ -184,26 +184,26 @@ function relationshipsFor(path: string, type: "file" | "directory", labels: File
   const rows: Relationship[] = [];
   if (type === "directory") {
     if (lower.includes("/product/")) {
-      rows.push({ label: labels.manages, value: ua ? "Конфіги JSON, manager scripts і contracts усередині цієї product-межі." : "JSON configs, manager scripts and contracts inside this product boundary." });
+      rows.push({ label: labels.manages, values: [ua ? "Конфіги JSON, manager scripts і contracts усередині цієї product-межі." : "JSON configs, manager scripts and contracts inside this product boundary."] });
     }
     return rows;
   }
   if (lower.endsWith(".mag/architecture-spec.json")) {
-    rows.push({ label: labels.usedBy, value: "artifact-manifest.json, generation-mode-profile.json, file-relationships.json" });
+    rows.push({ label: labels.usedBy, values: ["artifact-manifest.json", "generation-mode-profile.json", "file-relationships.json"] });
   }
   if (lower.endsWith(".mag/artifact-manifest.json")) {
-    rows.push({ label: labels.usedBy, value: ua ? "Deterministic materializer і validation report." : "Deterministic materializer and validation report." });
+    rows.push({ label: labels.usedBy, values: [ua ? "Deterministic materializer" : "Deterministic materializer", "validation-report.json"] });
   }
   if (lower.endsWith(".mag/file-relationships.json")) {
-    rows.push({ label: labels.uses, value: "ArchitectureSpec + selected product modules" });
+    rows.push({ label: labels.uses, values: ["ArchitectureSpec", ua ? "обрані product modules" : "selected product modules"] });
   }
   if (lower.includes("/product/") || lower.includes("/distribution/") || lower.includes("/delivery/")) {
-    if (lower.endsWith(".json")) rows.push({ label: labels.usedBy, value: ua ? "Manager script у відповідній product-папці." : "Manager script in the matching product folder." });
-    if (lower.includes("manager") || lower.includes("coordinator") || lower.includes("pipeline")) rows.push({ label: labels.manages, value: ua ? "Config JSON, contract/state files і platform handoff." : "Config JSON, contract/state files and platform handoff." });
-    if (lower.includes("state") || lower.includes("gateway") || lower.includes("target") || lower.includes("queue") || lower.includes("repository") || lower.includes("checklist") || lower.includes("environment")) rows.push({ label: labels.usedBy, value: ua ? "Product manager або coordinator цієї межі." : "Product manager or coordinator for this boundary." });
+    if (lower.endsWith(".json")) rows.push({ label: labels.usedBy, values: [ua ? "Manager script у відповідній product-папці" : "Manager script in the matching product folder"] });
+    if (lower.includes("manager") || lower.includes("coordinator") || lower.includes("pipeline")) rows.push({ label: labels.manages, values: ["Config JSON", "contract/state files", "platform handoff"] });
+    if (lower.includes("state") || lower.includes("gateway") || lower.includes("target") || lower.includes("queue") || lower.includes("repository") || lower.includes("checklist") || lower.includes("environment")) rows.push({ label: labels.usedBy, values: [ua ? "Product manager або coordinator цієї межі" : "Product manager or coordinator for this boundary"] });
   }
-  if (lower.endsWith(".prefab")) rows.push({ label: labels.usedBy, value: "AppManager / BootSceneController" });
-  if (lower.endsWith(".unity")) rows.push({ label: labels.uses, value: "BootSceneController + AppRoot.prefab" });
+  if (lower.endsWith(".prefab")) rows.push({ label: labels.usedBy, values: ["AppManager", "BootSceneController"] });
+  if (lower.endsWith(".unity")) rows.push({ label: labels.uses, values: ["BootSceneController", "AppRoot.prefab"] });
   return rows;
 }
 
@@ -412,16 +412,20 @@ export function FileTreeViewer({ nodes, artifacts, language, labels }: FileTreeV
             <div className="relationship-panel">
               <strong>{labels.relationships}</strong>
               {relationships.map((relationship) => (
-                <span key={`${relationship.label}-${relationship.value}`}>
+                <span key={`${relationship.label}-${relationship.values.join(":")}`}>
                   <small>{relationship.label}</small>
-                  <em>{relationship.value}</em>
+                  <ul>
+                    {relationship.values.map((value) => (
+                      <li key={value}>{value}</li>
+                    ))}
+                  </ul>
                 </span>
               ))}
             </div>
           ) : null}
           {stats ? (
             <p className="detail-note">
-              {labels.children}: {stats.direct} {labels.directChildren}, {stats.nestedFiles} {labels.nestedFiles}.
+              {labels.children}: {stats.nestedFiles} {labels.files.toLowerCase()}
             </p>
           ) : null}
           <button className="ghost-button" type="button" onClick={() => void copyPath(selected.path)}>
