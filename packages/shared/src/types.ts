@@ -97,7 +97,6 @@ export type DistributionStoreId =
   | "apple-app-store"
   | "google-play"
   | "samsung-galaxy-store"
-  | "huawei-appgallery"
   | "amazon-appstore";
 
 export type MonetizationStrategyId =

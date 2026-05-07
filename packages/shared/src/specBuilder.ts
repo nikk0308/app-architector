@@ -66,9 +66,9 @@ const optionPolicy = {
 
 const allowedDistributionStores: Record<QuestionnaireAnswerSet["profile"], readonly DistributionStoreId[]> = {
   ios: ["apple-app-store"],
-  flutter: ["apple-app-store", "google-play", "samsung-galaxy-store", "huawei-appgallery", "amazon-appstore"],
-  "react-native": ["apple-app-store", "google-play", "samsung-galaxy-store", "huawei-appgallery", "amazon-appstore"],
-  unity: ["apple-app-store", "google-play", "samsung-galaxy-store", "huawei-appgallery", "amazon-appstore"]
+  flutter: ["apple-app-store", "google-play", "samsung-galaxy-store", "amazon-appstore"],
+  "react-native": ["apple-app-store", "google-play", "samsung-galaxy-store", "amazon-appstore"],
+  unity: ["apple-app-store", "google-play", "samsung-galaxy-store", "amazon-appstore"]
 };
 
 const allowedMonetization: readonly MonetizationStrategyId[] = ["ads", "paid-app", "subscription", "in-app-purchases"];

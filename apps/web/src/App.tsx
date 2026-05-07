@@ -3,7 +3,6 @@ import type {
   AIProviderStatusSummary,
   DeliveryOptionId,
   DistributionStoreId,
-  GeneratedArtifactSummary,
   GenerationMetadata,
   GenerationMode,
   GenerationRunDetails,
@@ -32,7 +31,6 @@ import { FileTreeViewer } from "./components/FileTreeViewer";
 import { RunComparisonPanel } from "./components/RunComparisonPanel";
 import { RunDetailsPanel } from "./components/RunDetailsPanel";
 import { TopBar } from "./components/TopBar";
-import { ValidationSummary } from "./components/ValidationSummary";
 
 type Lang = "ua" | "en";
 type Theme = "dark" | "light";
@@ -41,12 +39,15 @@ type StepId =
   | "basics"
   | "ai"
   | "architecture"
-  | "modules"
+  | "module-core"
+  | "module-monetization"
+  | "module-offline"
+  | "module-quality"
+  | "module-delivery"
   | "extras"
   | "tree"
   | "result"
-  | "history"
-  | "compare";
+  | "runs";
 
 type LocalText = Record<Lang, string>;
 type LocalOption<T extends string> = {
@@ -82,7 +83,7 @@ const initialForm: QuestionnaireAnswers = {
   includeExampleScreen: true,
   includeLLMNotes: true,
   aiInstruction: "",
-  distributionStores: ["apple-app-store", "google-play"],
+  distributionStores: ["apple-app-store"],
   monetization: ["subscription", "in-app-purchases"],
   offlineData: ["offline-cache", "sync-queue"],
   runtimeQuality: ["logging", "crash-reporting", "feature-flags"],
@@ -92,7 +93,7 @@ const initialForm: QuestionnaireAnswers = {
 const copy: Record<Lang, Record<string, string>> = {
   ua: {
     lab: "Лабораторія AI-архітектури",
-    intro: "Стенд для порівняння Baseline / GPT / Qwen / Hybrid генерації мобільної архітектури.",
+    intro: "",
     demo: "Демо-дані",
     generateTree: "Згенерувати структурне дерево",
     generatingTree: "Генеруємо дерево...",
@@ -100,27 +101,26 @@ const copy: Record<Lang, Record<string, string>> = {
     creatingZip: "Створюємо ZIP...",
     downloadZip: "Завантажити ZIP",
     previewOutdated: "Попередній перегляд застарів: форма змінилася. Згенеруй дерево ще раз.",
-    requiredError: "Заповни назву проєкту, назву для користувача і Bundle / Package ID.",
+    requiredError: "Заповни назву проєкту, назву для користувача, Bundle / Package ID і ціль публікації.",
     platform: "Платформа",
     basics: "Основне",
-    ai: "Режим ШІ",
+    ai: "Режим генерації",
     architecture: "Архітектура",
     modules: "Модулі",
-    extras: "Приклад / додатково",
+    extras: "Додатково",
     tree: "Структурне дерево",
     result: "Результат",
-    history: "Історія",
-    compare: "Порівняння",
+    runsCompare: "Запуски та порівняння",
     projectName: "Назва проєкту",
     displayName: "Назва для користувача",
     packageId: "Bundle / Package ID",
     aiInstruction: "Додатковий запит до ШІ",
-    aiInstructionHelp: "Опиши домен, пріоритети, стиль, обмеження або потрібні рішення. Обрана ШІ-модель використає це для попереднього добору архітектурних відповідей.",
+    aiInstructionHelp: "Опиши домен і пріоритети — режим генерації використає це для добору архітектурних рішень.",
     aiInstructionPlaceholder: "Наприклад: marketplace з оплатами, ролями buyer/seller, offline cache для каталогу, швидкий MVP за 6 тижнів...",
     selectedModules: "Обрані модулі",
     validation: "Перевірка",
     architectureExplanation: "Пояснення архітектури",
-    modeReady: "готово",
+    modeReady: "program code",
     noPreview: "Спочатку згенеруй структурне дерево.",
     zipReady: "ZIP готовий",
     filters: "Фільтри",
@@ -171,10 +171,42 @@ const copy: Record<Lang, Record<string, string>> = {
     runtimeQuality: "Runtime quality",
     delivery: "Delivery / Team",
     selected: "обрано"
+    ,
+    step: "Step",
+    publishTarget: "Ціль публікації",
+    publishTargetHelp: "Обери один канал, під який треба підготувати release-boundary.",
+    applicationCapabilities: "Можливості застосунку",
+    moduleCore: "Можливості застосунку",
+    moduleMonetization: "Монетизація",
+    moduleOffline: "Offline / Data",
+    moduleQuality: "Runtime quality",
+    moduleDelivery: "Delivery / Team",
+    copyPath: "Копіювати шлях",
+    selectedItem: "Обраний елемент",
+    type: "Тип",
+    path: "Шлях",
+    description: "Опис",
+    category: "Категорія",
+    extension: "Розширення",
+    generatedBy: "Згенеровано",
+    folder: "Папка",
+    file: "Файл",
+    sourceCode: "Код",
+    config: "Конфіг",
+    documentation: "Документація",
+    asset: "Asset",
+    other: "Інше",
+    children: "Вміст",
+    advisorRationale: "Архітектурне рішення",
+    advisorModules: "Вплив модулів",
+    advisorMode: "Роль режиму генерації",
+    advisorTradeoffs: "Компроміси",
+    advisorChecks: "Наступні перевірки",
+    compareHint: "Метрики нижче є евристичними: вони допомагають порівняти повноту стартових пакетів, але не є абсолютною оцінкою якості."
   },
   en: {
     lab: "AI-assisted architecture lab",
-    intro: "Engineering console for comparing Baseline / GPT / Qwen / Hybrid mobile architecture generation.",
+    intro: "",
     demo: "Demo data",
     generateTree: "Generate structure tree",
     generatingTree: "Generating tree...",
@@ -182,27 +214,26 @@ const copy: Record<Lang, Record<string, string>> = {
     creatingZip: "Creating ZIP...",
     downloadZip: "Download ZIP",
     previewOutdated: "Preview outdated: the form changed. Generate the tree again.",
-    requiredError: "Fill project name, display name and Bundle / Package ID.",
+    requiredError: "Fill project name, display name, Bundle / Package ID and publishing target.",
     platform: "Platform",
     basics: "Basics",
-    ai: "AI Mode",
+    ai: "Generation mode",
     architecture: "Architecture",
     modules: "Modules",
-    extras: "Example / Extras",
+    extras: "Extras",
     tree: "Structure Tree",
     result: "Result",
-    history: "History",
-    compare: "Compare",
+    runsCompare: "Runs & Compare",
     projectName: "Project name",
     displayName: "Display name",
     packageId: "Bundle / Package ID",
     aiInstruction: "Additional AI instruction",
-    aiInstructionHelp: "Describe the domain, priorities, style, constraints or preferred decisions. The selected AI model will use it to preselect architecture answers.",
+    aiInstructionHelp: "Describe the domain and priorities — the generation mode will use them to shape the architecture.",
     aiInstructionPlaceholder: "Example: marketplace with payments, buyer/seller roles, offline catalog cache, fast MVP in 6 weeks...",
     selectedModules: "Selected modules",
     validation: "Validation",
     architectureExplanation: "Architecture explanation",
-    modeReady: "ready",
+    modeReady: "program code",
     noPreview: "Generate a structure tree first.",
     zipReady: "ZIP ready",
     filters: "Filters",
@@ -253,6 +284,38 @@ const copy: Record<Lang, Record<string, string>> = {
     runtimeQuality: "Runtime quality",
     delivery: "Delivery / Team",
     selected: "selected"
+    ,
+    step: "Step",
+    publishTarget: "Publishing target",
+    publishTargetHelp: "Select one release channel for the generated release boundary.",
+    applicationCapabilities: "Application capabilities",
+    moduleCore: "Application capabilities",
+    moduleMonetization: "Monetization",
+    moduleOffline: "Offline / Data",
+    moduleQuality: "Runtime quality",
+    moduleDelivery: "Delivery / Team",
+    copyPath: "Copy path",
+    selectedItem: "Selected item",
+    type: "Type",
+    path: "Path",
+    description: "Description",
+    category: "Category",
+    extension: "Extension",
+    generatedBy: "Generated by",
+    folder: "Folder",
+    file: "File",
+    sourceCode: "Source code",
+    config: "Config",
+    documentation: "Documentation",
+    asset: "Asset",
+    other: "Other",
+    children: "Children",
+    advisorRationale: "Architecture rationale",
+    advisorModules: "Module impact",
+    advisorMode: "Generation mode impact",
+    advisorTradeoffs: "Trade-offs",
+    advisorChecks: "Next technical checks",
+    compareHint: "These metrics are heuristics for comparing starter-package completeness; they are not absolute quality scores."
   }
 };
 
@@ -261,12 +324,18 @@ const steps: Array<{ id: StepId; labelKey: string }> = [
   { id: "basics", labelKey: "basics" },
   { id: "ai", labelKey: "ai" },
   { id: "architecture", labelKey: "architecture" },
-  { id: "modules", labelKey: "modules" },
   { id: "extras", labelKey: "extras" },
   { id: "tree", labelKey: "tree" },
   { id: "result", labelKey: "result" },
-  { id: "history", labelKey: "history" },
-  { id: "compare", labelKey: "compare" }
+  { id: "runs", labelKey: "runsCompare" }
+];
+
+const moduleSteps: Array<{ id: StepId; labelKey: string; stepLabel: string }> = [
+  { id: "module-core", labelKey: "moduleCore", stepLabel: "Step 5.1" },
+  { id: "module-monetization", labelKey: "moduleMonetization", stepLabel: "Step 5.2" },
+  { id: "module-offline", labelKey: "moduleOffline", stepLabel: "Step 5.3" },
+  { id: "module-quality", labelKey: "moduleQuality", stepLabel: "Step 5.4" },
+  { id: "module-delivery", labelKey: "moduleDelivery", stepLabel: "Step 5.5" }
 ];
 
 const platformOptions: Array<LocalOption<ProfileId>> = [
@@ -566,15 +635,14 @@ const distributionOptions: Array<LocalOption<DistributionStoreId>> = [
   { id: "apple-app-store", title: { ua: "Apple App Store", en: "Apple App Store" }, description: { ua: "Основний канал для iOS/iPadOS релізів.", en: "Primary channel for iOS/iPadOS releases." } },
   { id: "google-play", title: { ua: "Google Play", en: "Google Play" }, description: { ua: "Головний Android marketplace для більшості пристроїв.", en: "Main Android marketplace for most devices." } },
   { id: "samsung-galaxy-store", title: { ua: "Samsung Galaxy Store", en: "Samsung Galaxy Store" }, description: { ua: "Додатковий канал для Samsung Galaxy devices.", en: "Additional channel for Samsung Galaxy devices." } },
-  { id: "huawei-appgallery", title: { ua: "Huawei AppGallery", en: "Huawei AppGallery" }, description: { ua: "Канал для Huawei/HMS ecosystem без залежності від Google Play.", en: "Channel for Huawei/HMS ecosystem without Google Play dependency." } },
   { id: "amazon-appstore", title: { ua: "Amazon Appstore", en: "Amazon Appstore" }, description: { ua: "Android/Fire OS канал для Amazon ecosystem.", en: "Android/Fire OS channel for the Amazon ecosystem." } }
 ];
 
 const distributionByProfile: Record<ProfileId, DistributionStoreId[]> = {
   ios: ["apple-app-store"],
-  flutter: ["apple-app-store", "google-play", "samsung-galaxy-store", "huawei-appgallery", "amazon-appstore"],
-  "react-native": ["apple-app-store", "google-play", "samsung-galaxy-store", "huawei-appgallery", "amazon-appstore"],
-  unity: ["apple-app-store", "google-play", "samsung-galaxy-store", "huawei-appgallery", "amazon-appstore"]
+  flutter: ["apple-app-store", "google-play", "samsung-galaxy-store", "amazon-appstore"],
+  "react-native": ["apple-app-store", "google-play", "samsung-galaxy-store", "amazon-appstore"],
+  unity: ["apple-app-store", "google-play", "samsung-galaxy-store", "amazon-appstore"]
 };
 
 const monetizationOptions: Array<LocalOption<MonetizationStrategyId>> = [
@@ -630,13 +698,14 @@ function filterArray<T extends string>(values: readonly T[] | undefined, allowed
 
 function normalizeFormForPlatform(form: QuestionnaireAnswers): QuestionnaireAnswers {
   const rules = platformRules[form.profile];
+  const distribution = filterArray(form.distributionStores, distributionByProfile[form.profile]);
   return {
     ...form,
     architectureStyle: safeChoice(form.architectureStyle, rules.architecture, rules.defaults.architectureStyle as ArchitectureKey),
     stateManagement: safeChoice(form.stateManagement, rules.state, rules.defaults.stateManagement as StateKey),
     navigationStyle: safeChoice(form.navigationStyle, rules.navigation, rules.defaults.navigationStyle as NavigationKey),
     environmentMode: form.environmentMode === "single" || form.environmentMode === "multi" ? form.environmentMode : rules.defaults.environmentMode,
-    distributionStores: filterArray(form.distributionStores, distributionByProfile[form.profile]),
+    distributionStores: [distribution[0] ?? distributionByProfile[form.profile][0]],
     monetization: filterArray(form.monetization, monetizationOptions.map((option) => option.id)),
     offlineData: filterArray(form.offlineData, offlineDataOptions.map((option) => option.id)),
     runtimeQuality: filterArray(form.runtimeQuality, runtimeQualityOptions.map((option) => option.id)),
@@ -702,8 +771,95 @@ function formatDate(value: string): string {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
-function countKind(artifacts: GeneratedArtifactSummary[] | undefined, kind: GeneratedArtifactSummary["kind"]): number {
-  return artifacts?.filter((artifact) => artifact.kind === kind).length ?? 0;
+function stepLabel(value: number): string {
+  return `Step ${value}`;
+}
+
+function compactModelName(model?: string): string {
+  if (!model) return "";
+  return model.split("/").pop() ?? model;
+}
+
+function providerLabel(mode: GenerationMode, providers: AIProviderStatusSummary[]): string {
+  if (mode === "baseline") return "program code";
+  if (mode === "hybrid") {
+    const provider = providerForMode("hybrid", providers);
+    return `program code${provider?.model ? ` + ${compactModelName(provider.model)}` : ""}`;
+  }
+  const provider = providerForMode(mode, providers);
+  return compactModelName(provider?.model) || (mode === "hf-open" ? "Qwen2.5-Coder-32B-Instruct" : "gpt-5.4-mini");
+}
+
+function selectedModuleNames(form: QuestionnaireAnswers, language: Lang): string[] {
+  return modules.filter((module) => Boolean(form[module.id])).map((module) => text(module.title, language));
+}
+
+function advisorRows(
+  shown: ArchitecturePreviewResponse | GenerationResponse,
+  form: QuestionnaireAnswers,
+  language: Lang,
+  labels: Record<string, string>
+): Array<{ title: string; body: string }> {
+  const spec = shown.spec;
+  const moduleNames = selectedModuleNames(form, language);
+  const modulesText = moduleNames.length > 0 ? moduleNames.join(", ") : language === "ua" ? "базові модулі" : "core modules";
+  const mode = spec.generationMode === "baseline"
+    ? "Baseline"
+    : spec.generationMode === "commercial"
+      ? "GPT"
+      : spec.generationMode === "hf-open"
+        ? "Qwen"
+        : "Hybrid";
+  const platform = platformOptions.find((item) => item.id === spec.profileId)?.title[language] ?? spec.profileId;
+  const summary = shown.advisorSummary?.summary ?? spec.explanation;
+
+  if (language === "ua") {
+    return [
+      {
+        title: labels.advisorRationale,
+        body: `Для ${platform} обрано ${spec.architecture.style}: це тримає екрани, сервіси, навігацію і стан у зрозумілих межах. ${summary}`
+      },
+      {
+        title: labels.advisorModules,
+        body: `Обрані модулі (${modulesText}) додають видимі service/repository/config boundaries у дерево, щоб ZIP був не просто набором файлів, а стартовим архітектурним пакетом.`
+      },
+      {
+        title: labels.advisorMode,
+        body: `${mode} впливає на ArchitectureSpec і пояснення, але матеріалізація ZIP лишається контрольованою deterministic generator-логікою.`
+      },
+      {
+        title: labels.advisorTradeoffs,
+        body: "Компроміс: пакет не є production-ready застосунком, але задає структуру, точки розширення і перевірки для наступної реалізації."
+      },
+      {
+        title: labels.advisorChecks,
+        body: "Наступні кроки: підключити реальні SDK/API, додати тести для auth/network/storage, перевірити store-specific вимоги перед релізом."
+      }
+    ];
+  }
+
+  return [
+    {
+      title: labels.advisorRationale,
+      body: `${platform} uses ${spec.architecture.style} so screens, services, navigation and state stay in clear boundaries. ${summary}`
+    },
+    {
+      title: labels.advisorModules,
+      body: `Selected modules (${modulesText}) add visible service/repository/config boundaries, turning the ZIP into a starter architecture package rather than loose files.`
+    },
+    {
+      title: labels.advisorMode,
+      body: `${mode} shapes the ArchitectureSpec and explanations, while ZIP materialization remains controlled by deterministic generator logic.`
+    },
+    {
+      title: labels.advisorTradeoffs,
+      body: "Trade-off: the package is not a production-ready app, but it defines structure, extension points and checks for the next implementation pass."
+    },
+    {
+      title: labels.advisorChecks,
+      body: "Next checks: wire real SDKs/APIs, add tests around auth/network/storage and verify store-specific release requirements."
+    }
+  ];
 }
 
 function optionSelectItems<T extends string>(options: Array<LocalOption<T>>, language: Lang): CustomSelectOption[] {
@@ -752,6 +908,7 @@ export default function App() {
   const [theme, setTheme] = useState<Theme>(() => getStored("mag-theme", "dark", ["dark", "light"]));
   const [language, setLanguage] = useState<Lang>(() => getStored("mag-lang", "ua", ["ua", "en"]));
   const [activeStep, setActiveStep] = useState<StepId>("platform");
+  const [modulesExpanded, setModulesExpanded] = useState(true);
   const [form, setForm] = useState<QuestionnaireAnswers>(() => normalizeFormForPlatform(initialForm));
   const [preview, setPreview] = useState<ArchitecturePreviewResponse | null>(null);
   const [previewFingerprint, setPreviewFingerprint] = useState<string | null>(null);
@@ -776,13 +933,11 @@ export default function App() {
   const t = copy[language];
   const currentFingerprint = useMemo(() => formFingerprint(form), [form]);
   const previewOutdated = Boolean(preview && previewFingerprint !== currentFingerprint);
-  const requiredValid = Boolean(form.projectName.trim() && form.appDisplayName.trim() && form.packageId?.trim());
+  const requiredValid = Boolean(form.projectName.trim() && form.appDisplayName.trim() && form.packageId?.trim() && (form.distributionStores?.length ?? 0) > 0);
   const activeMode = form.generationMode ?? "baseline";
-  const activeProvider = providerForMode(activeMode, providers);
   const shown = generation ?? preview;
   const shownArtifacts = shown?.artifacts ?? [];
   const fileCount = shown?.fileTree.filter((node) => node.type === "file").length ?? 0;
-  const folderCount = shown?.fileTree.filter((node) => node.type === "directory").length ?? 0;
   const availableArchitecture = pickOptions(architectureOptions, platformRules[form.profile].architecture);
   const availableState = pickOptions(stateOptions, platformRules[form.profile].state);
   const availableNavigation = pickOptions(navOptions, platformRules[form.profile].navigation);
@@ -838,6 +993,14 @@ export default function App() {
         [key]: nextValues
       });
     });
+    setGeneration(null);
+  }
+
+  function selectDistribution(value: DistributionStoreId) {
+    setForm((current) => normalizeFormForPlatform({
+      ...current,
+      distributionStores: [value]
+    }));
     setGeneration(null);
   }
 
@@ -903,7 +1066,7 @@ export default function App() {
       setDetailsLoading(true);
       setDetailsError(null);
       setSelectedDetails(await fetchGenerationDetails(id));
-      setActiveStep("history");
+      setActiveStep("runs");
     } catch (err) {
       setDetailsError(err instanceof Error ? err.message : "Run details failed");
     } finally {
@@ -925,7 +1088,7 @@ export default function App() {
       setComparisonLoading(true);
       setComparisonError(null);
       setComparison(await compareGenerations(compareSelection));
-      setActiveStep("compare");
+      setActiveStep("runs");
     } catch (err) {
       setComparisonError(err instanceof Error ? err.message : "Compare failed");
     } finally {
@@ -980,6 +1143,8 @@ export default function App() {
     return "ready";
   };
 
+  const isModuleStep = (id: StepId): boolean => id.startsWith("module-");
+
   return (
     <div className="app-shell">
       <TopBar theme={theme} language={language} onThemeChange={setTheme} onLanguageChange={setLanguage} />
@@ -987,9 +1152,37 @@ export default function App() {
       <main className="console-layout">
         <aside className="flow-sidebar">
           <nav className="step-list" aria-label="Flow steps">
-            {steps.map((step, index) => (
+            {steps.slice(0, 4).map((step, index) => (
               <button className={`step-button ${stepState(step.id)}`} key={step.id} type="button" onClick={() => setActiveStep(step.id)}>
-                <b>{index + 1}</b>
+                <b>{stepLabel(index + 1)}</b>
+                <span>{t[step.labelKey]}</span>
+              </button>
+            ))}
+            <button
+              className={`step-button modules-parent ${isModuleStep(activeStep) ? "active" : "ready"}`}
+              type="button"
+              onClick={() => {
+                setModulesExpanded((current) => !current);
+                if (!isModuleStep(activeStep)) setActiveStep("module-core");
+              }}
+              aria-expanded={modulesExpanded}
+            >
+              <b>{stepLabel(5)}</b>
+              <span>{t.modules}</span>
+            </button>
+            {modulesExpanded ? (
+              <div className="module-substeps">
+                {moduleSteps.map((step) => (
+                  <button className={`step-button child ${stepState(step.id)}`} key={step.id} type="button" onClick={() => setActiveStep(step.id)}>
+                    <b>{step.stepLabel}</b>
+                    <span>{t[step.labelKey]}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {steps.slice(4).map((step, index) => (
+              <button className={`step-button ${stepState(step.id)}`} key={step.id} type="button" onClick={() => setActiveStep(step.id)}>
+                <b>{stepLabel(index + 6)}</b>
                 <span>{t[step.labelKey]}</span>
               </button>
             ))}
@@ -1009,7 +1202,7 @@ export default function App() {
 
           {activeStep === "platform" ? (
             <div className="step-panel">
-              <div className="section-head"><div><span className="kicker">01</span><h1>{t.platform}</h1><p>{t.intro}</p></div></div>
+              <div className="section-head"><div><span className="kicker">{stepLabel(1)}</span><h1>{t.platform}</h1></div></div>
               <div className="option-grid four">
                 {platformOptions.map((option) => (
                   <OptionCard
@@ -1021,14 +1214,33 @@ export default function App() {
                   />
                 ))}
               </div>
+              <div className="module-section-block">
+                <div className="subsection-title">
+                  <h3>{t.publishTarget}</h3>
+                  <p>{t.publishTargetHelp}</p>
+                </div>
+                <div className="option-grid four compact">
+                  {pickOptions(distributionOptions, distributionByProfile[form.profile]).map((option) => (
+                    <OptionCard
+                      key={option.id}
+                      active={form.distributionStores?.[0] === option.id}
+                      title={text(option.title, language)}
+                      description={text(option.description, language)}
+                      onClick={() => selectDistribution(option.id)}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
           ) : null}
 
           {activeStep === "basics" ? (
             <div className="step-panel">
-              <div className="section-head"><div><span className="kicker">02</span><h1>{t.basics}</h1></div></div>
-              <div className="form-grid">
-                <TextField label={t.projectName} value={form.projectName} placeholder="Finance Tracker" onChange={(value) => updateForm("projectName", value)} />
+              <div className="section-head"><div><span className="kicker">{stepLabel(2)}</span><h1>{t.basics}</h1></div></div>
+              <div className="form-grid basics-grid">
+                <div className="wide-field">
+                  <TextField label={t.projectName} value={form.projectName} placeholder="Finance Tracker" onChange={(value) => updateForm("projectName", value)} />
+                </div>
                 <TextField label={t.displayName} value={form.appDisplayName} placeholder="Finance" onChange={(value) => updateForm("appDisplayName", value)} />
                 <TextField label={t.packageId} value={form.packageId ?? ""} placeholder="com.company.product" onChange={(value) => updateForm("packageId", value)} />
               </div>
@@ -1037,24 +1249,20 @@ export default function App() {
 
           {activeStep === "ai" ? (
             <div className="step-panel">
-              <div className="section-head"><div><span className="kicker">03</span><h1>{t.ai}</h1></div></div>
+              <div className="section-head"><div><span className="kicker">{stepLabel(3)}</span><h1>{t.ai}</h1></div></div>
               <div className="option-grid four">
-                {modeOptions.map((option) => {
-                  const status = option.provider === "hybrid" ? providerForMode("hybrid", providers) : providers.find((item) => item.provider === option.provider);
-                  return (
-                    <OptionCard
-                      key={option.id}
-                      active={activeMode === option.id}
-                      title={text(option.title, language)}
-                      badge={option.badge}
-                      description={text(option.description, language)}
-                      meta={status ? `${status.status}${status.model ? ` · ${status.model}` : ""}` : t.modeReady}
-                      onClick={() => updateMode(option.id)}
-                    />
-                  );
-                })}
+                {modeOptions.map((option) => (
+                  <OptionCard
+                    key={option.id}
+                    active={activeMode === option.id}
+                    title={text(option.title, language)}
+                    badge={option.badge}
+                    description={text(option.description, language)}
+                    meta={providerLabel(option.id, providers)}
+                    onClick={() => updateMode(option.id)}
+                  />
+                ))}
               </div>
-              {activeProvider ? <p className="quiet-note">{t.provider}: {activeProvider.provider} · {activeProvider.status}{activeProvider.model ? ` · ${activeProvider.model}` : ""}</p> : null}
               {activeMode !== "baseline" ? (
                 <label className="prompt-field">
                   <span>
@@ -1068,7 +1276,6 @@ export default function App() {
                     onChange={(event) => updateForm("aiInstruction", event.target.value)}
                   />
                   <em>{t.aiInstructionHelp}</em>
-                  <em>{t.aiAutofillNote}</em>
                 </label>
               ) : null}
             </div>
@@ -1076,26 +1283,26 @@ export default function App() {
 
           {activeStep === "architecture" ? (
             <div className="step-panel">
-              <div className="section-head"><div><span className="kicker">04</span><h1>{t.architecture}</h1></div></div>
-              <h3>{t.architectureStyle}</h3>
+              <div className="section-head"><div><span className="kicker">{stepLabel(4)}</span><h1>{t.architecture}</h1></div></div>
+              <div className="subsection-title"><h3>{t.architectureStyle}</h3></div>
               <div className="option-grid four compact">
                 {availableArchitecture.map((option) => (
                   <OptionCard key={option.id} active={form.architectureStyle === option.id} title={text(option.title, language)} description={text(option.description, language)} onClick={() => updateForm("architectureStyle", option.id)} />
                 ))}
               </div>
-              <h3>{t.stateManagement}</h3>
+              <div className="subsection-title"><h3>{t.stateManagement}</h3></div>
               <div className="option-grid five compact">
                 {availableState.map((option) => (
                   <OptionCard key={option.id} active={form.stateManagement === option.id} title={text(option.title, language)} description={text(option.description, language)} onClick={() => updateForm("stateManagement", option.id)} />
                 ))}
               </div>
-              <h3>{t.navigation}</h3>
+              <div className="subsection-title"><h3>{t.navigation}</h3></div>
               <div className="option-grid four compact">
                 {availableNavigation.map((option) => (
                   <OptionCard key={option.id} active={form.navigationStyle === option.id} title={text(option.title, language)} description={text(option.description, language)} onClick={() => updateForm("navigationStyle", option.id)} />
                 ))}
               </div>
-              <h3>{t.environment}</h3>
+              <div className="subsection-title"><h3>{t.environment}</h3></div>
               <div className="option-grid two compact">
                 {environmentOptions.map((option) => (
                   <OptionCard key={option.id} active={form.environmentMode === option.id} title={text(option.title, language)} description={text(option.description, language)} onClick={() => updateForm("environmentMode", option.id)} />
@@ -1104,10 +1311,10 @@ export default function App() {
             </div>
           ) : null}
 
-          {activeStep === "modules" ? (
+          {activeStep === "module-core" ? (
             <div className="step-panel">
-              <div className="section-head"><div><span className="kicker">05</span><h1>{t.modules}</h1></div></div>
-              <h3>{t.modules}</h3>
+              <div className="section-head"><div><span className="kicker">Step 5.1</span><h1>{t.applicationCapabilities}</h1></div></div>
+              <div className="subsection-title"><h3>{t.moduleCore}</h3></div>
               <div className="module-grid">
                 {modules.map((module) => (
                   <button
@@ -1121,19 +1328,13 @@ export default function App() {
                   </button>
                 ))}
               </div>
-              <h3>{t.distribution}</h3>
-              <div className="module-grid">
-                {pickOptions(distributionOptions, distributionByProfile[form.profile]).map((option) => {
-                  const selected = form.distributionStores?.includes(option.id) ?? false;
-                  return (
-                    <button className={selected ? "module-card active" : "module-card"} key={option.id} type="button" onClick={() => toggleArrayValue("distributionStores", option.id)}>
-                      <span><strong>{text(option.title, language)}</strong><i>{selected ? "on" : "off"}</i></span>
-                      <small>{text(option.description, language)}</small>
-                    </button>
-                  );
-                })}
-              </div>
-              <h3>{t.monetization}</h3>
+            </div>
+          ) : null}
+
+          {activeStep === "module-monetization" ? (
+            <div className="step-panel">
+              <div className="section-head"><div><span className="kicker">Step 5.2</span><h1>{t.monetization}</h1></div></div>
+              <div className="subsection-title"><h3>{t.monetization}</h3></div>
               <div className="module-grid">
                 {monetizationOptions.map((option) => {
                   const selected = form.monetization?.includes(option.id) ?? false;
@@ -1145,7 +1346,13 @@ export default function App() {
                   );
                 })}
               </div>
-              <h3>{t.offlineData}</h3>
+            </div>
+          ) : null}
+
+          {activeStep === "module-offline" ? (
+            <div className="step-panel">
+              <div className="section-head"><div><span className="kicker">Step 5.3</span><h1>{t.offlineData}</h1></div></div>
+              <div className="subsection-title"><h3>{t.offlineData}</h3></div>
               <div className="module-grid">
                 {offlineDataOptions.map((option) => {
                   const selected = form.offlineData?.includes(option.id) ?? false;
@@ -1157,7 +1364,13 @@ export default function App() {
                   );
                 })}
               </div>
-              <h3>{t.runtimeQuality}</h3>
+            </div>
+          ) : null}
+
+          {activeStep === "module-quality" ? (
+            <div className="step-panel">
+              <div className="section-head"><div><span className="kicker">Step 5.4</span><h1>{t.runtimeQuality}</h1></div></div>
+              <div className="subsection-title"><h3>{t.runtimeQuality}</h3></div>
               <div className="module-grid">
                 {runtimeQualityOptions.map((option) => {
                   const selected = form.runtimeQuality?.includes(option.id) ?? false;
@@ -1169,7 +1382,13 @@ export default function App() {
                   );
                 })}
               </div>
-              <h3>{t.delivery}</h3>
+            </div>
+          ) : null}
+
+          {activeStep === "module-delivery" ? (
+            <div className="step-panel">
+              <div className="section-head"><div><span className="kicker">Step 5.5</span><h1>{t.delivery}</h1></div></div>
+              <div className="subsection-title"><h3>{t.delivery}</h3></div>
               <div className="module-grid">
                 {deliveryOptions.map((option) => {
                   const selected = form.delivery?.includes(option.id) ?? false;
@@ -1186,7 +1405,7 @@ export default function App() {
 
           {activeStep === "extras" ? (
             <div className="step-panel">
-              <div className="section-head"><div><span className="kicker">06</span><h1>{t.extras}</h1></div></div>
+              <div className="section-head"><div><span className="kicker">{stepLabel(6)}</span><h1>{t.extras}</h1></div></div>
               <div className="option-grid two">
                 <OptionCard active={Boolean(form.includeExampleScreen)} title={t.exampleScreen} description={t.exampleScreenText} onClick={() => updateForm("includeExampleScreen", !form.includeExampleScreen)} />
                 <OptionCard active={activeMode !== "baseline"} title={t.advisorArtifacts} description={t.advisorArtifactsText} onClick={() => undefined} />
@@ -1197,16 +1416,17 @@ export default function App() {
           {activeStep === "tree" ? (
             <div className="step-panel">
               <div className="section-head">
-                <div><span className="kicker">07</span><h1>{t.tree}</h1></div>
+                <div><span className="kicker">{stepLabel(7)}</span><h1>{t.tree}</h1></div>
                 <button className="primary-button" type="button" disabled={!requiredValid || loadingPreview} onClick={() => void generateTree()}>
                   {loadingPreview ? t.generatingTree : t.generateTree}
                 </button>
               </div>
               {shown ? (
-                <div className="tree-layout">
+                <div className="tree-stack">
                   <FileTreeViewer
                     nodes={shown.fileTree}
                     artifacts={shownArtifacts}
+                    language={language}
                     labels={{
                       title: t.tree,
                       copy: t.copyTree,
@@ -1215,27 +1435,45 @@ export default function App() {
                       folders: t.folders,
                       docs: t.docs,
                       metadata: t.metadata,
-                      empty: t.noPreview
+                      empty: t.noPreview,
+                      copyPath: t.copyPath,
+                      selectedItem: t.selectedItem,
+                      type: t.type,
+                      path: t.path,
+                      description: t.description,
+                      category: t.category,
+                      extension: t.extension,
+                      generatedBy: t.generatedBy,
+                      children: t.children,
+                      folder: t.folder,
+                      file: t.file,
+                      sourceCode: t.sourceCode,
+                      config: t.config,
+                      documentation: t.documentation,
+                      asset: t.asset,
+                      other: t.other
                     }}
                   />
-                  <aside className="tree-side">
-                    <div className="metric-grid">
-                      <span><small>{t.files}</small><strong>{fileCount}</strong></span>
-                      <span><small>{t.folders}</small><strong>{folderCount}</strong></span>
-                      <span><small>{t.artifacts}</small><strong>{shown.manifest.summary.totalArtifacts}</strong></span>
-                      <span><small>{t.docs}</small><strong>{countKind(shownArtifacts, "documentation")}</strong></span>
-                    </div>
-                    <ValidationSummary validationV2={shown.validationV2} />
-                    <div className="advisor-summary-card">
-                      <h3>{t.architectureExplanation}</h3>
-                      <p>{shown.advisorSummary?.summary ?? shown.spec.explanation}</p>
+                  <div className="advisor-summary-card expanded-advisor-card">
+                    <div className="section-head compact-head">
+                      <div>
+                        <span className="kicker">{t.architectureExplanation}</span>
+                        <h2>{shown.spec.architecture.style} · {shown.spec.profileId}</h2>
+                      </div>
                       <div className="chip-row">
                         <span className="chip">{shown.architectureSynthesis?.status ?? "baseline"}</span>
                         <span className="chip">{shown.profile.generationMode}</span>
-                        <span className="chip">{shown.spec.architecture.style}</span>
                       </div>
                     </div>
-                  </aside>
+                    <div className="advisor-grid">
+                      {advisorRows(shown, form, language, t).map((row) => (
+                        <article key={row.title}>
+                          <strong>{row.title}</strong>
+                          <p>{row.body}</p>
+                        </article>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="empty-state">{t.noPreview}</div>
@@ -1246,7 +1484,7 @@ export default function App() {
           {activeStep === "result" ? (
             <div className="step-panel">
               <div className="section-head">
-                <div><span className="kicker">08</span><h1>{t.result}</h1></div>
+                <div><span className="kicker">{stepLabel(8)}</span><h1>{t.result}</h1></div>
                 <button className="primary-button" type="button" disabled={!preview || previewOutdated || loadingZip} onClick={() => void createZip()}>
                   {loadingZip ? t.creatingZip : t.createZip}
                 </button>
@@ -1264,10 +1502,10 @@ export default function App() {
             </div>
           ) : null}
 
-          {activeStep === "history" ? (
+          {activeStep === "runs" ? (
             <div className="step-panel">
               <div className="section-head">
-                <div><span className="kicker">09</span><h1>{t.history}</h1></div>
+                <div><span className="kicker">{stepLabel(9)}</span><h1>{t.runsCompare}</h1></div>
                 <button className="ghost-button danger-button" type="button" disabled={historyBusy || generations.length === 0} onClick={() => void removeAllHistory()}>{t.clearHistory}</button>
               </div>
               <div className="filters-row">
@@ -1299,12 +1537,12 @@ export default function App() {
                   {filteredGenerations.slice(0, 12).map((item) => (
                     <article className={compareSelection.includes(item.id) ? "history-card selected" : "history-card"} key={item.id}>
                       <div>
-                        <strong>{item.projectName} · {item.generationMode ?? "baseline"} · {item.profile}</strong>
+                        <strong>{item.projectName} · {item.generationMode ?? "baseline"} · {item.profile} · {item.fileTree?.filter((node) => node.type === "file").length ?? "-"} {t.files.toLowerCase()}</strong>
                         <small>{formatDate(item.createdAt)}</small>
                       </div>
                       <div className="history-actions">
                         <button className="ghost-button" type="button" onClick={() => void loadDetails(item.id)}>{t.details}</button>
-                        <button className="ghost-button" type="button" onClick={() => toggleCompare(item.id)}>{t.compare}</button>
+                        <button className="ghost-button" type="button" onClick={() => toggleCompare(item.id)}>{compareSelection.includes(item.id) ? t.selected : t.compareSelected}</button>
                         <button className="ghost-button danger-button" type="button" disabled={historyBusy} onClick={() => void removeHistoryItem(item.id)}>{t.delete}</button>
                         <a href={downloadUrlForGeneration(item.id)}>{t.zip}</a>
                       </div>
@@ -1314,6 +1552,33 @@ export default function App() {
               ) : (
                 <div className="empty-state">{t.noHistory}</div>
               )}
+              <div className="runs-compare-actions">
+                <span className="quiet-note">{compareSelection.length} {t.selected}</span>
+                <button className="primary-button" type="button" disabled={compareSelection.length < 2 || comparisonLoading} onClick={() => void runCompare()}>{t.compareSelected}</button>
+              </div>
+              <RunComparisonPanel comparison={comparison} selectedCount={compareSelection.length} loading={comparisonLoading} error={comparisonError} labels={{
+                empty: t.compareEmpty,
+                loading: t.comparing,
+                title: t.runsCompare,
+                strongest: t.mostComplete,
+                runs: language === "ua" ? "запуски" : "runs",
+                run: language === "ua" ? "Запуск" : "Run",
+                mode: t.ai,
+                platform: t.platform,
+                files: t.files,
+                artifacts: t.artifacts,
+                warnings: language === "ua" ? "Попередження" : "Warnings",
+                time: language === "ua" ? "Час" : "Time",
+                currentSelection: language === "ua" ? "Обрано" : "Current selection",
+                generationTime: language === "ua" ? "Час генерації" : "Generation time",
+                fileCoverage: language === "ua" ? "Покриття файлами" : "File coverage",
+                moduleCoverage: language === "ua" ? "Покриття модулями" : "Module coverage",
+                docsRatio: language === "ua" ? "Баланс документації" : "Docs ratio",
+                warningsCleanliness: language === "ua" ? "Чистота попереджень" : "Warnings cleanliness",
+                validation: t.validation,
+                architectureCompleteness: language === "ua" ? "Архітектурна повнота" : "Architecture completeness",
+                hint: t.compareHint
+              }} />
               <RunDetailsPanel details={selectedDetails} loading={detailsLoading} error={detailsError} labels={{
                 empty: t.selectRun,
                 loading: t.loading,
@@ -1336,32 +1601,6 @@ export default function App() {
                 artifacts: t.artifacts.toLowerCase(),
                 warnings: language === "ua" ? "попереджень" : "warnings",
                 validation: t.validation.toLowerCase()
-              }} />
-            </div>
-          ) : null}
-
-          {activeStep === "compare" ? (
-            <div className="step-panel">
-              <div className="section-head">
-                <div><span className="kicker">10</span><h1>{t.compare}</h1></div>
-                <button className="primary-button" type="button" disabled={compareSelection.length < 2 || comparisonLoading} onClick={() => void runCompare()}>{t.compareSelected}</button>
-              </div>
-              <div className="compare-selection-note">{compareSelection.length} selected</div>
-              <RunComparisonPanel comparison={comparison} selectedCount={compareSelection.length} loading={comparisonLoading} error={comparisonError} labels={{
-                empty: t.compareEmpty,
-                loading: t.comparing,
-                title: t.compare,
-                strongest: t.mostComplete,
-                runs: language === "ua" ? "запуски" : "runs",
-                run: language === "ua" ? "Запуск" : "Run",
-                mode: t.ai,
-                platform: t.platform,
-                files: t.files,
-                artifacts: t.artifacts,
-                warnings: language === "ua" ? "Попередження" : "Warnings",
-                time: language === "ua" ? "Час" : "Time",
-                currentSelection: language === "ua" ? "Обрано" : "Current selection",
-                generationTime: language === "ua" ? "Час генерації" : "Generation time"
               }} />
             </div>
           ) : null}

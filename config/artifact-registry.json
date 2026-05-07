@@ -1193,23 +1193,6 @@
     }
   },
   {
-    "id": "distribution.huawei-appgallery",
-    "title": "Huawei AppGallery target",
-    "description": "Huawei AppGallery target",
-    "outputs": {
-      "default": [
-        {
-          "path": "distribution/huawei-appgallery.json",
-          "template": "common/distribution-target.json.tpl"
-        },
-        {
-          "path": "docs/product-readiness.md",
-          "template": "common/product-readiness.md.tpl"
-        }
-      ]
-    }
-  },
-  {
     "id": "distribution.amazon-appstore",
     "title": "Amazon Appstore target",
     "description": "Amazon Appstore target",

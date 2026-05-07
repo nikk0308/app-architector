@@ -382,7 +382,6 @@ try {
       && contains(webRunComparisonSource, "RunComparisonPanel")
       && contains(webFileTreeSource, "FileTreeViewer")
       && contains(webTopBarSource, "TopBar")
-      && contains(webAppSource, "<ValidationSummary")
       && contains(webAppSource, "<RunDetailsPanel")
       && contains(webAppSource, "<RunComparisonPanel")
       && contains(webAppSource, "<FileTreeViewer")
