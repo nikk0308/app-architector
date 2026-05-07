@@ -93,9 +93,10 @@ function nodeCategory(path: string, type: "file" | "directory", artifact?: Gener
 
   if (lower.endsWith(".unity")) return "scene";
   if (lower.endsWith(".prefab")) return "prefab";
-  if (/\.(png|jpg|jpeg|webp|svg|asset|mat|fbx|wav|mp3)$/i.test(lower)) return "resource";
+  if (/\.(png|jpg|jpeg|webp|svg|asset|mat|fbx|wav|mp3|ogg|controller|anim|asmdef|meta|shader|hlsl|cginc)$/i.test(lower)) return "resource";
   if (ext === "xcstrings" || ext === "arb" || lower.includes("/i18n/") || lower.includes("/l10n/") || lower.includes("localization")) return "localization";
-  if (lower.endsWith(".mag/file-relationships.json")) return "relationship";
+  if (lower.endsWith(".mag/file-relationships.json") || lower.includes("/.mag/relationships/")) return "relationship";
+  if (lower.includes("/.mag/mode-analysis/")) return "metadata";
   if (lower.includes("/.mag/")) return "metadata";
   if (lower.includes("/test/") || lower.includes("/tests/") || /\.(test|spec)\.(ts|tsx|js|jsx|dart)$/i.test(lower)) return "test";
   if (lower.includes("/delivery/") || lower.includes("/ci/") || lower.includes("/.github/")) return "pipeline";
@@ -150,12 +151,13 @@ function localizedKnownDescription(path: string, type: "file" | "directory", lan
   if (lower.endsWith(".mag/architecture-spec.json")) return ua ? "Структурований ArchitectureSpec, який визначає профіль, модулі та архітектурні рішення." : "Structured ArchitectureSpec that defines profile, modules and architecture decisions.";
   if (lower.endsWith(".mag/architecture-advisor.json")) return ua ? "Advisor-звіт із rationale, ризиками, припущеннями і рекомендаціями." : "Advisor report with rationale, risks, assumptions and recommendations.";
   if (lower.endsWith(".mag/artifact-manifest.json")) return ua ? "Manifest артефактів: пояснює, які файли включено і чому." : "Artifact manifest: explains which files were included and why.";
-  if (lower.endsWith(".mag/validation-report.json")) return ua ? "Звіт перевірки normalized spec і manifest перед матеріалізацією ZIP." : "Validation report for the normalized spec and manifest before ZIP materialization.";
-  if (lower.endsWith(".mag/file-relationships.json")) return ua ? "Карта зв’язків між конфігами, менеджерами, модулями і metadata-файлами." : "Relationship map between configs, managers, modules and metadata files.";
+  if (lower.endsWith(".mag/validation-report.json")) return ua ? "Звіт перевірки нормалізованого spec і manifest перед матеріалізацією ZIP." : "Validation report for the normalized spec and manifest before ZIP materialization.";
+  if (lower.endsWith(".mag/file-relationships.json") || lower.includes("/.mag/relationships/")) return ua ? "Карта зв’язків між конфігами, менеджерами, модулями і metadata-файлами." : "Relationship map between configs, managers, modules and metadata files.";
+  if (lower.includes("/.mag/mode-analysis/")) return ua ? "Додатковий audit-файл режиму генерації для порівняння Baseline / GPT / Qwen / Hybrid." : "Additional generation-mode audit file for Baseline / GPT / Qwen / Hybrid comparison.";
   if (lower.includes(".mag/generation-mode-")) return ua ? "Профіль режиму генерації: Baseline, GPT, Qwen або Hybrid та його вплив на spec." : "Generation mode profile: Baseline, GPT, Qwen or Hybrid and its influence on the spec.";
   if (lower.endsWith(".unity")) return ua ? "Unity scene: стартова або bootstrap-сцена для запуску застосунку." : "Unity scene: startup or bootstrap scene for app launch.";
   if (lower.endsWith(".prefab")) return ua ? "Unity prefab resource, який збирає runtime-об’єкт або composition root." : "Unity prefab resource that composes a runtime object or composition root.";
-  if (lower.includes("generationmode") || lower.includes("generation_mode") || lower.includes("modeboundary")) return ua ? "Source boundary, який робить відмінність режиму генерації видимою у дереві." : "Source boundary that makes the generation mode difference visible in the tree.";
+  if (lower.includes("generationmode") || lower.includes("generation_mode") || lower.includes("modeboundary") || lower.includes("specpatch") || lower.includes("prompttrace") || lower.includes("decisionmatrix") || lower.includes("riskbacklog")) return ua ? "Source boundary, який робить відмінність режиму генерації видимою у дереві." : "Source boundary that makes the generation mode difference visible in the tree.";
   if (lower.includes("monetization")) return ua ? "Межа монетизації: config, manager, entitlement або purchase gateway." : "Monetization boundary: config, manager, entitlement or purchase gateway.";
   if (lower.includes("distribution")) return ua ? "Публікаційна межа: store target, release channel або release manager." : "Publishing boundary: store target, release channel or release manager.";
   if (lower.includes("offline")) return ua ? "Offline/data межа: cache, sync queue або repository coordination." : "Offline/data boundary: cache, sync queue or repository coordination.";
@@ -169,6 +171,7 @@ function localizedKnownDescription(path: string, type: "file" | "directory", lan
   if (lower.includes("persistence") || lower.includes("storage") || lower.includes("cache")) return ua ? "Межа локальних даних, кешу або persistence." : "Local data, cache or persistence boundary.";
   if (lower.includes("navigation") || lower.includes("router") || lower.includes("coordinator")) return ua ? "Файл навігації або routing." : "Navigation/routing source file.";
   if (lower.includes("config") || lower.includes("env")) return ua ? "Конфігураційний файл або env placeholder." : "Configuration source or environment placeholder.";
+  if (lower.includes("usecase") || lower.includes("policy") || lower.includes("mapper") || lower.includes("registry") || lower.includes("adapter") || lower.includes("bridge") || lower.includes("monitor") || lower.includes("resolver")) return ua ? "Companion-файл модуля: окрема відповідальність, яка підв'язується до manager/service межі." : "Module companion file: a focused responsibility wired into the manager/service boundary.";
   return undefined;
 }
 
@@ -197,10 +200,14 @@ function relationshipsFor(path: string, type: "file" | "directory", labels: File
   if (lower.endsWith(".mag/file-relationships.json")) {
     rows.push({ label: labels.uses, values: ["ArchitectureSpec", ua ? "обрані product modules" : "selected product modules"] });
   }
-  if (lower.includes("/product/") || lower.includes("/distribution/") || lower.includes("/delivery/")) {
+  if (lower.includes("/generationmode/") || lower.includes("/generation_mode/") || lower.includes("/mode-analysis/")) {
+    if (lower.endsWith(".json")) rows.push({ label: labels.usedBy, values: ["ArchitectureSpec", "Run comparison", "advisor summary"] });
+    if (!lower.endsWith(".json")) rows.push({ label: labels.uses, values: ["generation-mode profile", "artifact manifest", "provider status"] });
+  }
+  if (lower.includes("/product/") || lower.includes("/distribution/") || lower.includes("/delivery/") || lower.includes("/features/") || lower.includes("/modules/")) {
     if (lower.endsWith(".json")) rows.push({ label: labels.usedBy, values: [ua ? "Manager script у відповідній product-папці" : "Manager script in the matching product folder"] });
     if (lower.includes("manager") || lower.includes("coordinator") || lower.includes("pipeline")) rows.push({ label: labels.manages, values: ["Config JSON", "contract/state files", "platform handoff"] });
-    if (lower.includes("state") || lower.includes("gateway") || lower.includes("target") || lower.includes("queue") || lower.includes("repository") || lower.includes("checklist") || lower.includes("environment")) rows.push({ label: labels.usedBy, values: [ua ? "Product manager або coordinator цієї межі" : "Product manager or coordinator for this boundary"] });
+    if (lower.includes("state") || lower.includes("gateway") || lower.includes("target") || lower.includes("queue") || lower.includes("repository") || lower.includes("checklist") || lower.includes("environment") || lower.includes("policy") || lower.includes("mapper") || lower.includes("registry") || lower.includes("adapter")) rows.push({ label: labels.usedBy, values: [ua ? "Manager або coordinator цієї межі" : "Manager or coordinator for this boundary"] });
   }
   if (lower.endsWith(".prefab")) rows.push({ label: labels.usedBy, values: ["AppManager", "BootSceneController"] });
   if (lower.endsWith(".unity")) rows.push({ label: labels.uses, values: ["BootSceneController", "AppRoot.prefab"] });

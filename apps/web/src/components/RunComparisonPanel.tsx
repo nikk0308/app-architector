@@ -26,6 +26,21 @@ interface RunComparisonPanelProps {
     warningsCleanliness?: string;
     validation?: string;
     architectureCompleteness?: string;
+    sourceDepth?: string;
+    relationshipCoverage?: string;
+    modeDepth?: string;
+    platformCore?: string;
+    categoryBreakdown?: string;
+    architectureSignals?: string;
+    evidence?: string;
+    missingModules?: string;
+    sourceFiles?: string;
+    configFiles?: string;
+    docsFiles?: string;
+    metadataFiles?: string;
+    relationshipFiles?: string;
+    modeFiles?: string;
+    delta?: string;
     hint?: string;
   };
 }
@@ -37,8 +52,15 @@ function formatMs(value?: number): string {
 
 function score(run: RunComparison["runs"][number]): number {
   const metrics = run.metrics;
+  const analysis = run.analysis;
   if (!metrics) return 0;
-  return metrics.fileCount + metrics.artifactCount * 2 - metrics.warningCount * 4 + (metrics.zipAvailable ? 8 : 0);
+  return metrics.fileCount
+    + metrics.artifactCount * 2
+    + (analysis?.representedModuleCount ?? 0) * 10
+    + (analysis?.relationshipFiles ?? 0) * 3
+    + (analysis?.modeSpecificFiles ?? 0) * 2
+    - metrics.warningCount * 4
+    + (metrics.zipAvailable ? 8 : 0);
 }
 
 function clamp(value: number): number {
@@ -52,15 +74,28 @@ function validationScore(status?: string): number {
   return 60;
 }
 
-function metricsFor(run: RunComparison["runs"][number], maxFiles: number) {
+function metricsFor(run: RunComparison["runs"][number], max: { files: number; relationships: number; modeFiles: number; platformCore: number }) {
   const metrics = run.metrics;
-  const fileCoverage = clamp(((metrics?.fileCount ?? 0) / Math.max(1, maxFiles)) * 100);
-  const moduleCoverage = clamp(((metrics?.artifactCount ?? 0) / 32) * 100);
-  const docsRatio = clamp((((metrics?.artifactCount ?? 0) > 0 ? Math.min(0.15, 3 / Math.max(1, metrics?.fileCount ?? 1)) : 0) / 0.15) * 100);
+  const analysis = run.analysis;
+  const fileCoverage = clamp(((metrics?.fileCount ?? 0) / Math.max(1, max.files)) * 100);
+  const moduleCoverage = analysis?.selectedModuleCount
+    ? clamp((analysis.representedModuleCount / analysis.selectedModuleCount) * 100)
+    : clamp(((metrics?.artifactCount ?? 0) / 32) * 100);
+  const docsPercent = (analysis?.docsFiles ?? 0) / Math.max(1, metrics?.fileCount ?? 1);
+  const docsRatio = clamp((Math.min(0.16, docsPercent) / 0.16) * 100);
   const warningsCleanliness = clamp(100 - (metrics?.warningCount ?? 0) * 14);
   const validation = validationScore(metrics?.validationStatus);
-  const architectureCompleteness = clamp((fileCoverage + moduleCoverage + warningsCleanliness + validation + (metrics?.zipAvailable ? 100 : 0)) / 5);
-  return { fileCoverage, moduleCoverage, docsRatio, warningsCleanliness, validation, architectureCompleteness };
+  const sourceDepth = clamp(((analysis?.sourceFiles ?? 0) / Math.max(1, metrics?.fileCount ?? 1) / 0.65) * 100);
+  const relationshipCoverage = clamp(((analysis?.relationshipFiles ?? 0) / Math.max(1, max.relationships)) * 100);
+  const modeDepth = clamp(((analysis?.modeSpecificFiles ?? 0) / Math.max(1, max.modeFiles)) * 100);
+  const platformCore = clamp(((analysis?.platformCoreFiles ?? 0) / Math.max(1, max.platformCore)) * 100);
+  const architectureCompleteness = clamp((fileCoverage + moduleCoverage + sourceDepth + relationshipCoverage + platformCore + validation + warningsCleanliness) / 7);
+  return { fileCoverage, moduleCoverage, docsRatio, warningsCleanliness, validation, architectureCompleteness, sourceDepth, relationshipCoverage, modeDepth, platformCore };
+}
+
+function deltaText(value: number): string {
+  if (value > 0) return `+${value}`;
+  return String(value);
 }
 
 export function RunComparisonPanel({ comparison, selectedCount, loading, error, labels }: RunComparisonPanelProps) {
@@ -85,6 +120,21 @@ export function RunComparisonPanel({ comparison, selectedCount, loading, error, 
     warningsCleanliness: "Warnings cleanliness",
     validation: "Validation",
     architectureCompleteness: "Architecture completeness",
+    sourceDepth: "Source depth",
+    relationshipCoverage: "Relationship coverage",
+    modeDepth: "Mode depth",
+    platformCore: "Platform core",
+    categoryBreakdown: "Category breakdown",
+    architectureSignals: "Architecture signals",
+    evidence: "Evidence paths",
+    missingModules: "Missing modules",
+    sourceFiles: "Source",
+    configFiles: "Config",
+    docsFiles: "Docs",
+    metadataFiles: "Metadata",
+    relationshipFiles: "Relations",
+    modeFiles: "Mode files",
+    delta: "Delta",
     hint: "These are heuristic UI metrics for comparing starter-package completeness."
   };
 
@@ -101,11 +151,21 @@ export function RunComparisonPanel({ comparison, selectedCount, loading, error, 
   }
 
   const strongest = [...comparison.runs].sort((left, right) => score(right) - score(left))[0];
-  const maxFiles = Math.max(1, ...comparison.runs.map((run) => run.metrics?.fileCount ?? 0));
+  const max = {
+    files: Math.max(1, ...comparison.runs.map((run) => run.metrics?.fileCount ?? 0)),
+    relationships: Math.max(1, ...comparison.runs.map((run) => run.analysis?.relationshipFiles ?? 0)),
+    modeFiles: Math.max(1, ...comparison.runs.map((run) => run.analysis?.modeSpecificFiles ?? 0)),
+    platformCore: Math.max(1, ...comparison.runs.map((run) => run.analysis?.platformCoreFiles ?? 0))
+  };
   const maxTime = Math.max(1, ...comparison.runs.map((run) => run.metrics?.generationTimeMs ?? 0));
+  const deltaByRun = new Map(comparison.deltas.map((delta) => [delta.runId, delta]));
   const metricLabels = [
     ["fileCoverage", text.fileCoverage],
     ["moduleCoverage", text.moduleCoverage],
+    ["sourceDepth", text.sourceDepth],
+    ["relationshipCoverage", text.relationshipCoverage],
+    ["modeDepth", text.modeDepth],
+    ["platformCore", text.platformCore],
     ["docsRatio", text.docsRatio],
     ["warningsCleanliness", text.warningsCleanliness],
     ["validation", text.validation],
@@ -129,18 +189,24 @@ export function RunComparisonPanel({ comparison, selectedCount, loading, error, 
           <span>{text.platform}</span>
           <span>{text.files}</span>
           <span>{text.artifacts}</span>
+          <span>{text.relationshipFiles}</span>
+          <span>{text.modeFiles}</span>
           <span>{text.warnings}</span>
           <span>{text.time}</span>
+          <span>{text.delta}</span>
         </div>
         {comparison.runs.map((run) => (
-          <div className={run.id === strongest?.id ? "compare-row strongest-row" : "compare-row"} key={run.id}>
+          <div className={run.id === strongest?.id ? "compare-row compare-row-rich strongest-row" : "compare-row compare-row-rich"} key={run.id}>
             <strong>{run.projectName} · {run.profileId}</strong>
             <span>{run.mode}</span>
             <span>{run.profileId}</span>
             <span>{run.metrics?.fileCount ?? "-"}</span>
             <span>{run.metrics?.artifactCount ?? "-"}</span>
+            <span>{run.analysis?.relationshipFiles ?? "-"}</span>
+            <span>{run.analysis?.modeSpecificFiles ?? "-"}</span>
             <span className={(run.metrics?.warningCount ?? 0) > 0 ? "warn-text" : ""}>{run.metrics?.warningCount ?? "-"}</span>
             <span>{formatMs(run.metrics?.generationTimeMs)}</span>
+            <span>{deltaByRun.has(run.id) ? deltaText(deltaByRun.get(run.id)?.fileDelta ?? 0) : "base"}</span>
           </div>
         ))}
       </div>
@@ -150,7 +216,7 @@ export function RunComparisonPanel({ comparison, selectedCount, loading, error, 
           <div className="compare-bar-card" key={`${run.id}:bars`}>
             <strong>{run.projectName} · {run.profileId}</strong>
             <span>{text.files}</span>
-            <i style={{ width: `${((run.metrics?.fileCount ?? 0) / maxFiles) * 100}%` }} />
+            <i style={{ width: `${((run.metrics?.fileCount ?? 0) / max.files) * 100}%` }} />
             <span>{text.generationTime}</span>
             <i className="info-bar" style={{ width: `${((run.metrics?.generationTimeMs ?? 0) / maxTime) * 100}%` }} />
           </div>
@@ -160,10 +226,16 @@ export function RunComparisonPanel({ comparison, selectedCount, loading, error, 
       <p className="quiet-note">{text.hint}</p>
       <div className="evaluation-grid">
         {comparison.runs.map((run) => {
-          const values = metricsFor(run, maxFiles);
+          const values = metricsFor(run, max);
           return (
             <article className="evaluation-card" key={`${run.id}:evaluation`}>
               <strong>{run.projectName} · {run.profileId}</strong>
+              <div className="compare-mini-stats">
+                <span><small>{text.sourceFiles}</small><b>{run.analysis?.sourceFiles ?? 0}</b></span>
+                <span><small>{text.configFiles}</small><b>{run.analysis?.configFiles ?? 0}</b></span>
+                <span><small>{text.docsFiles}</small><b>{run.analysis?.docsFiles ?? 0}</b></span>
+                <span><small>{text.metadataFiles}</small><b>{run.analysis?.metadataFiles ?? 0}</b></span>
+              </div>
               {metricLabels.map(([key, label]) => (
                 <div className="evaluation-row" key={`${run.id}:${key}`}>
                   <span>{label}</span>
@@ -171,6 +243,24 @@ export function RunComparisonPanel({ comparison, selectedCount, loading, error, 
                   <b>{values[key]}%</b>
                 </div>
               ))}
+              <div className="compare-insights">
+                <div>
+                  <small>{text.architectureSignals}</small>
+                  <p>{run.analysis?.architectureSignals.join(" · ") || "-"}</p>
+                </div>
+                <div>
+                  <small>{text.missingModules}</small>
+                  <p>{run.analysis?.missingModules.length ? run.analysis.missingModules.join(", ") : "0"}</p>
+                </div>
+                <div>
+                  <small>{text.evidence}</small>
+                  <ul>
+                    {(run.analysis?.evidencePaths ?? []).slice(0, 5).map((path) => (
+                      <li key={`${run.id}:${path}`}>{path}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
             </article>
           );
         })}

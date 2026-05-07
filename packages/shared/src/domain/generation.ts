@@ -101,6 +101,27 @@ export interface RunComparisonItem {
   advisorStatus?: string;
   architectureProvider?: RunMetrics["architectureProvider"];
   zipAvailable: boolean;
+  analysis?: RunComparisonAnalysis;
+}
+
+export interface RunComparisonAnalysis {
+  sourceFiles: number;
+  configFiles: number;
+  docsFiles: number;
+  metadataFiles: number;
+  assetFiles: number;
+  testFiles: number;
+  relationshipFiles: number;
+  modeSpecificFiles: number;
+  platformCoreFiles: number;
+  selectedModuleCount: number;
+  representedModuleCount: number;
+  selectedModules: string[];
+  representedModules: string[];
+  missingModules: string[];
+  architectureSignals: string[];
+  categoryBreakdown: Record<string, number>;
+  evidencePaths: string[];
 }
 
 export interface RunComparisonDelta {
@@ -148,6 +169,113 @@ export function scoreRunMetrics(input: ScoreRunMetricsInput): RunMetrics {
   };
 }
 
+const MODULE_PATH_PATTERNS: Record<string, RegExp[]> = {
+  auth: [/auth/i, /identity/i, /token/i, /session/i],
+  analytics: [/analytics/i, /tracking/i, /event/i, /telemetry/i],
+  localization: [/localization/i, /locale/i, /translation/i, /i18n/i, /l10n/i, /xcstrings/i, /\.arb$/i],
+  push: [/push/i, /notification/i],
+  networking: [/network/i, /api/i, /endpoint/i, /request/i, /response/i],
+  storage: [/persistence/i, /storage/i, /cache/i, /repository/i, /migration/i],
+  monetization: [/monetization/i, /subscription/i, /purchase/i, /entitlement/i, /paywall/i, /ads/i],
+  distribution: [/distribution/i, /store/i, /release/i, /testflight/i, /google-play/i],
+  offline: [/offline/i, /sync/i, /queue/i, /snapshot/i],
+  quality: [/quality/i, /logging/i, /crash/i, /diagnostic/i, /feature-flag/i],
+  delivery: [/delivery/i, /pipeline/i, /checklist/i, /build/i, /ci/i]
+};
+
+function moduleKey(featureId: string): string {
+  if (featureId === "storage") return "storage";
+  if (featureId.startsWith("monetization.")) return "monetization";
+  if (featureId.startsWith("distribution.")) return "distribution";
+  if (featureId.startsWith("offline.")) return "offline";
+  if (featureId.startsWith("quality.")) return "quality";
+  if (featureId.startsWith("delivery.")) return "delivery";
+  return featureId;
+}
+
+function categoryForPath(path: string): string {
+  const lower = path.toLowerCase();
+  if (lower.includes("/.mag/")) return "metadata";
+  if (lower.endsWith(".md")) return "documentation";
+  if (/\.(test|spec)\.|\/tests?\//i.test(lower)) return "test";
+  if (/\.(swift|dart|ts|tsx|js|jsx|cs|kt|java)$/i.test(lower)) return "source";
+  if (/\.(json|yaml|yml|xml|plist|env|xcconfig|properties|gradle|pbxproj|lock|arb|xcstrings)$/i.test(lower)) return "config";
+  if (/\.(unity)$/i.test(lower)) return "scene";
+  if (/\.(prefab)$/i.test(lower)) return "prefab";
+  if (/\.(png|jpg|jpeg|webp|svg|asset|mat|fbx|wav|mp3)$/i.test(lower)) return "asset";
+  return "other";
+}
+
+function platformCorePatterns(profile: ProfileId): RegExp[] {
+  if (profile === "ios") return [/sources\/app/i, /sources\/navigation/i, /config\//i, /project\.yml/i];
+  if (profile === "flutter") return [/lib\/app/i, /lib\/core/i, /pubspec\.yaml/i, /main\.dart/i];
+  if (profile === "react-native") return [/src\/navigation/i, /src\/config/i, /app\.tsx/i, /package\.json/i];
+  return [/assets\/scripts\/core/i, /assets\/scenes/i, /assets\/prefabs/i, /projectsettings/i];
+}
+
+function analyzeRun(detail: GenerationRunDetails): RunComparisonAnalysis {
+  const artifacts = detail.artifacts ?? [];
+  const paths = artifacts.map((artifact) => artifact.path);
+  const filePaths = paths.filter((path) => !path.endsWith("/"));
+  const categoryBreakdown: Record<string, number> = {};
+  for (const path of filePaths) {
+    const category = categoryForPath(path);
+    categoryBreakdown[category] = (categoryBreakdown[category] ?? 0) + 1;
+  }
+
+  const selectedFromSpec = (detail.spec?.modules ?? [])
+    .filter((module) => module.enabled)
+    .map((module) => moduleKey(module.featureId));
+  const selectedFromProduct = [
+    ...(detail.spec?.product?.distributionStores.length ? ["distribution"] : []),
+    ...(detail.spec?.product?.monetization.length ? ["monetization"] : []),
+    ...(detail.spec?.product?.offlineData.length ? ["offline"] : []),
+    ...(detail.spec?.product?.runtimeQuality.length ? ["quality"] : []),
+    ...(detail.spec?.product?.delivery.length ? ["delivery"] : [])
+  ];
+  const selectedModules = Array.from(new Set([...selectedFromSpec, ...selectedFromProduct]))
+    .filter((module) => module in MODULE_PATH_PATTERNS);
+  const representedModules = selectedModules.filter((module) => {
+    const patterns = MODULE_PATH_PATTERNS[module] ?? [];
+    return filePaths.some((path) => patterns.some((pattern) => pattern.test(path)));
+  });
+  const missingModules = selectedModules.filter((module) => !representedModules.includes(module));
+  const architectureSignals = [
+    detail.spec?.architecture.style,
+    detail.spec?.architecture.stateManagement,
+    detail.spec?.architecture.navigationStyle,
+    detail.spec?.generationMode,
+    detail.architectureSynthesis?.status,
+    detail.hybridRefinement ? "hybrid-refinement" : undefined
+  ].filter((item): item is string => Boolean(item));
+  const platformPatterns = platformCorePatterns(detail.metadata.profile);
+  const platformCoreFiles = filePaths.filter((path) => platformPatterns.some((pattern) => pattern.test(path))).length;
+  const modeSpecificFiles = filePaths.filter((path) => /generationmode|generation_mode|mode-analysis|modeboundary|specpatch|prompttrace|decisionmatrix|riskbacklog/i.test(path)).length;
+  const relationshipFiles = filePaths.filter((path) => /relationship/i.test(path)).length;
+
+  return {
+    sourceFiles: categoryBreakdown.source ?? 0,
+    configFiles: categoryBreakdown.config ?? 0,
+    docsFiles: categoryBreakdown.documentation ?? 0,
+    metadataFiles: categoryBreakdown.metadata ?? 0,
+    assetFiles: (categoryBreakdown.asset ?? 0) + (categoryBreakdown.scene ?? 0) + (categoryBreakdown.prefab ?? 0),
+    testFiles: categoryBreakdown.test ?? 0,
+    relationshipFiles,
+    modeSpecificFiles,
+    platformCoreFiles,
+    selectedModuleCount: selectedModules.length,
+    representedModuleCount: representedModules.length,
+    selectedModules,
+    representedModules,
+    missingModules,
+    architectureSignals,
+    categoryBreakdown,
+    evidencePaths: filePaths
+      .filter((path) => /generationmode|mode-analysis|product|modules|features|core|services|\.mag\/file-relationships|architecture-spec|artifact-manifest/i.test(path))
+      .slice(0, 10)
+  };
+}
+
 export function compareGenerationRunDetails(details: GenerationRunDetails[]): RunComparison {
   const runs: RunComparisonItem[] = details.map((detail) => ({
     id: detail.metadata.id,
@@ -159,7 +287,8 @@ export function compareGenerationRunDetails(details: GenerationRunDetails[]): Ru
     metrics: detail.metrics,
     advisorStatus: detail.advisor?.status,
     architectureProvider: detail.metrics?.architectureProvider,
-    zipAvailable: Boolean(detail.metadata.zipPath)
+    zipAvailable: Boolean(detail.metadata.zipPath),
+    analysis: analyzeRun(detail)
   }));
 
   const baseline = runs.find((run) => run.mode === "baseline") ?? runs[0];

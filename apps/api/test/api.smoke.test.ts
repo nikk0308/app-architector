@@ -202,6 +202,8 @@ describe("API smoke", () => {
     expect(first.statusCode).toBe(200);
     expect(second.statusCode).toBe(200);
     expect(firstPayload.runMetrics.fileCount).toBeGreaterThan(0);
+    expect(firstPayload.runMetrics.fileCount).toBeGreaterThan(100);
+    expect(secondPayload.runMetrics.fileCount).toBeGreaterThan(firstPayload.runMetrics.fileCount);
     expect(firstPayload.runArtifacts.length).toBeGreaterThan(0);
     expect(firstPayload.validationV2.preMaterialization.status).toMatch(/passed/);
     expect(firstPayload.validationV2.postMaterialization.status).toMatch(/passed/);
@@ -225,6 +227,9 @@ describe("API smoke", () => {
     expect(compare.statusCode).toBe(200);
     expect(comparePayload.runs).toHaveLength(2);
     expect(comparePayload.baselineRunId).toBeTruthy();
+    expect(comparePayload.runs[0].analysis.sourceFiles).toBeGreaterThan(0);
+    expect(comparePayload.runs[1].analysis.modeSpecificFiles).toBeGreaterThan(comparePayload.runs[0].analysis.modeSpecificFiles);
+    expect(comparePayload.runs[1].analysis.evidencePaths.length).toBeGreaterThan(0);
     await app.close();
   });
 

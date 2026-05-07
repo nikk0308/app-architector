@@ -50,7 +50,7 @@ describe("template variables", () => {
     const registryPath = path.resolve(repoRoot, "config", "artifact-registry.json");
     const registry = JSON.parse(fs.readFileSync(registryPath, "utf8")) as Array<{
       id: string;
-      outputs?: Record<string, Array<{ template?: string }>>;
+      outputs?: Record<string, Array<{ template?: string; vars?: Record<string, unknown> }>>;
     }>;
     const artifactIds = new Set(manifest.artifacts.map((artifact) => artifact.id));
     const missing = new Set<string>();
@@ -61,12 +61,13 @@ describe("template variables", () => {
           continue;
         }
         const raw = fs.readFileSync(path.join(templatesRoot, output.template), "utf8");
+        const outputVariables = { ...variables, ...(output.vars ?? {}) };
         for (const match of raw.matchAll(/\$\{([^}]+)\}/g)) {
           const key = match[1];
           if (!key) {
             continue;
           }
-          if (!(key in variables)) {
+          if (!(key in outputVariables)) {
             missing.add(`${output.template}:${key}`);
           }
         }

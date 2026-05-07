@@ -1591,6 +1591,21 @@ export default function App() {
                 warningsCleanliness: language === "ua" ? "Чистота попереджень" : "Warnings cleanliness",
                 validation: t.validation,
                 architectureCompleteness: language === "ua" ? "Архітектурна повнота" : "Architecture completeness",
+                sourceDepth: language === "ua" ? "Глибина коду" : "Source depth",
+                relationshipCoverage: language === "ua" ? "Зв'язки файлів" : "File relationships",
+                modeDepth: language === "ua" ? "Видимість режиму" : "Mode depth",
+                platformCore: language === "ua" ? "Ядро платформи" : "Platform core",
+                categoryBreakdown: language === "ua" ? "Категорії" : "Categories",
+                architectureSignals: language === "ua" ? "Архітектурні сигнали" : "Architecture signals",
+                evidence: language === "ua" ? "Доказові файли" : "Evidence paths",
+                missingModules: language === "ua" ? "Не покрито" : "Missing modules",
+                sourceFiles: language === "ua" ? "Код" : "Source",
+                configFiles: language === "ua" ? "Конфіги" : "Config",
+                docsFiles: language === "ua" ? "Docs" : "Docs",
+                metadataFiles: language === "ua" ? "Metadata" : "Metadata",
+                relationshipFiles: language === "ua" ? "Зв'язки" : "Relations",
+                modeFiles: language === "ua" ? "Режим" : "Mode files",
+                delta: language === "ua" ? "Delta" : "Delta",
                 hint: t.compareHint
               }} />
               <RunDetailsPanel details={selectedDetails} loading={detailsLoading} error={detailsError} labels={{
