@@ -11,6 +11,11 @@ type ExplorerNode = {
   children: ExplorerNode[];
 };
 
+type Relationship = {
+  label: string;
+  value: string;
+};
+
 interface FileTreeViewerProps {
   nodes: TreeNode[];
   artifacts?: GeneratedArtifactSummary[];
@@ -38,8 +43,25 @@ interface FileTreeViewerProps {
     sourceCode: string;
     config: string;
     documentation: string;
+    metadataFile: string;
     asset: string;
+    scene: string;
+    prefab: string;
+    resource: string;
+    localization: string;
+    environment: string;
+    projectConfig: string;
+    productConfig: string;
+    relationshipMap: string;
+    pipeline: string;
+    test: string;
     other: string;
+    relationships: string;
+    uses: string;
+    usedBy: string;
+    manages: string;
+    directChildren: string;
+    nestedFiles: string;
   };
 }
 
@@ -66,44 +88,80 @@ function artifactFor(path: string, artifacts?: GeneratedArtifactSummary[]): Gene
 
 function nodeCategory(path: string, type: "file" | "directory", artifact?: GeneratedArtifactSummary): string {
   if (type === "directory") return "folder";
-  if (artifact?.kind) return artifact.kind;
   const lower = path.toLowerCase();
+  const ext = extension(lower);
+
+  if (lower.endsWith(".unity")) return "scene";
+  if (lower.endsWith(".prefab")) return "prefab";
+  if (/\.(png|jpg|jpeg|webp|svg|asset|mat|fbx|wav|mp3)$/i.test(lower)) return "resource";
+  if (ext === "xcstrings" || ext === "arb" || lower.includes("/i18n/") || lower.includes("/l10n/") || lower.includes("localization")) return "localization";
+  if (lower.endsWith(".mag/file-relationships.json")) return "relationship";
   if (lower.includes("/.mag/")) return "metadata";
+  if (lower.includes("/test/") || lower.includes("/tests/") || /\.(test|spec)\.(ts|tsx|js|jsx|dart)$/i.test(lower)) return "test";
+  if (lower.includes("/delivery/") || lower.includes("/ci/") || lower.includes("/.github/")) return "pipeline";
+  if (lower.includes("/product/") || lower.includes("/distribution/") || lower.includes("/monetization/") || lower.includes("/offline/") || lower.includes("/quality/")) return ext === "json" ? "product-config" : "source";
+  if (["env", "xcconfig"].includes(ext)) return "environment";
+  if (["pbxproj", "xcodeproj", "csproj", "sln", "gradle", "properties", "plist", "xml", "lock"].includes(ext) || ["project.yml", "pubspec.yaml", "package.json"].includes(fileName(lower))) return "project-config";
   if (lower.endsWith(".md")) return "documentation";
-  if (/\.(ts|tsx|js|jsx|swift|dart|cs)$/i.test(lower)) return "source";
-  if (/\.(json|yaml|yml|env|xcconfig|arb)$/i.test(lower)) return "config";
-  if (/\.(prefab|unity|xcstrings)$/i.test(lower)) return "asset";
-  return "other";
+  if (/\.(ts|tsx|js|jsx|swift|dart|cs|kt|java)$/i.test(lower)) return "source";
+  if (/\.(json|yaml|yml|txt)$/i.test(lower)) return artifact?.kind === "metadata" ? "metadata" : "config";
+  return artifact?.kind ?? "other";
 }
 
 function categoryLabel(category: string, labels: FileTreeViewerProps["labels"]): string {
-  if (category === "folder") return labels.folder;
-  if (category === "source") return labels.sourceCode;
-  if (category === "config") return labels.config;
-  if (category === "metadata") return labels.metadata;
-  if (category === "documentation") return labels.documentation;
-  if (category === "asset") return labels.asset;
-  return labels.other;
+  const map: Record<string, string> = {
+    folder: labels.folder,
+    source: labels.sourceCode,
+    config: labels.config,
+    metadata: labels.metadataFile,
+    documentation: labels.documentation,
+    asset: labels.asset,
+    scene: labels.scene,
+    prefab: labels.prefab,
+    resource: labels.resource,
+    localization: labels.localization,
+    environment: labels.environment,
+    "project-config": labels.projectConfig,
+    "product-config": labels.productConfig,
+    relationship: labels.relationshipMap,
+    pipeline: labels.pipeline,
+    test: labels.test,
+    other: labels.other
+  };
+  return map[category] ?? labels.other;
 }
 
-function inferDescription(path: string, type: "file" | "directory", language: "ua" | "en", artifact?: GeneratedArtifactSummary): string {
-  if (artifact?.description) return artifact.description;
+function localizedKnownDescription(path: string, type: "file" | "directory", language: "ua" | "en"): string | undefined {
   const lower = path.toLowerCase();
   const ua = language === "ua";
+
   if (type === "directory") {
     if (lower.includes("/features") || lower.includes("/modules")) return ua ? "Межа feature/module для продуктової логіки." : "Feature/module boundary for generated product logic.";
+    if (lower.includes("/product/")) return ua ? "Product-рівень із конфігами, менеджерами та контрактами модулів." : "Product layer with configs, managers and module contracts.";
     if (lower.includes("/services")) return ua ? "Сервісна межа для інфраструктурних відповідальностей." : "Service boundary for infrastructure concerns.";
     if (lower.includes("/navigation")) return ua ? "Шар навігації та маршрутизації." : "Navigation and routing layer.";
     if (lower.includes("/config")) return ua ? "Конфігурація середовища і runtime-параметрів." : "Environment and runtime configuration.";
     if (lower.includes("/.mag")) return ua ? "Метадані генератора і audit-артефакти." : "Generator metadata and audit artifacts.";
-    return ua ? "Згенерована межа папки." : "Generated folder boundary.";
+    if (lower.includes("/generationmode") || lower.includes("/generation_mode")) return ua ? "Видима межа обраного режиму генерації." : "Visible boundary for the selected generation mode.";
+    return ua ? "Згенерована папка архітектурного пакета." : "Generated architecture package folder.";
   }
+
   if (lower.endsWith("readme.md")) return ua ? "Огляд проєкту, setup-нотатки і підсумок архітектури." : "Project overview, setup notes and generated architecture summary.";
-  if (lower.endsWith(".mag/architecture-spec.json")) return ua ? "Структурований ArchitectureSpec, який використовує генератор." : "Structured ArchitectureSpec used by the generator.";
-  if (lower.endsWith(".mag/architecture-advisor.json")) return ua ? "Advisor-звіт з rationale, ризиками і рекомендаціями." : "Advisor output with design rationale, risks and recommendations.";
-  if (lower.endsWith(".mag/artifact-manifest.json")) return ua ? "Manifest артефактів, який пояснює включені файли." : "Artifact manifest that explains why files were included.";
-  if (lower.endsWith(".mag/validation-report.json")) return ua ? "Validation-звіт для згенерованої структури." : "Validation report for the generated structure.";
-  if (lower.includes("auth")) return ua ? "Межа авторизації для входу, стану або токенів." : "Authentication boundary for sign-in, state or token handling.";
+  if (lower.endsWith(".mag/architecture-spec.json")) return ua ? "Структурований ArchitectureSpec, який визначає профіль, модулі та архітектурні рішення." : "Structured ArchitectureSpec that defines profile, modules and architecture decisions.";
+  if (lower.endsWith(".mag/architecture-advisor.json")) return ua ? "Advisor-звіт із rationale, ризиками, припущеннями і рекомендаціями." : "Advisor report with rationale, risks, assumptions and recommendations.";
+  if (lower.endsWith(".mag/artifact-manifest.json")) return ua ? "Manifest артефактів: пояснює, які файли включено і чому." : "Artifact manifest: explains which files were included and why.";
+  if (lower.endsWith(".mag/validation-report.json")) return ua ? "Звіт перевірки normalized spec і manifest перед матеріалізацією ZIP." : "Validation report for the normalized spec and manifest before ZIP materialization.";
+  if (lower.endsWith(".mag/file-relationships.json")) return ua ? "Карта зв’язків між конфігами, менеджерами, модулями і metadata-файлами." : "Relationship map between configs, managers, modules and metadata files.";
+  if (lower.includes(".mag/generation-mode-")) return ua ? "Профіль режиму генерації: Baseline, GPT, Qwen або Hybrid та його вплив на spec." : "Generation mode profile: Baseline, GPT, Qwen or Hybrid and its influence on the spec.";
+  if (lower.endsWith(".unity")) return ua ? "Unity scene: стартова або bootstrap-сцена для запуску застосунку." : "Unity scene: startup or bootstrap scene for app launch.";
+  if (lower.endsWith(".prefab")) return ua ? "Unity prefab resource, який збирає runtime-об’єкт або composition root." : "Unity prefab resource that composes a runtime object or composition root.";
+  if (lower.includes("generationmode") || lower.includes("generation_mode") || lower.includes("modeboundary")) return ua ? "Source boundary, який робить відмінність режиму генерації видимою у дереві." : "Source boundary that makes the generation mode difference visible in the tree.";
+  if (lower.includes("monetization")) return ua ? "Межа монетизації: config, manager, entitlement або purchase gateway." : "Monetization boundary: config, manager, entitlement or purchase gateway.";
+  if (lower.includes("distribution")) return ua ? "Публікаційна межа: store target, release channel або release manager." : "Publishing boundary: store target, release channel or release manager.";
+  if (lower.includes("offline")) return ua ? "Offline/data межа: cache, sync queue або repository coordination." : "Offline/data boundary: cache, sync queue or repository coordination.";
+  if (lower.includes("quality")) return ua ? "Runtime quality межа: diagnostics, logging, flags або safety checks." : "Runtime quality boundary: diagnostics, logging, flags or safety checks.";
+  if (lower.includes("delivery")) return ua ? "Delivery межа: pipeline, checklist або build environment handoff." : "Delivery boundary: pipeline, checklist or build environment handoff.";
+  if (lower.includes("auth")) return ua ? "Межа авторизації для входу, стану або token handling." : "Authentication boundary for sign-in, state or token handling.";
   if (lower.includes("analytics")) return ua ? "Межа аналітичних подій і tracking." : "Analytics event and tracking boundary.";
   if (lower.includes("localization") || lower.includes("i18n") || lower.includes("l10n")) return ua ? "Ресурси локалізації та шар доступу до текстів." : "Localization resources and text access layer.";
   if (lower.includes("push")) return ua ? "Заготовка межі push-сповіщень." : "Push notification placeholder boundary.";
@@ -111,7 +169,42 @@ function inferDescription(path: string, type: "file" | "directory", language: "u
   if (lower.includes("persistence") || lower.includes("storage") || lower.includes("cache")) return ua ? "Межа локальних даних, кешу або persistence." : "Local data, cache or persistence boundary.";
   if (lower.includes("navigation") || lower.includes("router") || lower.includes("coordinator")) return ua ? "Файл навігації або routing." : "Navigation/routing source file.";
   if (lower.includes("config") || lower.includes("env")) return ua ? "Конфігураційний файл або env placeholder." : "Configuration source or environment placeholder.";
-  return ua ? "Згенерований файл проєкту." : "Generated project file.";
+  return undefined;
+}
+
+function inferDescription(path: string, type: "file" | "directory", language: "ua" | "en", artifact?: GeneratedArtifactSummary): string {
+  return localizedKnownDescription(path, type, language)
+    ?? artifact?.description
+    ?? (language === "ua" ? "Згенерований файл архітектурного пакета." : "Generated architecture package file.");
+}
+
+function relationshipsFor(path: string, type: "file" | "directory", labels: FileTreeViewerProps["labels"], language: "ua" | "en"): Relationship[] {
+  const lower = path.toLowerCase();
+  const ua = language === "ua";
+  const rows: Relationship[] = [];
+  if (type === "directory") {
+    if (lower.includes("/product/")) {
+      rows.push({ label: labels.manages, value: ua ? "Конфіги JSON, manager scripts і contracts усередині цієї product-межі." : "JSON configs, manager scripts and contracts inside this product boundary." });
+    }
+    return rows;
+  }
+  if (lower.endsWith(".mag/architecture-spec.json")) {
+    rows.push({ label: labels.usedBy, value: "artifact-manifest.json, generation-mode-profile.json, file-relationships.json" });
+  }
+  if (lower.endsWith(".mag/artifact-manifest.json")) {
+    rows.push({ label: labels.usedBy, value: ua ? "Deterministic materializer і validation report." : "Deterministic materializer and validation report." });
+  }
+  if (lower.endsWith(".mag/file-relationships.json")) {
+    rows.push({ label: labels.uses, value: "ArchitectureSpec + selected product modules" });
+  }
+  if (lower.includes("/product/") || lower.includes("/distribution/") || lower.includes("/delivery/")) {
+    if (lower.endsWith(".json")) rows.push({ label: labels.usedBy, value: ua ? "Manager script у відповідній product-папці." : "Manager script in the matching product folder." });
+    if (lower.includes("manager") || lower.includes("coordinator") || lower.includes("pipeline")) rows.push({ label: labels.manages, value: ua ? "Config JSON, contract/state files і platform handoff." : "Config JSON, contract/state files and platform handoff." });
+    if (lower.includes("state") || lower.includes("gateway") || lower.includes("target") || lower.includes("queue") || lower.includes("repository") || lower.includes("checklist") || lower.includes("environment")) rows.push({ label: labels.usedBy, value: ua ? "Product manager або coordinator цієї межі." : "Product manager or coordinator for this boundary." });
+  }
+  if (lower.endsWith(".prefab")) rows.push({ label: labels.usedBy, value: "AppManager / BootSceneController" });
+  if (lower.endsWith(".unity")) rows.push({ label: labels.uses, value: "BootSceneController + AppRoot.prefab" });
+  return rows;
 }
 
 function ensureDirectory(map: Map<string, ExplorerNode>, path: string): ExplorerNode {
@@ -128,9 +221,7 @@ function ensureDirectory(map: Map<string, ExplorerNode>, path: string): Explorer
     children: []
   };
   map.set(path, node);
-  if (parentPath) {
-    ensureDirectory(map, parentPath).children.push(node);
-  }
+  if (parentPath) ensureDirectory(map, parentPath).children.push(node);
   return node;
 }
 
@@ -156,11 +247,8 @@ function buildTree(nodes: TreeNode[]): ExplorerNode[] {
       depth: Math.max(0, parts.length - 1),
       children: []
     };
-    if (parentPath) {
-      ensureDirectory(map, parentPath).children.push(node);
-    } else {
-      roots.push(node);
-    }
+    if (parentPath) ensureDirectory(map, parentPath).children.push(node);
+    else roots.push(node);
   }
 
   const parented = new Set<ExplorerNode>();
@@ -187,9 +275,7 @@ function flattenVisible(nodes: ExplorerNode[], expanded: Set<string>): ExplorerN
   const result: ExplorerNode[] = [];
   const visit = (node: ExplorerNode) => {
     result.push(node);
-    if (node.type === "directory" && expanded.has(node.path)) {
-      node.children.forEach(visit);
-    }
+    if (node.type === "directory" && expanded.has(node.path)) node.children.forEach(visit);
   };
   nodes.forEach(visit);
   return result;
@@ -205,9 +291,8 @@ function folderStats(node: ExplorerNode): { direct: number; nestedFiles: number 
   return { direct: node.children.length, nestedFiles };
 }
 
-function treeText(nodes: ExplorerNode[], expanded = new Set<string>()): string {
-  const rows = expanded.size > 0 ? flattenVisible(nodes, expanded) : flattenVisible(nodes, new Set(nodes.map((node) => node.path)));
-  return rows.map((node) => `${"  ".repeat(node.depth)}${node.type === "directory" ? "/" : "-"} ${node.name}`).join("\n");
+function treeText(nodes: ExplorerNode[], expanded: Set<string>): string {
+  return flattenVisible(nodes, expanded).map((node) => `${"  ".repeat(node.depth)}${node.type === "directory" ? "/" : "-"} ${node.name}`).join("\n");
 }
 
 export function FileTreeViewer({ nodes, artifacts, language, labels }: FileTreeViewerProps) {
@@ -252,6 +337,7 @@ export function FileTreeViewer({ nodes, artifacts, language, labels }: FileTreeV
   const selectedArtifact = artifactFor(selected.path, artifacts);
   const selectedCategory = nodeCategory(selected.path, selected.type, selectedArtifact);
   const stats = selected.type === "directory" ? folderStats(selected) : null;
+  const relationships = relationshipsFor(selected.path, selected.type, labels, language);
 
   return (
     <section className="console-card tree-console explorer-card">
@@ -298,7 +384,7 @@ export function FileTreeViewer({ nodes, artifacts, language, labels }: FileTreeV
                     if (isFolder) toggleFolder(node.path);
                   }}
                 >
-                  {isFolder ? (isOpen ? "−" : "+") : ""}
+                  {isFolder ? (isOpen ? "-" : "+") : ""}
                 </button>
                 <FileIcon path={node.path} type={node.type} isOpen={isOpen} />
                 <span className="tree-name" title={node.path}>{node.name}</span>
@@ -322,8 +408,21 @@ export function FileTreeViewer({ nodes, artifacts, language, labels }: FileTreeV
             <code>{selected.path}</code>
           </label>
           <p>{inferDescription(selected.path, selected.type, language, selectedArtifact)}</p>
+          {relationships.length > 0 ? (
+            <div className="relationship-panel">
+              <strong>{labels.relationships}</strong>
+              {relationships.map((relationship) => (
+                <span key={`${relationship.label}-${relationship.value}`}>
+                  <small>{relationship.label}</small>
+                  <em>{relationship.value}</em>
+                </span>
+              ))}
+            </div>
+          ) : null}
           {stats ? (
-            <p className="detail-note">{labels.children}: {stats.direct} direct, {stats.nestedFiles} files nested.</p>
+            <p className="detail-note">
+              {labels.children}: {stats.direct} {labels.directChildren}, {stats.nestedFiles} {labels.nestedFiles}.
+            </p>
           ) : null}
           <button className="ghost-button" type="button" onClick={() => void copyPath(selected.path)}>
             {labels.copyPath}

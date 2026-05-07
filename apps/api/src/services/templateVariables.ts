@@ -1,4 +1,4 @@
-import { getProjectProfile, UNIVERSAL_FEATURES, type ArchitectureAdvisorReport, type ArtifactManifest, type ArchitectureSpec, type NormalizedProfile, type PlatformPackDefinition } from "@mag/shared";
+import { getProjectProfile, UNIVERSAL_FEATURES, type ArchitectureAdvisorReport, type ArtifactManifest, type ArchitectureSpec, type GenerationMode, type NormalizedProfile, type PlatformPackDefinition } from "@mag/shared";
 
 function text(value: unknown): string {
   if (value === null || value === undefined) {
@@ -141,6 +141,135 @@ function platformPackToMarkdown(platformPack: PlatformPackDefinition): string {
   ].join("\n");
 }
 
+function modeDisplayName(mode: GenerationMode): string {
+  if (mode === "commercial") return "GPT / OpenAI";
+  if (mode === "hf-open") return "Qwen / Hugging Face";
+  if (mode === "hybrid") return "Hybrid";
+  return "Baseline";
+}
+
+function modeBoundaryPascal(mode: GenerationMode): string {
+  if (mode === "commercial") return "GptModeBoundary";
+  if (mode === "hf-open") return "QwenModeBoundary";
+  if (mode === "hybrid") return "HybridModeBoundary";
+  return "BaselineModeBoundary";
+}
+
+function modeBoundaryCamel(mode: GenerationMode): string {
+  const name = modeBoundaryPascal(mode);
+  return name.charAt(0).toLowerCase() + name.slice(1);
+}
+
+function modeBoundarySnake(mode: GenerationMode): string {
+  return modeBoundaryPascal(mode).replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase();
+}
+
+function modeMetadataFile(mode: GenerationMode): string {
+  if (mode === "commercial") return "generation-mode-gpt.json";
+  if (mode === "hf-open") return "generation-mode-qwen.json";
+  if (mode === "hybrid") return "generation-mode-hybrid.json";
+  return "generation-mode-baseline.json";
+}
+
+function modeStrategySummary(mode: GenerationMode): string {
+  if (mode === "commercial") {
+    return "OpenAI synthesizes the ArchitectureSpec; the deterministic materializer still owns the file tree.";
+  }
+  if (mode === "hf-open") {
+    return "Qwen synthesizes the ArchitectureSpec through the provider contract; deterministic templates materialize the ZIP.";
+  }
+  if (mode === "hybrid") {
+    return "Baseline creates the canonical structure, then AI is allowed to refine documentation and approved explanation zones.";
+  }
+  return "Program code builds the ArchitectureSpec, manifest and ZIP without external model calls.";
+}
+
+function modeRelationshipSummary(mode: GenerationMode): string {
+  if (mode === "hybrid") return "BaselineSpec -> HybridPolicy -> AdvisorDocs -> Deterministic ZIP";
+  if (mode === "commercial") return "OpenAI SpecPatch -> ArchitectureSpec -> ArtifactManifest -> Deterministic ZIP";
+  if (mode === "hf-open") return "Qwen SpecPatch -> ArchitectureSpec -> ArtifactManifest -> Deterministic ZIP";
+  return "Questionnaire -> ArchitectureSpec -> ArtifactManifest -> Deterministic ZIP";
+}
+
+function relationshipJson(spec: ArchitectureSpec, manifest: ArtifactManifest): string {
+  const root = spec.naming.rootDirectoryName;
+  const relationships = [
+    {
+      source: `${root}/.mag/architecture-spec.json`,
+      target: `${root}/.mag/artifact-manifest.json`,
+      relation: "drives",
+      reason: "The normalized ArchitectureSpec decides which modules, mode boundaries and platform artifacts are selected."
+    },
+    {
+      source: `${root}/.mag/artifact-manifest.json`,
+      target: `${root}/README.md`,
+      relation: "documents",
+      reason: "The README summarizes the generated package and the manifest-backed file plan."
+    },
+    {
+      source: `${root}/.mag/validation-report.json`,
+      target: `${root}/.mag/artifact-manifest.json`,
+      relation: "checks",
+      reason: "Validation verifies required artifacts, unsupported combinations and manifest consistency."
+    },
+    {
+      source: `${root}/.mag/${modeMetadataFile(spec.generationMode)}`,
+      target: `${root}/.mag/architecture-spec.json`,
+      relation: "explains",
+      reason: "Mode profile records how Baseline, GPT, Qwen or Hybrid influenced the spec before materialization."
+    }
+  ];
+
+  for (const store of spec.product.distributionStores) {
+    relationships.push({
+      source: `${root}/distribution/${store}.json`,
+      target: `${root}/product/distribution/StoreReleaseManager`,
+      relation: "configured-by",
+      reason: "Store JSON config feeds the release manager boundary for target-specific publishing checks."
+    });
+  }
+  for (const strategy of spec.product.monetization) {
+    relationships.push({
+      source: `${root}/product/monetization/${strategy}.json`,
+      target: `${root}/product/monetization/MonetizationManager`,
+      relation: "configured-by",
+      reason: "Monetization config feeds entitlement, purchase gateway and paywall coordination code."
+    });
+  }
+  for (const option of spec.product.offlineData) {
+    relationships.push({
+      source: `${root}/product/offline/${option}.json`,
+      target: `${root}/product/offline/OfflineDataCoordinator`,
+      relation: "configured-by",
+      reason: "Offline data config feeds cache, sync queue and repository coordination code."
+    });
+  }
+  for (const option of spec.product.runtimeQuality) {
+    relationships.push({
+      source: `${root}/product/quality/${option}.json`,
+      target: `${root}/product/quality/RuntimeQualityManager`,
+      relation: "configured-by",
+      reason: "Runtime quality config feeds diagnostics, logging and feature-flag boundaries."
+    });
+  }
+  for (const option of spec.product.delivery) {
+    relationships.push({
+      source: `${root}/delivery/${option}.json`,
+      target: `${root}/product/delivery/DeliveryPipeline`,
+      relation: "configured-by",
+      reason: "Delivery config feeds release checklist, build environment and CI/CD handoff boundaries."
+    });
+  }
+
+  return JSON.stringify({
+    version: "1.0",
+    profileId: spec.profileId,
+    generationMode: spec.generationMode,
+    artifactCount: manifest.summary.totalArtifacts,
+    relationships
+  }, null, 2);
+}
+
 /**
  * Single source of truth for template and path substitutions.
  *
@@ -159,6 +288,8 @@ export function buildTemplateVariables(
   const platformPack = getProjectProfile(spec.profileId).platformPack;
   const platformPackMarkdown = platformPackToMarkdown(platformPack);
   const productReadinessMarkdown = productMarkdown(spec);
+  const modeName = modeDisplayName(spec.generationMode);
+  const modeStrategy = modeStrategySummary(spec.generationMode);
 
   return {
     rootFolderName: manifest.rootFolderName,
@@ -190,6 +321,13 @@ export function buildTemplateVariables(
 
     generationMode: spec.generationMode,
     generation_mode: spec.generationMode,
+    mode_display_name: modeName,
+    mode_strategy_summary: modeStrategy,
+    mode_relationship_summary: modeRelationshipSummary(spec.generationMode),
+    mode_boundary_pascal: modeBoundaryPascal(spec.generationMode),
+    mode_boundary_camel: modeBoundaryCamel(spec.generationMode),
+    mode_boundary_snake: modeBoundarySnake(spec.generationMode),
+    mode_metadata_file: modeMetadataFile(spec.generationMode),
 
     architectureStyle: spec.architecture.style,
     architecture_style: spec.architecture.style,
@@ -226,6 +364,7 @@ export function buildTemplateVariables(
 
     product_readiness_markdown: productReadinessMarkdown,
     product_readiness_json: JSON.stringify(spec.product ?? { distributionStores: [], monetization: [], offlineData: [], runtimeQuality: [], delivery: [] }, null, 2),
+    file_relationships_json: relationshipJson(spec, manifest),
     distribution_stores: (spec.product?.distributionStores ?? []).map(labelize).join(", ") || "Not selected",
     monetization_strategies: (spec.product?.monetization ?? []).map(labelize).join(", ") || "Not selected",
     offline_data_options: (spec.product?.offlineData ?? []).map(labelize).join(", ") || "Not selected",

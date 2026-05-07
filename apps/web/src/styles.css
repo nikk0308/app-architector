@@ -628,7 +628,8 @@ textarea {
 }
 
 .file-tree {
-  max-height: calc(100vh - 360px);
+  max-height: calc(100vh - 100px);
+  min-height: min(720px, calc(100vh - 100px));
   overflow: auto;
   padding: 6px;
   border: 1px solid var(--line);
@@ -712,13 +713,17 @@ textarea {
 }
 
 .file-icon.ts,
-.file-icon.js {
+.file-icon.js,
+.file-icon.kt,
+.file-icon.jv {
   color: #93c5fd;
 }
 
 .file-icon.c-,
 .file-icon.dart,
-.file-icon.s {
+.file-icon.s,
+.file-icon.csp,
+.file-icon.sln {
   color: #86efac;
 }
 
@@ -728,8 +733,25 @@ textarea {
 
 .file-icon.cfg,
 .file-icon.yml,
-.file-icon.json {
+.file-icon.json,
+.file-icon.xcs,
+.file-icon.arb,
+.file-icon.xml,
+.file-icon.pl,
+.file-icon.pbx,
+.file-icon.grd,
+.file-icon.prp,
+.file-icon.lck,
+.file-icon.pkg,
+.file-icon.pub {
   color: #fde68a;
+}
+
+.file-icon.prf,
+.file-icon.scn,
+.file-icon.ast,
+.file-icon.img {
+  color: #c4b5fd;
 }
 
 .tree-name {
@@ -759,12 +781,33 @@ textarea {
   background: var(--accent-soft);
 }
 
-.tree-tag.source {
+.tree-tag.source,
+.tree-tag.test {
   color: #bfdbfe;
 }
 
-.tree-tag.documentation {
+.tree-tag.documentation,
+.tree-tag.pipeline {
   color: #fde68a;
+}
+
+.tree-tag.scene,
+.tree-tag.prefab,
+.tree-tag.resource,
+.tree-tag.asset {
+  color: #c4b5fd;
+}
+
+.tree-tag.localization {
+  color: #99f6e4;
+}
+
+.tree-tag.environment,
+.tree-tag.project-config,
+.tree-tag.product-config,
+.tree-tag.relationship {
+  color: #fcd34d;
+  background: rgba(212, 175, 55, 0.08);
 }
 
 .file-detail-panel {
@@ -787,6 +830,38 @@ textarea {
   margin: 0;
   color: var(--muted);
   line-height: 1.55;
+}
+
+.relationship-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(212, 175, 55, 0.06);
+}
+
+.relationship-panel > strong {
+  font-size: 0.82rem;
+}
+
+.relationship-panel span {
+  display: grid;
+  gap: 3px;
+}
+
+.relationship-panel small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.relationship-panel em {
+  color: var(--text);
+  font-style: normal;
+  overflow-wrap: anywhere;
 }
 
 .file-detail-grid {

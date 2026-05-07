@@ -4,6 +4,7 @@ import type {
   ArchitectureSpec,
   ArtifactDefinition,
   ArtifactManifest,
+  GenerationMode,
   GenerationPlan,
   GenerationPlanItem,
   UniversalFeatureId
@@ -35,6 +36,20 @@ function architectureArtifactId(style: string): string {
   if (normalized === "layered") return "architecture.layered";
   if (normalized === "coordinator") return "architecture.coordinator";
   return "architecture.feature-first";
+}
+
+function modeArtifactId(mode: GenerationMode): string {
+  if (mode === "commercial") return "mode.openai";
+  if (mode === "hf-open") return "mode.qwen";
+  if (mode === "hybrid") return "mode.hybrid";
+  return "mode.baseline";
+}
+
+function modeTitle(mode: GenerationMode): string {
+  if (mode === "commercial") return "GPT generation mode boundary";
+  if (mode === "hf-open") return "Qwen generation mode boundary";
+  if (mode === "hybrid") return "Hybrid generation mode boundary";
+  return "Baseline generation mode boundary";
 }
 
 function pushSelectedProductArtifacts(spec: ArchitectureSpec, artifacts: ArtifactDefinition[]): void {
@@ -153,6 +168,15 @@ export function buildArtifactManifest(spec: ArchitectureSpec): ArtifactManifest 
     source: "baseline"
   });
 
+  pushArtifact(artifacts, {
+    id: modeArtifactId(spec.generationMode),
+    title: modeTitle(spec.generationMode),
+    reason: "The selected generation mode contributes a visible boundary and metadata profile for comparison.",
+    required: true,
+    category: "profile",
+    source: spec.generationMode === "baseline" ? "baseline" : "advisor"
+  });
+
   spec.modules
     .filter((module) => module.enabled && module.supported)
     .forEach((module) => {
@@ -206,6 +230,15 @@ export function buildArtifactManifest(spec: ArchitectureSpec): ArtifactManifest 
     id: "meta.validation",
     title: "Validation report",
     reason: "Validation output is part of the generated package contract.",
+    required: true,
+    category: "metadata",
+    source: "baseline"
+  });
+
+  pushArtifact(artifacts, {
+    id: "meta.relationships",
+    title: "File relationships map",
+    reason: "Generated packages include a lightweight relationship map that explains how configs, managers and modules depend on each other.",
     required: true,
     category: "metadata",
     source: "baseline"

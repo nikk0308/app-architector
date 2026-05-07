@@ -14,18 +14,36 @@ function extension(path: string): string {
 
 function badgeFor(path: string): string {
   const ext = extension(path);
-  if (path.toLowerCase().includes("/.mag/")) return "{}";
-  if (["json", "xcstrings", "arb"].includes(ext)) return "{}";
+  const lower = path.toLowerCase();
+  const name = lower.split("/").pop() ?? lower;
+  if (lower.includes("/.mag/")) return "{}";
+  if (ext === "json") return "{}";
+  if (ext === "xcstrings") return "XCS";
+  if (ext === "arb") return "ARB";
   if (["md", "markdown"].includes(ext)) return "MD";
   if (["ts", "tsx"].includes(ext)) return "TS";
   if (["js", "jsx"].includes(ext)) return "JS";
+  if (ext === "kt") return "KT";
+  if (ext === "java") return "JV";
   if (ext === "swift") return "S";
   if (ext === "dart") return "D";
   if (ext === "cs") return "C#";
   if (["yml", "yaml"].includes(ext)) return "YML";
+  if (ext === "xml") return "XML";
+  if (ext === "plist") return "PL";
+  if (ext === "pbxproj") return "PBX";
+  if (ext === "gradle") return "GRD";
+  if (ext === "properties") return "PRP";
+  if (["csproj", "sln"].includes(ext)) return ext === "sln" ? "SLN" : "CSP";
+  if (ext === "lock") return "LCK";
   if (["env", "xcconfig"].includes(ext)) return "CFG";
-  if (["prefab", "unity"].includes(ext)) return "AS";
+  if (ext === "prefab") return "PRF";
+  if (ext === "unity") return "SCN";
+  if (["asset", "mat", "fbx"].includes(ext)) return "AST";
+  if (["png", "jpg", "jpeg", "webp", "svg"].includes(ext)) return "IMG";
   if (ext === "txt") return "TXT";
+  if (name === "package.json") return "PKG";
+  if (name === "pubspec.yaml") return "PUB";
   return "FILE";
 }
 

@@ -438,6 +438,12 @@ function artifactDescription(filePath: string): string {
   if (filePath.endsWith(".mag/hybrid-refinement.json")) {
     return "Hybrid refinement report with accepted patches, rejected patches and policy warnings.";
   }
+  if (filePath.endsWith(".mag/file-relationships.json")) {
+    return "Relationship map connecting configs, managers, modules and metadata artifacts.";
+  }
+  if (filePath.includes(".mag/generation-mode-")) {
+    return "Generation mode profile explaining how Baseline, GPT, Qwen or Hybrid influenced the ArchitectureSpec.";
+  }
   if (filePath.endsWith(".mag/platform-pack.json")) {
     return "Typed platform pack metadata with support levels and quality gates.";
   }

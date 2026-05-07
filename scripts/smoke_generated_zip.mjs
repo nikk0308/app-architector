@@ -24,8 +24,13 @@ let pythonBin = pythonCandidates[0];
 const requiredRelativePaths = [
   ".mag/architecture-advisor.json",
   ".mag/architecture-synthesis.json",
+  ".mag/file-relationships.json",
+  ".mag/generation-mode-hybrid.json",
   ".mag/hybrid-refinement.json",
   ".mag/platform-pack.json",
+  "lib/generation_mode/hybrid_mode_boundary.dart",
+  "lib/product/monetization/monetization_manager.dart",
+  "lib/product/offline/offline_data_coordinator.dart",
   "docs/next-steps.md",
   "docs/platform-pack.md",
   "docs/architecture-decisions.md"
@@ -122,6 +127,13 @@ function payload() {
         exampleScreen: true,
         llmNotes: true
       },
+      product: {
+        distributionStores: ["google-play"],
+        monetization: ["subscription"],
+        offlineData: ["sync-queue"],
+        runtimeQuality: ["logging"],
+        delivery: ["release-checklist"]
+      },
       modules: [{ featureId: "navigation", enabled: true, supported: true, required: true, source: "mandatory", artifactIds: [], notes: [] }],
       dependencyPlan: { requiredFeatures: [], optionalFeatures: [], relationships: [], warnings: [] },
       explanation: "Smoke profile for generated ZIP inspection."
@@ -147,9 +159,41 @@ function payload() {
           required: true,
           category: "metadata",
           source: "baseline"
+        },
+        {
+          id: "mode.hybrid",
+          title: "Hybrid generation mode boundary",
+          reason: "Mode boundary smoke test",
+          required: true,
+          category: "profile",
+          source: "advisor"
+        },
+        {
+          id: "meta.relationships",
+          title: "File relationships map",
+          reason: "Relationship smoke test",
+          required: true,
+          category: "metadata",
+          source: "baseline"
+        },
+        {
+          id: "monetization.subscription",
+          title: "Subscription monetization boundary",
+          reason: "Product module smoke test",
+          required: false,
+          category: "feature",
+          source: "baseline"
+        },
+        {
+          id: "offline.sync-queue",
+          title: "Sync queue boundary",
+          reason: "Offline module smoke test",
+          required: false,
+          category: "feature",
+          source: "baseline"
         }
       ],
-      summary: { totalArtifacts: 2, requiredArtifacts: 1, featureArtifacts: 0 },
+      summary: { totalArtifacts: 6, requiredArtifacts: 3, featureArtifacts: 2 },
       notes: []
     },
     validation: { status: "passed", issues: [], metrics: { missingRequiredArtifacts: 0, unsupportedEnabledFeatures: 0, duplicateArtifacts: 0 } },
@@ -224,11 +268,33 @@ function payload() {
       advisor_json: JSON.stringify({ smoke: true, schemaVersion: "1.0", advisorVersion: "phase3" }, null, 2),
       advisor_markdown: "# Architecture Decisions\n\n## Overview\n\nSmoke-test architecture plan.\n\n## Next Steps\n\n- Add project-specific screens\n",
       project_name: "Phase Three",
+      profile: "flutter",
       profile_id: "flutter",
       generation_mode: "hybrid",
+      mode_display_name: "Hybrid",
+      mode_strategy_summary: "Baseline creates the canonical structure, then AI refines approved documentation zones.",
+      mode_relationship_summary: "BaselineSpec -> HybridPolicy -> AdvisorDocs -> Deterministic ZIP",
+      mode_boundary_pascal: "HybridModeBoundary",
+      mode_boundary_camel: "hybridModeBoundary",
+      mode_boundary_snake: "hybrid_mode_boundary",
+      mode_metadata_file: "generation-mode-hybrid.json",
       architecture_style: "feature-first",
       state_management: "riverpod",
       navigation_style: "router",
+      monetization_strategies: "Subscription",
+      offline_data_options: "Sync Queue",
+      product_readiness_markdown: "## Monetization\n- Subscription\n\n## Offline/Data\n- Sync Queue\n",
+      product_readiness_json: JSON.stringify({ monetization: ["subscription"], offlineData: ["sync-queue"] }, null, 2),
+      file_relationships_json: JSON.stringify({
+        version: "1.0",
+        relationships: [
+          {
+            source: "phase-three/product/monetization/subscription.json",
+            target: "phase-three/lib/product/monetization/monetization_manager.dart",
+            relation: "configured-by"
+          }
+        ]
+      }, null, 2),
       platform_pack_json: JSON.stringify({ profileId: "flutter", label: "Flutter smoke pack", featureMatrix: { networking: "full" } }, null, 2),
       platform_pack_markdown: "# Flutter smoke pack\n\n## Feature Support Matrix\n\n| Feature | Support |\n| --- | --- |\n| networking | full |\n\n## Quality Gates\n\n- Smoke validates generated platform pack documentation.\n"
     },
@@ -263,6 +329,7 @@ function run() {
       present: fs.existsSync(outputFile) && zipEntries.includes(zipEntry)
     };
   });
+  const hasRequired = (relativePath) => requiredArtifacts.find((item) => item.path === relativePath)?.present ?? false;
 
   const advisorPath = path.join(outputRoot, ".mag", "architecture-advisor.json");
   const synthesisPath = path.join(outputRoot, ".mag", "architecture-synthesis.json");
@@ -287,13 +354,18 @@ function run() {
     { id: "zip.not-empty", status: fs.existsSync(zipPath) && fs.statSync(zipPath).size > 0 ? "passed" : "failed", message: "Generated ZIP is not empty." },
     { id: "zip.no-duplicate-entries", status: duplicateZipEntries.length === 0 ? "passed" : "failed", message: "Generated ZIP has no duplicate entries." },
     { id: "zip.safe-relative-entries", status: invalidZipEntries.length === 0 ? "passed" : "failed", message: "Generated ZIP entries are safe relative paths." },
-    { id: "advisor-json.present", status: requiredArtifacts[0].present ? "passed" : "failed", message: ".mag/architecture-advisor.json exists in output and ZIP." },
-    { id: "synthesis-json.present", status: requiredArtifacts[1].present ? "passed" : "failed", message: ".mag/architecture-synthesis.json exists in output and ZIP." },
-    { id: "hybrid-json.present", status: requiredArtifacts[2].present ? "passed" : "failed", message: ".mag/hybrid-refinement.json exists in output and ZIP." },
-    { id: "platform-pack-json.present", status: requiredArtifacts[3].present ? "passed" : "failed", message: ".mag/platform-pack.json exists in output and ZIP." },
-    { id: "hybrid-doc.present", status: requiredArtifacts[4].present ? "passed" : "failed", message: "docs/next-steps.md exists in output and ZIP." },
-    { id: "platform-pack-doc.present", status: requiredArtifacts[5].present ? "passed" : "failed", message: "docs/platform-pack.md exists in output and ZIP." },
-    { id: "decisions-md.present", status: requiredArtifacts[6].present ? "passed" : "failed", message: "docs/architecture-decisions.md exists in output and ZIP." },
+    { id: "advisor-json.present", status: hasRequired(".mag/architecture-advisor.json") ? "passed" : "failed", message: ".mag/architecture-advisor.json exists in output and ZIP." },
+    { id: "synthesis-json.present", status: hasRequired(".mag/architecture-synthesis.json") ? "passed" : "failed", message: ".mag/architecture-synthesis.json exists in output and ZIP." },
+    { id: "relationships-json.present", status: hasRequired(".mag/file-relationships.json") ? "passed" : "failed", message: ".mag/file-relationships.json exists in output and ZIP." },
+    { id: "mode-json.present", status: hasRequired(".mag/generation-mode-hybrid.json") ? "passed" : "failed", message: ".mag/generation-mode-hybrid.json exists in output and ZIP." },
+    { id: "mode-boundary.present", status: hasRequired("lib/generation_mode/hybrid_mode_boundary.dart") ? "passed" : "failed", message: "Mode-specific source boundary exists in output and ZIP." },
+    { id: "monetization-manager.present", status: hasRequired("lib/product/monetization/monetization_manager.dart") ? "passed" : "failed", message: "Monetization module generates a manager script." },
+    { id: "offline-coordinator.present", status: hasRequired("lib/product/offline/offline_data_coordinator.dart") ? "passed" : "failed", message: "Offline/data module generates a coordinator script." },
+    { id: "hybrid-json.present", status: hasRequired(".mag/hybrid-refinement.json") ? "passed" : "failed", message: ".mag/hybrid-refinement.json exists in output and ZIP." },
+    { id: "platform-pack-json.present", status: hasRequired(".mag/platform-pack.json") ? "passed" : "failed", message: ".mag/platform-pack.json exists in output and ZIP." },
+    { id: "hybrid-doc.present", status: hasRequired("docs/next-steps.md") ? "passed" : "failed", message: "docs/next-steps.md exists in output and ZIP." },
+    { id: "platform-pack-doc.present", status: hasRequired("docs/platform-pack.md") ? "passed" : "failed", message: "docs/platform-pack.md exists in output and ZIP." },
+    { id: "decisions-md.present", status: hasRequired("docs/architecture-decisions.md") ? "passed" : "failed", message: "docs/architecture-decisions.md exists in output and ZIP." },
     { id: "advisor-json.parseable", status: advisor && advisor.schemaVersion === "1.0" ? "passed" : "failed", message: "Advisor JSON is parseable and carries schemaVersion." },
     { id: "synthesis-json.parseable", status: synthesis && synthesis.mode === "hybrid" ? "passed" : "failed", message: "Architecture synthesis JSON is parseable and carries mode metadata." },
     { id: "hybrid-json.parseable", status: hybrid && hybrid.status === "applied" && hybrid.acceptedPatches?.length === 1 ? "passed" : "failed", message: "Hybrid refinement JSON is parseable and carries accepted patches." },

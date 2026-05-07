@@ -141,7 +141,8 @@ def write_registry_outputs(
             continue
 
         for output in outputs:
-            destination = safe_destination(output_root, output["path"], context)
+            output_context = {**context, **(output.get("vars") if isinstance(output.get("vars"), dict) else {})}
+            destination = safe_destination(output_root, output["path"], output_context)
             ensure_parent(destination)
             if "literal" in output:
                 destination.write_text(str(output["literal"]), encoding="utf-8")
@@ -151,7 +152,7 @@ def write_registry_outputs(
                     skipped_outputs.append({"artifactId": artifact_id, "reason": "output has no literal or template"})
                     continue
                 template_path = TEMPLATES_ROOT / template_name
-                destination.write_text(render_template(template_path, context), encoding="utf-8")
+                destination.write_text(render_template(template_path, output_context), encoding="utf-8")
             generated_files.append(str(destination.relative_to(output_root)))
 
     return sorted(generated_files), sorted(missing_artifacts), skipped_outputs
