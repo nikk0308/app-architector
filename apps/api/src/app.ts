@@ -484,6 +484,33 @@ function buildAdvisorSummary(advisorReport?: ArchitectureAdvisorReport): Generat
   };
 }
 
+function isInsideRoot(targetPath: string | undefined, rootPath: string): boolean {
+  if (!targetPath) {
+    return false;
+  }
+  const target = path.resolve(targetPath);
+  const root = path.resolve(rootPath);
+  return target === root || target.startsWith(`${root}${path.sep}`);
+}
+
+function removeGeneratedFiles(metadata: GenerationMetadata): string[] {
+  const removed: string[] = [];
+  const candidates = [
+    { target: metadata.outputDir, root: env.GENERATED_OUTPUT_DIR },
+    { target: metadata.zipPath, root: env.GENERATED_ZIP_DIR }
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate.target || !isInsideRoot(candidate.target, candidate.root) || !fs.existsSync(candidate.target)) {
+      continue;
+    }
+    fs.rmSync(candidate.target, { force: true, recursive: true });
+    removed.push(path.resolve(candidate.target));
+  }
+
+  return removed;
+}
+
 function publicErrorStatusCode(error: unknown): number {
   if (error && typeof error === "object" && "statusCode" in error) {
     const statusCode = Number((error as { statusCode?: unknown }).statusCode);
@@ -543,6 +570,15 @@ export function createApp(): FastifyInstance {
 
   app.get("/api/generations", async () => ({ items: generationRepository.list() }));
 
+  app.delete("/api/generations", async () => {
+    const deleted = generationRepository.clear();
+    const removedPaths = deleted.flatMap(removeGeneratedFiles);
+    return {
+      deleted: deleted.length,
+      removedPaths
+    };
+  });
+
   app.get<{ Querystring: { ids?: string } }>("/api/generations/compare", async (request) => {
     const ids = (request.query.ids ?? "")
       .split(",")
@@ -569,6 +605,19 @@ export function createApp(): FastifyInstance {
       return { error: "Generation not found" };
     }
     return generation;
+  });
+
+  app.delete<{ Params: { id: string } }>("/api/generations/:id", async (request, reply) => {
+    const deleted = generationRepository.deleteById(request.params.id);
+    if (!deleted) {
+      reply.code(404);
+      return { error: "Generation not found" };
+    }
+    return {
+      deleted: true,
+      id: deleted.id,
+      removedPaths: removeGeneratedFiles(deleted)
+    };
   });
 
   app.get<{ Params: { id: string } }>("/api/generations/:id/download", async (request, reply) => {

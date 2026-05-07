@@ -56,6 +56,39 @@ function markdownList(items: string[]): string {
   return items.length > 0 ? items.map((item) => `- ${item}`).join("\n") : "- Not specified.";
 }
 
+function labelize(value: string): string {
+  return value
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function productMarkdown(spec: ArchitectureSpec): string {
+  const product = spec.product ?? {
+    distributionStores: [],
+    monetization: [],
+    offlineData: [],
+    runtimeQuality: [],
+    delivery: []
+  };
+  return [
+    "## Distribution Targets",
+    markdownList(product.distributionStores.map(labelize)),
+    "",
+    "## Monetization",
+    markdownList(product.monetization.map(labelize)),
+    "",
+    "## Offline/Data",
+    markdownList(product.offlineData.map(labelize)),
+    "",
+    "## Runtime Quality",
+    markdownList(product.runtimeQuality.map(labelize)),
+    "",
+    "## Delivery",
+    markdownList(product.delivery.map(labelize))
+  ].join("\n");
+}
+
 function featureMatrixMarkdown(platformPack: PlatformPackDefinition): string {
   return UNIVERSAL_FEATURES
     .map((featureId) => `| ${featureId} | ${platformPack.featureMatrix[featureId]} |`)
@@ -125,6 +158,7 @@ export function buildTemplateVariables(
   const advisorJson = JSON.stringify(advisor ?? null, null, 2);
   const platformPack = getProjectProfile(spec.profileId).platformPack;
   const platformPackMarkdown = platformPackToMarkdown(platformPack);
+  const productReadinessMarkdown = productMarkdown(spec);
 
   return {
     rootFolderName: manifest.rootFolderName,
@@ -189,6 +223,14 @@ export function buildTemplateVariables(
     platform_pack_feature_matrix: featureMatrixMarkdown(platformPack),
     platform_pack_markdown: platformPackMarkdown,
     platform_pack_json: JSON.stringify(platformPack, null, 2),
+
+    product_readiness_markdown: productReadinessMarkdown,
+    product_readiness_json: JSON.stringify(spec.product ?? { distributionStores: [], monetization: [], offlineData: [], runtimeQuality: [], delivery: [] }, null, 2),
+    distribution_stores: (spec.product?.distributionStores ?? []).map(labelize).join(", ") || "Not selected",
+    monetization_strategies: (spec.product?.monetization ?? []).map(labelize).join(", ") || "Not selected",
+    offline_data_options: (spec.product?.offlineData ?? []).map(labelize).join(", ") || "Not selected",
+    runtime_quality_options: (spec.product?.runtimeQuality ?? []).map(labelize).join(", ") || "Not selected",
+    delivery_options: (spec.product?.delivery ?? []).map(labelize).join(", ") || "Not selected",
 
     feature_auth: bool(spec.features.auth),
     feature_analytics: bool(spec.features.analytics),

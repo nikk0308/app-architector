@@ -12,6 +12,20 @@ interface RunDetailsPanelProps {
     modules: string;
     metrics: string;
     advanced: string;
+    platform?: string;
+    mode?: string;
+    provider?: string;
+    created?: string;
+    architecture?: string;
+    state?: string;
+    navigation?: string;
+    zip?: string;
+    ready?: string;
+    missing?: string;
+    files?: string;
+    artifacts?: string;
+    warnings?: string;
+    validation?: string;
   };
 }
 
@@ -27,14 +41,29 @@ function formatDate(value?: string): string {
 }
 
 export function RunDetailsPanel({ details, loading, error, labels }: RunDetailsPanelProps) {
-  const text = labels ?? {
+  const text = {
     empty: "Select a run to inspect it.",
     loading: "Loading run details...",
     title: "Run Details",
     summary: "Summary",
     modules: "Selected modules",
     metrics: "Metrics",
-    advanced: "Advanced metadata"
+    advanced: "Advanced metadata",
+    platform: "Platform",
+    mode: "Mode",
+    provider: "Provider",
+    created: "Created",
+    architecture: "Architecture",
+    state: "State",
+    navigation: "Navigation",
+    zip: "ZIP",
+    ready: "ready",
+    missing: "missing",
+    files: "files",
+    artifacts: "artifacts",
+    warnings: "warnings",
+    validation: "validation",
+    ...labels
   };
 
   if (loading) {
@@ -56,7 +85,8 @@ export function RunDetailsPanel({ details, loading, error, labels }: RunDetailsP
   const provider = details.architectureSynthesis?.usedAi
     ? `${details.architectureSynthesis.provider}${details.architectureSynthesis.model ? ` · ${details.architectureSynthesis.model}` : ""}`
     : "deterministic";
-  const humanSummary = `${details.metadata.projectName} · ${details.metadata.generationMode ?? "baseline"} · ${details.metadata.profile} · ${metrics?.fileCount ?? details.metadata.fileTree?.filter((node) => node.type === "file").length ?? "-"} files · validation ${validationStatus}.`;
+  const fileCount = metrics?.fileCount ?? details.metadata.fileTree?.filter((node) => node.type === "file").length ?? "-";
+  const humanSummary = `${details.metadata.projectName} · ${details.metadata.generationMode ?? "baseline"} · ${details.metadata.profile} · ${fileCount} ${text.files} · ${text.validation} ${validationStatus}.`;
 
   return (
     <div className="run-details-panel redesigned-panel">
@@ -71,27 +101,27 @@ export function RunDetailsPanel({ details, loading, error, labels }: RunDetailsP
       <p className="human-summary">{humanSummary}</p>
 
       <div className="detail-grid">
-        <span><small>Platform</small><strong>{details.metadata.profile}</strong></span>
-        <span><small>Mode</small><strong>{details.metadata.generationMode ?? "baseline"}</strong></span>
-        <span><small>Provider</small><strong>{provider}</strong></span>
-        <span><small>Created</small><strong>{formatDate(details.metadata.createdAt)}</strong></span>
-        <span><small>Architecture</small><strong>{spec?.architecture.style ?? "-"}</strong></span>
-        <span><small>State</small><strong>{spec?.architecture.stateManagement ?? "-"}</strong></span>
-        <span><small>Navigation</small><strong>{spec?.architecture.navigationStyle ?? "-"}</strong></span>
-        <span><small>ZIP</small><strong>{details.metadata.zipPath ? "ready" : "missing"}</strong></span>
+        <span><small>{text.platform}</small><strong>{details.metadata.profile}</strong></span>
+        <span><small>{text.mode}</small><strong>{details.metadata.generationMode ?? "baseline"}</strong></span>
+        <span><small>{text.provider}</small><strong>{provider}</strong></span>
+        <span><small>{text.created}</small><strong>{formatDate(details.metadata.createdAt)}</strong></span>
+        <span><small>{text.architecture}</small><strong>{spec?.architecture.style ?? "-"}</strong></span>
+        <span><small>{text.state}</small><strong>{spec?.architecture.stateManagement ?? "-"}</strong></span>
+        <span><small>{text.navigation}</small><strong>{spec?.architecture.navigationStyle ?? "-"}</strong></span>
+        <span><small>{text.zip}</small><strong>{details.metadata.zipPath ? text.ready : text.missing}</strong></span>
       </div>
 
       <div className="metric-bars">
         <div>
-          <span>{metrics?.fileCount ?? 0} files</span>
+          <span>{metrics?.fileCount ?? 0} {text.files}</span>
           <i style={{ width: `${Math.min(100, ((metrics?.fileCount ?? 0) / 80) * 100)}%` }} />
         </div>
         <div>
-          <span>{metrics?.artifactCount ?? 0} artifacts</span>
+          <span>{metrics?.artifactCount ?? 0} {text.artifacts}</span>
           <i style={{ width: `${Math.min(100, ((metrics?.artifactCount ?? 0) / 35) * 100)}%` }} />
         </div>
         <div>
-          <span>{metrics?.warningCount ?? 0} warnings</span>
+          <span>{metrics?.warningCount ?? 0} {text.warnings}</span>
           <i className="warn-bar" style={{ width: `${Math.min(100, ((metrics?.warningCount ?? 0) / 12) * 100)}%` }} />
         </div>
         <div>

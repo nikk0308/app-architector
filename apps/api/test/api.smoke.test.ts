@@ -7,7 +7,12 @@ const phaseFourPayload = {
   profile: "flutter",
   includeLLMNotes: true,
   hasNetworking: true,
-  hasPersistence: true
+  hasPersistence: true,
+  distributionStores: ["google-play", "apple-app-store"],
+  monetization: ["subscription", "in-app-purchases"],
+  offlineData: ["offline-cache", "sync-queue"],
+  runtimeQuality: ["logging", "crash-reporting"],
+  delivery: ["release-checklist", "test-plan"]
 } as const;
 
 const aiModePayload = {
@@ -86,6 +91,8 @@ describe("API smoke", () => {
     expect(payload.artifacts.some((artifact: { path: string }) => artifact.path.endsWith(".mag/architecture-advisor.json"))).toBe(true);
     expect(payload.artifacts.some((artifact: { path: string }) => artifact.path.endsWith("docs/platform-pack.md"))).toBe(true);
     expect(payload.fileTree.some((node: { path: string }) => node.path.endsWith(".mag/platform-pack.json"))).toBe(true);
+    expect(payload.fileTree.some((node: { path: string }) => node.path.endsWith("product/monetization/subscription.json"))).toBe(true);
+    expect(payload.fileTree.some((node: { path: string }) => node.path.endsWith("distribution/google-play.json"))).toBe(true);
     await app.close();
   });
 
@@ -218,6 +225,38 @@ describe("API smoke", () => {
     expect(compare.statusCode).toBe(200);
     expect(comparePayload.runs).toHaveLength(2);
     expect(comparePayload.baselineRunId).toBeTruthy();
+    await app.close();
+  });
+
+  it("deletes generation history records and generated files through the API", async () => {
+    const app = createApp();
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/generations",
+      payload: phaseFourPayload
+    });
+    const createdPayload = created.json();
+    expect(created.statusCode).toBe(200);
+
+    const deleted = await app.inject({
+      method: "DELETE",
+      url: `/api/generations/${createdPayload.generationId}`
+    });
+    expect(deleted.statusCode).toBe(200);
+    expect(deleted.json().deleted).toBe(true);
+
+    const missing = await app.inject({
+      method: "GET",
+      url: `/api/generations/${createdPayload.generationId}`
+    });
+    expect(missing.statusCode).toBe(404);
+
+    const cleared = await app.inject({
+      method: "DELETE",
+      url: "/api/generations"
+    });
+    expect(cleared.statusCode).toBe(200);
+    expect(typeof cleared.json().deleted).toBe("number");
     await app.close();
   });
 });

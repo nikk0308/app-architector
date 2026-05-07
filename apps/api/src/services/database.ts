@@ -141,6 +141,9 @@ const insertStatement = db.prepare(`
 `);
 
 const deleteArtifactsStatement = db.prepare("DELETE FROM run_artifacts WHERE runId = ?");
+const deleteGenerationStatement = db.prepare("DELETE FROM generations WHERE id = ?");
+const deleteAllArtifactsStatement = db.prepare("DELETE FROM run_artifacts");
+const deleteAllGenerationsStatement = db.prepare("DELETE FROM generations");
 const insertArtifactStatement = db.prepare(`
   INSERT INTO run_artifacts (
     runId, path, kind, required, generated, sizeBytes, hash, description
@@ -317,6 +320,25 @@ const saveTransaction = db.transaction((metadata: GenerationMetadata, artifacts:
   }
 });
 
+const deleteByIdTransaction = db.transaction((id: string): GenerationMetadata | null => {
+  const row = db.prepare("SELECT * FROM generations WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  if (!row) {
+    return null;
+  }
+  const metadata = mapRow(row);
+  deleteArtifactsStatement.run(id);
+  deleteGenerationStatement.run(id);
+  return metadata;
+});
+
+const clearTransaction = db.transaction((): GenerationMetadata[] => {
+  const rows = db.prepare("SELECT * FROM generations").all() as Record<string, unknown>[];
+  const metadata = rows.map(mapRow);
+  deleteAllArtifactsStatement.run();
+  deleteAllGenerationsStatement.run();
+  return metadata;
+});
+
 export const generationRepository = {
   save(metadata: GenerationMetadata, artifacts: RunArtifactRecord[] = []): void {
     saveTransaction(metadata, artifacts);
@@ -337,6 +359,12 @@ export const generationRepository = {
   list(limit = 20): GenerationMetadata[] {
     const rows = db.prepare("SELECT * FROM generations ORDER BY createdAt DESC LIMIT ?").all(limit) as Record<string, unknown>[];
     return rows.map(mapRow);
+  },
+  deleteById(id: string): GenerationMetadata | null {
+    return deleteByIdTransaction(id);
+  },
+  clear(): GenerationMetadata[] {
+    return clearTransaction();
   },
   savePreview(snapshot: ArchitecturePreviewSnapshotRecord): void {
     insertPreviewStatement.run({

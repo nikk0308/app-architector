@@ -150,6 +150,18 @@ export async function compareGenerations(ids: string[]): Promise<RunComparison> 
   return request<RunComparison>(apiUrl(`/api/generations/compare?ids=${query}`));
 }
 
+export async function deleteGeneration(id: string): Promise<{ deleted: boolean; id: string; removedPaths?: string[] }> {
+  return request<{ deleted: boolean; id: string; removedPaths?: string[] }>(apiUrl(`/api/generations/${id}`), {
+    method: "DELETE"
+  });
+}
+
+export async function clearGenerations(): Promise<{ deleted: number; removedPaths?: string[] }> {
+  return request<{ deleted: number; removedPaths?: string[] }>(apiUrl("/api/generations"), {
+    method: "DELETE"
+  });
+}
+
 export async function fetchAdvisorStatus(): Promise<ArchitectureAdvisorStatus> {
   return request<ArchitectureAdvisorStatus>(apiUrl("/api/advisor/status"));
 }

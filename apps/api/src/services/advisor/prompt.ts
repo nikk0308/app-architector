@@ -8,6 +8,10 @@ export interface AdvisorPromptInput {
 }
 
 export function buildAdvisorPrompt(input: AdvisorPromptInput): string {
+  const userInstruction = typeof input.answers.aiInstruction === "string" && input.answers.aiInstruction.trim()
+    ? input.answers.aiInstruction.trim().slice(0, 2000)
+    : "";
+
   const compact = {
     app: {
       name: input.spec.appDisplayName,
@@ -36,6 +40,8 @@ export function buildAdvisorPrompt(input: AdvisorPromptInput): string {
     "The JSON schema is:",
     "{\"summary\": string, \"decisions\": [{\"id\": string, \"title\": string, \"recommendation\": string, \"rationale\": string, \"impact\": \"low\"|\"medium\"|\"high\", \"files\": string[]}], \"nextSteps\": string[], \"risks\": string[], \"warnings\": string[]}",
     "Keep recommendations practical and tied to the generated artifact ids. Do not invent unsupported technologies.",
+    "Additional user instruction:",
+    userInstruction || "No additional instruction was provided.",
     "Input:",
     JSON.stringify(compact, null, 2)
   ].join("\n");

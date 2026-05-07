@@ -6,13 +6,15 @@ interface TopBarProps {
 }
 
 export function TopBar({ theme, language, onThemeChange, onLanguageChange }: TopBarProps) {
+  const subtitle = language === "ua" ? "Лабораторія AI-архітектури" : "AI-assisted architecture lab";
+
   return (
     <header className="app-topbar">
       <div className="brand-lockup">
         <img src="/app-icon.png" alt="App Architector" className="brand-logo" />
         <div>
           <strong>App Architector</strong>
-          <span>AI-assisted architecture lab</span>
+          <span>{subtitle}</span>
         </div>
       </div>
       <div className="topbar-controls">

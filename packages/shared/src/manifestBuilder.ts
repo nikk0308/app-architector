@@ -37,6 +37,63 @@ function architectureArtifactId(style: string): string {
   return "architecture.feature-first";
 }
 
+function pushSelectedProductArtifacts(spec: ArchitectureSpec, artifacts: ArtifactDefinition[]): void {
+  for (const store of spec.product.distributionStores) {
+    pushArtifact(artifacts, {
+      id: `distribution.${store}`,
+      title: `Distribution: ${store}`,
+      reason: `Release preparation is requested for ${store}.`,
+      required: false,
+      category: "feature",
+      source: "baseline"
+    });
+  }
+
+  for (const strategy of spec.product.monetization) {
+    pushArtifact(artifacts, {
+      id: `monetization.${strategy}`,
+      title: `Monetization: ${strategy}`,
+      reason: `The generated starter should include a ${strategy} monetization boundary.`,
+      required: false,
+      category: "feature",
+      source: "baseline"
+    });
+  }
+
+  for (const option of spec.product.offlineData) {
+    pushArtifact(artifacts, {
+      id: `offline.${option}`,
+      title: `Offline/Data: ${option}`,
+      reason: `The generated starter should include ${option} data architecture scaffolding.`,
+      required: false,
+      category: "feature",
+      source: "baseline"
+    });
+  }
+
+  for (const option of spec.product.runtimeQuality) {
+    pushArtifact(artifacts, {
+      id: `quality.${option}`,
+      title: `Runtime quality: ${option}`,
+      reason: `The generated starter should include ${option} quality scaffolding.`,
+      required: false,
+      category: "feature",
+      source: "baseline"
+    });
+  }
+
+  for (const option of spec.product.delivery) {
+    pushArtifact(artifacts, {
+      id: `delivery.${option}`,
+      title: `Delivery: ${option}`,
+      reason: `The generated starter should include ${option} delivery scaffolding.`,
+      required: false,
+      category: "feature",
+      source: "baseline"
+    });
+  }
+}
+
 export function buildArtifactManifest(spec: ArchitectureSpec): ArtifactManifest {
   const profile = getProjectProfile(spec.profileId);
   const artifacts: ArtifactDefinition[] = [];
@@ -122,6 +179,8 @@ export function buildArtifactManifest(spec: ArchitectureSpec): ArtifactManifest 
       source: "baseline"
     });
   }
+
+  pushSelectedProductArtifacts(spec, artifacts);
 
   if (spec.features.llmNotes) {
     pushArtifact(artifacts, {

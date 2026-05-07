@@ -1142,9 +1142,407 @@
     }
   },
   {
+    "id": "distribution.apple-app-store",
+    "title": "Apple App Store target",
+    "description": "Apple App Store target",
+    "outputs": {
+      "default": [
+        {
+          "path": "distribution/apple-app-store.json",
+          "template": "common/distribution-target.json.tpl"
+        },
+        {
+          "path": "docs/product-readiness.md",
+          "template": "common/product-readiness.md.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "distribution.google-play",
+    "title": "Google Play target",
+    "description": "Google Play target",
+    "outputs": {
+      "default": [
+        {
+          "path": "distribution/google-play.json",
+          "template": "common/distribution-target.json.tpl"
+        },
+        {
+          "path": "docs/product-readiness.md",
+          "template": "common/product-readiness.md.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "distribution.samsung-galaxy-store",
+    "title": "Samsung Galaxy Store target",
+    "description": "Samsung Galaxy Store target",
+    "outputs": {
+      "default": [
+        {
+          "path": "distribution/samsung-galaxy-store.json",
+          "template": "common/distribution-target.json.tpl"
+        },
+        {
+          "path": "docs/product-readiness.md",
+          "template": "common/product-readiness.md.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "distribution.huawei-appgallery",
+    "title": "Huawei AppGallery target",
+    "description": "Huawei AppGallery target",
+    "outputs": {
+      "default": [
+        {
+          "path": "distribution/huawei-appgallery.json",
+          "template": "common/distribution-target.json.tpl"
+        },
+        {
+          "path": "docs/product-readiness.md",
+          "template": "common/product-readiness.md.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "distribution.amazon-appstore",
+    "title": "Amazon Appstore target",
+    "description": "Amazon Appstore target",
+    "outputs": {
+      "default": [
+        {
+          "path": "distribution/amazon-appstore.json",
+          "template": "common/distribution-target.json.tpl"
+        },
+        {
+          "path": "docs/product-readiness.md",
+          "template": "common/product-readiness.md.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "monetization.ads",
+    "title": "Ads monetization boundary",
+    "description": "Ads monetization boundary",
+    "outputs": {
+      "default": [
+        {
+          "path": "product/monetization/ads.json",
+          "template": "common/monetization-boundary.json.tpl"
+        },
+        {
+          "path": "docs/product-readiness.md",
+          "template": "common/product-readiness.md.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "monetization.paid-app",
+    "title": "Paid app monetization boundary",
+    "description": "Paid app monetization boundary",
+    "outputs": {
+      "default": [
+        {
+          "path": "product/monetization/paid-app.json",
+          "template": "common/monetization-boundary.json.tpl"
+        },
+        {
+          "path": "docs/product-readiness.md",
+          "template": "common/product-readiness.md.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "monetization.subscription",
+    "title": "Subscription monetization boundary",
+    "description": "Subscription monetization boundary",
+    "outputs": {
+      "default": [
+        {
+          "path": "product/monetization/subscription.json",
+          "template": "common/monetization-boundary.json.tpl"
+        },
+        {
+          "path": "docs/product-readiness.md",
+          "template": "common/product-readiness.md.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "monetization.in-app-purchases",
+    "title": "In-app purchases boundary",
+    "description": "In-app purchases boundary",
+    "outputs": {
+      "default": [
+        {
+          "path": "product/monetization/in-app-purchases.json",
+          "template": "common/monetization-boundary.json.tpl"
+        },
+        {
+          "path": "docs/product-readiness.md",
+          "template": "common/product-readiness.md.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "offline.offline-cache",
+    "title": "Offline cache boundary",
+    "description": "Offline cache boundary",
+    "outputs": {
+      "default": [
+        {
+          "path": "product/offline/offline-cache.json",
+          "template": "common/offline-data-boundary.json.tpl"
+        },
+        {
+          "path": "docs/product-readiness.md",
+          "template": "common/product-readiness.md.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "offline.sync-queue",
+    "title": "Sync queue boundary",
+    "description": "Sync queue boundary",
+    "outputs": {
+      "default": [
+        {
+          "path": "product/offline/sync-queue.json",
+          "template": "common/offline-data-boundary.json.tpl"
+        },
+        {
+          "path": "docs/product-readiness.md",
+          "template": "common/product-readiness.md.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "offline.data-migrations",
+    "title": "Data migrations boundary",
+    "description": "Data migrations boundary",
+    "outputs": {
+      "default": [
+        {
+          "path": "product/offline/data-migrations.json",
+          "template": "common/offline-data-boundary.json.tpl"
+        },
+        {
+          "path": "docs/product-readiness.md",
+          "template": "common/product-readiness.md.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "offline.secure-storage",
+    "title": "Secure storage boundary",
+    "description": "Secure storage boundary",
+    "outputs": {
+      "default": [
+        {
+          "path": "product/offline/secure-storage.json",
+          "template": "common/offline-data-boundary.json.tpl"
+        },
+        {
+          "path": "docs/product-readiness.md",
+          "template": "common/product-readiness.md.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "quality.logging",
+    "title": "Logging quality boundary",
+    "description": "Logging quality boundary",
+    "outputs": {
+      "default": [
+        {
+          "path": "product/quality/logging.json",
+          "template": "common/runtime-quality-boundary.json.tpl"
+        },
+        {
+          "path": "docs/product-readiness.md",
+          "template": "common/product-readiness.md.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "quality.crash-reporting",
+    "title": "Crash reporting boundary",
+    "description": "Crash reporting boundary",
+    "outputs": {
+      "default": [
+        {
+          "path": "product/quality/crash-reporting.json",
+          "template": "common/runtime-quality-boundary.json.tpl"
+        },
+        {
+          "path": "docs/product-readiness.md",
+          "template": "common/product-readiness.md.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "quality.feature-flags",
+    "title": "Feature flags boundary",
+    "description": "Feature flags boundary",
+    "outputs": {
+      "default": [
+        {
+          "path": "product/quality/feature-flags.json",
+          "template": "common/runtime-quality-boundary.json.tpl"
+        },
+        {
+          "path": "docs/product-readiness.md",
+          "template": "common/product-readiness.md.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "quality.settings-screen",
+    "title": "Settings screen boundary",
+    "description": "Settings screen boundary",
+    "outputs": {
+      "default": [
+        {
+          "path": "product/quality/settings-screen.json",
+          "template": "common/runtime-quality-boundary.json.tpl"
+        },
+        {
+          "path": "docs/product-readiness.md",
+          "template": "common/product-readiness.md.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "quality.diagnostics-screen",
+    "title": "Diagnostics screen boundary",
+    "description": "Diagnostics screen boundary",
+    "outputs": {
+      "default": [
+        {
+          "path": "product/quality/diagnostics-screen.json",
+          "template": "common/runtime-quality-boundary.json.tpl"
+        },
+        {
+          "path": "docs/product-readiness.md",
+          "template": "common/product-readiness.md.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "delivery.ci-cd",
+    "title": "CI/CD delivery boundary",
+    "description": "CI/CD delivery boundary",
+    "outputs": {
+      "default": [
+        {
+          "path": "delivery/ci-cd.json",
+          "template": "common/delivery-boundary.json.tpl"
+        },
+        {
+          "path": "docs/product-readiness.md",
+          "template": "common/product-readiness.md.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "delivery.release-checklist",
+    "title": "Release checklist boundary",
+    "description": "Release checklist boundary",
+    "outputs": {
+      "default": [
+        {
+          "path": "delivery/release-checklist.json",
+          "template": "common/delivery-boundary.json.tpl"
+        },
+        {
+          "path": "docs/product-readiness.md",
+          "template": "common/product-readiness.md.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "delivery.design-system",
+    "title": "Design system boundary",
+    "description": "Design system boundary",
+    "outputs": {
+      "default": [
+        {
+          "path": "delivery/design-system.json",
+          "template": "common/delivery-boundary.json.tpl"
+        },
+        {
+          "path": "docs/product-readiness.md",
+          "template": "common/product-readiness.md.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "delivery.test-plan",
+    "title": "Test plan boundary",
+    "description": "Test plan boundary",
+    "outputs": {
+      "default": [
+        {
+          "path": "delivery/test-plan.json",
+          "template": "common/delivery-boundary.json.tpl"
+        },
+        {
+          "path": "docs/product-readiness.md",
+          "template": "common/product-readiness.md.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "delivery.env-secrets",
+    "title": "Environment secrets boundary",
+    "description": "Environment secrets boundary",
+    "outputs": {
+      "default": [
+        {
+          "path": "delivery/env-secrets.json",
+          "template": "common/delivery-boundary.json.tpl"
+        },
+        {
+          "path": "docs/product-readiness.md",
+          "template": "common/product-readiness.md.tpl"
+        }
+      ]
+    }
+  },
+  {
     "id": "meta.advisor",
     "title": "Architecture advisor report",
-    "profiles": ["productivity", "learning", "fitness", "finance", "content", "utility"],
+    "profiles": [
+      "productivity",
+      "learning",
+      "fitness",
+      "finance",
+      "content",
+      "utility"
+    ],
     "outputs": {
       "default": [
         {

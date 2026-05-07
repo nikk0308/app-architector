@@ -23,6 +23,7 @@ interface RawArchitecturePatch {
   assumptions?: unknown;
   risks?: unknown;
   recommendations?: unknown;
+  product?: unknown;
 }
 
 interface ProviderTextResult {
@@ -136,12 +137,27 @@ function architecturePatchSchema(): Record<string, unknown> {
       explanation: { type: "string" },
       assumptions: stringArray,
       risks: stringArray,
-      recommendations: stringArray
+      recommendations: stringArray,
+      product: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          distributionStores: stringArray,
+          monetization: stringArray,
+          offlineData: stringArray,
+          runtimeQuality: stringArray,
+          delivery: stringArray
+        }
+      }
     }
   };
 }
 
 function buildPrompt(answers: QuestionnaireAnswers, baseline: ArchitectureSpec, mode: GenerationMode): string {
+  const userInstruction = typeof answers.aiInstruction === "string" && answers.aiInstruction.trim()
+    ? answers.aiInstruction.trim().slice(0, 2000)
+    : "";
+
   return [
     "You are generating a controlled mobile ArchitectureSpec patch for a starter-project generator.",
     "Return only JSON matching the schema. Do not write files. Do not change the selected platform/profile.",
@@ -156,11 +172,15 @@ function buildPrompt(answers: QuestionnaireAnswers, baseline: ArchitectureSpec, 
     "User answers:",
     JSON.stringify(answers, null, 2),
     "",
+    "Additional user instruction:",
+    userInstruction || "No additional instruction was provided.",
+    "",
     "Baseline spec:",
     JSON.stringify({
       profileId: baseline.profileId,
       architecture: baseline.architecture,
       features: baseline.features,
+      product: baseline.product,
       modules: baseline.modules.filter((module) => module.enabled).map((module) => ({
         featureId: module.featureId,
         supported: module.supported,
@@ -190,7 +210,14 @@ function buildPrompt(answers: QuestionnaireAnswers, baseline: ArchitectureSpec, 
       explanation: "One concise explanation of the selected architecture.",
       assumptions: ["Concrete assumption about product or delivery context."],
       risks: ["Concrete implementation risk."],
-      recommendations: ["Concrete next engineering recommendation."]
+      recommendations: ["Concrete next engineering recommendation."],
+      product: {
+        distributionStores: answers.distributionStores ?? [],
+        monetization: answers.monetization ?? [],
+        offlineData: answers.offlineData ?? [],
+        runtimeQuality: answers.runtimeQuality ?? [],
+        delivery: answers.delivery ?? []
+      }
     }, null, 2)
   ].join("\n");
 }
@@ -249,10 +276,23 @@ function normalizePatch(
     nextAnswers.includeExampleScreen = includeExampleScreen;
   }
 
+  const product = objectField(patch.product);
+  const distributionStores = asStringArray(product.distributionStores);
+  const monetization = asStringArray(product.monetization);
+  const offlineData = asStringArray(product.offlineData);
+  const runtimeQuality = asStringArray(product.runtimeQuality);
+  const delivery = asStringArray(product.delivery);
+  if (distributionStores.length > 0) nextAnswers.distributionStores = distributionStores as QuestionnaireAnswers["distributionStores"];
+  if (monetization.length > 0) nextAnswers.monetization = monetization as QuestionnaireAnswers["monetization"];
+  if (offlineData.length > 0) nextAnswers.offlineData = offlineData as QuestionnaireAnswers["offlineData"];
+  if (runtimeQuality.length > 0) nextAnswers.runtimeQuality = runtimeQuality as QuestionnaireAnswers["runtimeQuality"];
+  if (delivery.length > 0) nextAnswers.delivery = delivery as QuestionnaireAnswers["delivery"];
+
   nextAnswers.profile = baseline.profileId;
   nextAnswers.projectName = answers.projectName;
   nextAnswers.appDisplayName = answers.appDisplayName;
   nextAnswers.packageId = answers.packageId;
+  nextAnswers.aiInstruction = answers.aiInstruction;
 
   return {
     answers: nextAnswers,

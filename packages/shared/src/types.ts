@@ -93,6 +93,39 @@ export type ArchitectureFeatureId =
   | "exampleScreen"
   | "llmNotes";
 
+export type DistributionStoreId =
+  | "apple-app-store"
+  | "google-play"
+  | "samsung-galaxy-store"
+  | "huawei-appgallery"
+  | "amazon-appstore";
+
+export type MonetizationStrategyId =
+  | "ads"
+  | "paid-app"
+  | "subscription"
+  | "in-app-purchases";
+
+export type OfflineDataOptionId =
+  | "offline-cache"
+  | "sync-queue"
+  | "data-migrations"
+  | "secure-storage";
+
+export type RuntimeQualityOptionId =
+  | "logging"
+  | "crash-reporting"
+  | "feature-flags"
+  | "settings-screen"
+  | "diagnostics-screen";
+
+export type DeliveryOptionId =
+  | "ci-cd"
+  | "release-checklist"
+  | "design-system"
+  | "test-plan"
+  | "env-secrets";
+
 
 export interface QuestionnaireField {
   key: string;
@@ -128,6 +161,12 @@ export interface QuestionnaireAnswers {
   hasPersistence?: boolean;
   includeExampleScreen?: boolean;
   includeLLMNotes?: boolean;
+  aiInstruction?: string;
+  distributionStores?: DistributionStoreId[];
+  monetization?: MonetizationStrategyId[];
+  offlineData?: OfflineDataOptionId[];
+  runtimeQuality?: RuntimeQualityOptionId[];
+  delivery?: DeliveryOptionId[];
 }
 
 export type QuestionnaireAnswerSet = QuestionnaireAnswers;
@@ -254,6 +293,13 @@ export interface ArchitectureSpec {
   features: Record<ArchitectureFeatureId, boolean>;
   modules: ModuleSelection[];
   dependencyPlan: DependencyPlan;
+  product: {
+    distributionStores: DistributionStoreId[];
+    monetization: MonetizationStrategyId[];
+    offlineData: OfflineDataOptionId[];
+    runtimeQuality: RuntimeQualityOptionId[];
+    delivery: DeliveryOptionId[];
+  };
   explanation: string;
 }
 
