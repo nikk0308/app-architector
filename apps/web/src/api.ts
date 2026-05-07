@@ -61,6 +61,14 @@ export interface PreviewResponse {
   notes: string[];
   advisorStatus?: ArchitectureAdvisorStatus;
   architectureSynthesis?: ArchitectureSynthesisSummary;
+  advisorSummary?: GenerationAdvisorSummary;
+  advisor?: ArchitectureAdvisorReport;
+  hybridRefinement?: HybridRefinementReport;
+}
+
+export interface ArchitecturePreviewResponse extends PreviewResponse {
+  previewId: string;
+  createdAt: string;
 }
 
 export interface AdvisorPlanResponse {
@@ -104,11 +112,27 @@ export async function previewProfile(payload: QuestionnaireAnswers): Promise<Pre
   });
 }
 
+export async function createArchitecturePreview(payload: QuestionnaireAnswers): Promise<ArchitecturePreviewResponse> {
+  return request<ArchitecturePreviewResponse>(apiUrl("/api/architecture/preview"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
 export async function createGeneration(payload: QuestionnaireAnswers): Promise<GenerationResponse> {
   return request<GenerationResponse>(apiUrl("/api/generations"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
+  });
+}
+
+export async function createGenerationFromPreview(previewId: string): Promise<GenerationResponse> {
+  return request<GenerationResponse>(apiUrl("/api/generations/from-preview"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ previewId })
   });
 }
 

@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import {
@@ -15,10 +16,15 @@ import {
   type GeneratedArtifactSummary,
   type GenerationAdvisorSummary,
   type ArchitectureAdvisorReport,
+  type ArchitectureSpec,
   type HybridRefinementReport,
   type TreeNode,
+  type ArtifactManifest,
   type ArchitectureSynthesisSummary,
+  type GenerationPlan,
+  type NormalizedProfile,
   type ValidationV2Report,
+  type ValidationReport,
   scoreRunMetrics,
   CONTRACT_VERSIONS
 } from "@mag/shared";
@@ -72,6 +78,275 @@ async function buildPreviewPayload(answers: QuestionnaireAnswers) {
     artifacts: buildGeneratedArtifacts(fileTree),
     notes: [...plan.notes, ...manifest.notes, ...synthesisNotes(synthesis.metadata)],
     architectureSynthesis: synthesis.metadata
+  };
+}
+
+interface PreviewPayload {
+  profile: NormalizedProfile;
+  spec: ArchitectureSpec;
+  plan: GenerationPlan;
+  manifest: ArtifactManifest;
+  validation: {
+    spec: ValidationReport;
+    manifest: ValidationReport;
+  };
+  validationV2?: {
+    preMaterialization?: ValidationV2Report;
+    postMaterialization?: ValidationV2Report;
+  };
+  fileTree: TreeNode[];
+  artifacts: GeneratedArtifactSummary[];
+  notes: string[];
+  architectureSynthesis: ArchitectureSynthesisSummary;
+  advisor?: ArchitectureAdvisorReport;
+  advisorSummary?: GenerationAdvisorSummary;
+  hybridRefinement?: HybridRefinementReport;
+}
+
+async function buildArchitecturePreviewPayload(answers: QuestionnaireAnswers): Promise<PreviewPayload> {
+  const preview = await buildPreviewPayload(answers);
+  const advisorReport = await buildArchitectureAdvisorReport({
+    answers,
+    spec: preview.spec,
+    manifest: preview.manifest,
+    validation: preview.validation.manifest,
+    mode: preview.profile.generationMode
+  });
+
+  const hybridRefinement = preview.profile.generationMode === "hybrid"
+    ? await buildHybridRefinementReport({
+      answers,
+      spec: preview.spec,
+      manifest: preview.manifest,
+      validation: preview.validation.manifest,
+      fileTree: preview.fileTree,
+      advisorReport,
+      mode: preview.profile.generationMode
+    })
+    : undefined;
+
+  const responseFileTree = withHybridRefinementNodes(preview.fileTree, preview.manifest.rootFolderName, hybridRefinement);
+  const preMaterializationValidation = buildPreMaterializationValidation({
+    manifest: preview.manifest,
+    fileTree: responseFileTree,
+    architectureSynthesis: preview.architectureSynthesis,
+    hybridRefinement
+  });
+
+  return {
+    ...preview,
+    fileTree: responseFileTree,
+    artifacts: buildGeneratedArtifacts(responseFileTree),
+    notes: hybridRefinement
+      ? [...preview.notes, "Hybrid refinement preview was built under allowlisted documentation policy."]
+      : preview.notes,
+    advisor: advisorReport,
+    advisorSummary: buildAdvisorSummary(advisorReport),
+    hybridRefinement,
+    validationV2: {
+      ...preview.validationV2,
+      preMaterialization: preMaterializationValidation
+    }
+  };
+}
+
+function parseSnapshotJson<T>(value: string | undefined, fallback: T): T {
+  if (!value) {
+    return fallback;
+  }
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveArchitecturePreviewSnapshot(answers: QuestionnaireAnswers, preview: PreviewPayload): string {
+  const previewId = crypto.randomUUID();
+  generationRepository.savePreview({
+    id: previewId,
+    answersJson: JSON.stringify(answers),
+    profileJson: JSON.stringify(preview.profile),
+    planJson: JSON.stringify(preview.plan),
+    specJson: JSON.stringify(preview.spec),
+    manifestJson: JSON.stringify(preview.manifest),
+    validationJson: JSON.stringify(preview.validation),
+    validationV2Json: JSON.stringify(preview.validationV2 ?? {}),
+    fileTreeJson: JSON.stringify(preview.fileTree),
+    artifactsJson: JSON.stringify(preview.artifacts),
+    notesJson: JSON.stringify(preview.notes),
+    architectureSynthesisJson: JSON.stringify(preview.architectureSynthesis),
+    advisorJson: preview.advisor ? JSON.stringify(preview.advisor) : undefined,
+    hybridRefinementJson: preview.hybridRefinement ? JSON.stringify(preview.hybridRefinement) : undefined
+  });
+  return previewId;
+}
+
+function previewFromSnapshot(snapshotId: string): { answers: QuestionnaireAnswers; preview: PreviewPayload } | null {
+  const snapshot = generationRepository.getPreviewById(snapshotId);
+  if (!snapshot) {
+    return null;
+  }
+
+  const validation = parseSnapshotJson<PreviewPayload["validation"]>(snapshot.validationJson, {
+    spec: { status: "failed", issues: [], metrics: { missingRequiredArtifacts: 0, unsupportedEnabledFeatures: 0, duplicateArtifacts: 0 } },
+    manifest: { status: "failed", issues: [], metrics: { missingRequiredArtifacts: 0, unsupportedEnabledFeatures: 0, duplicateArtifacts: 0 } }
+  });
+
+  return {
+    answers: parseSnapshotJson<QuestionnaireAnswers>(snapshot.answersJson, {} as QuestionnaireAnswers),
+    preview: {
+      profile: parseSnapshotJson<NormalizedProfile>(snapshot.profileJson, {} as NormalizedProfile),
+      plan: parseSnapshotJson<GenerationPlan>(snapshot.planJson, {} as GenerationPlan),
+      spec: parseSnapshotJson<ArchitectureSpec>(snapshot.specJson, {} as ArchitectureSpec),
+      manifest: parseSnapshotJson<ArtifactManifest>(snapshot.manifestJson, {} as ArtifactManifest),
+      validation,
+      validationV2: parseSnapshotJson<PreviewPayload["validationV2"]>(snapshot.validationV2Json, {}),
+      fileTree: parseSnapshotJson<TreeNode[]>(snapshot.fileTreeJson, []),
+      artifacts: parseSnapshotJson<GeneratedArtifactSummary[]>(snapshot.artifactsJson, []),
+      notes: parseSnapshotJson<string[]>(snapshot.notesJson, []),
+      architectureSynthesis: parseSnapshotJson<ArchitectureSynthesisSummary>(
+        snapshot.architectureSynthesisJson,
+        { provider: "deterministic", mode: "baseline", usedAi: false, status: "baseline", warnings: [], assumptions: [], risks: [], recommendations: [] }
+      ),
+      advisor: parseSnapshotJson<ArchitectureAdvisorReport | undefined>(snapshot.advisorJson, undefined),
+      advisorSummary: buildAdvisorSummary(parseSnapshotJson<ArchitectureAdvisorReport | undefined>(snapshot.advisorJson, undefined)),
+      hybridRefinement: parseSnapshotJson<HybridRefinementReport | undefined>(snapshot.hybridRefinementJson, undefined)
+    }
+  };
+}
+
+async function materializePreview(input: {
+  answers: QuestionnaireAnswers;
+  preview: PreviewPayload;
+}): Promise<{
+  success: true;
+  response: Record<string, unknown>;
+} | {
+  success: false;
+  statusCode: number;
+  response: Record<string, unknown>;
+}> {
+  const generationStartedAt = Date.now();
+  const { answers, preview } = input;
+  const directories = createRunDirectories(preview.profile.projectSlug);
+  const preMaterializationValidation = preview.validationV2?.preMaterialization ?? buildPreMaterializationValidation({
+    manifest: preview.manifest,
+    fileTree: preview.fileTree,
+    architectureSynthesis: preview.architectureSynthesis,
+    hybridRefinement: preview.hybridRefinement
+  });
+
+  const generationResult = await generatorRunner.run({
+    generationId: directories.generationId,
+    profile: preview.profile,
+    spec: preview.spec,
+    plan: preview.plan,
+    manifest: preview.manifest,
+    validation: preview.validation.manifest,
+    architectureSynthesis: preview.architectureSynthesis,
+    advisorReport: preview.advisor,
+    hybridRefinement: preview.hybridRefinement,
+    outputDir: directories.outputDir,
+    zipPath: directories.zipPath
+  });
+
+  const generatedArtifacts = preview.artifacts.length > 0 ? preview.artifacts : buildGeneratedArtifacts(preview.fileTree);
+  const postMaterializationValidation = generationResult.success
+    ? buildPostMaterializationValidation({
+      outputDir: directories.outputDir,
+      zipPath: directories.zipPath,
+      manifest: preview.manifest,
+      architectureSynthesis: preview.architectureSynthesis,
+      hybridRefinement: preview.hybridRefinement
+    })
+    : undefined;
+  const validationV2 = {
+    preMaterialization: preMaterializationValidation,
+    postMaterialization: postMaterializationValidation
+  };
+  const runMetrics = scoreRunMetrics({
+    generationTimeMs: Date.now() - generationStartedAt,
+    artifactCount: preview.manifest.summary.totalArtifacts,
+    fileCount: preview.fileTree.filter((node) => node.type === "file").length,
+    validation: preview.validation.manifest,
+    advisor: preview.advisor ? {
+      ...preview.advisor,
+      warnings: [
+        ...preview.advisor.warnings,
+        ...validationV2Warnings(preMaterializationValidation, postMaterializationValidation)
+      ]
+    } : undefined,
+    architectureSynthesis: preview.architectureSynthesis,
+    hybridRefinement: preview.hybridRefinement,
+    zipAvailable: Boolean(generationResult.success && generationResult.zipPath)
+  });
+  const runArtifacts = generationResult.success
+    ? buildRunArtifactRecords({
+      runId: directories.generationId,
+      rootFolderName: preview.manifest.rootFolderName,
+      outputDir: directories.outputDir,
+      artifacts: generatedArtifacts
+    })
+    : [];
+
+  const metadata: GenerationMetadata = {
+    id: directories.generationId,
+    profile: preview.profile.profile,
+    generationMode: preview.profile.generationMode,
+    projectName: preview.profile.projectName,
+    status: generationResult.success ? "completed" : "failed",
+    createdAt: new Date().toISOString(),
+    zipPath: generationResult.success ? generationResult.zipPath : undefined,
+    outputDir: directories.outputDir,
+    fileTree: preview.fileTree,
+    answersJson: JSON.stringify(answers),
+    profileJson: JSON.stringify(preview.profile),
+    planJson: JSON.stringify(preview.plan),
+    specJson: JSON.stringify(preview.spec),
+    manifestJson: JSON.stringify(preview.manifest),
+    validationJson: JSON.stringify(preview.validation),
+    validationV2Json: JSON.stringify(validationV2),
+    architectureSynthesisJson: JSON.stringify(preview.architectureSynthesis),
+    advisorJson: preview.advisor ? JSON.stringify(preview.advisor) : undefined,
+    hybridRefinementJson: preview.hybridRefinement ? JSON.stringify(preview.hybridRefinement) : undefined,
+    metricsJson: JSON.stringify(runMetrics),
+    generatorLogPath: generationResult.logFilePath,
+    diagnosticsPath: generationResult.diagnosticsPath,
+    errorMessage: generationResult.error
+  };
+
+  generationRepository.save(metadata, runArtifacts);
+
+  if (!generationResult.success) {
+    return {
+      success: false,
+      statusCode: 500,
+      response: {
+        error: generationResult.error ?? "Generation failed",
+        generationId: directories.generationId,
+        logFilePath: generationResult.logFilePath,
+        diagnosticsPath: generationResult.diagnosticsPath
+      }
+    };
+  }
+
+  return {
+    success: true,
+    response: {
+      ...preview,
+      generationId: directories.generationId,
+      zipPath: generationResult.zipPath,
+      logFilePath: generationResult.logFilePath,
+      diagnosticsPath: generationResult.diagnosticsPath,
+      artifacts: generatedArtifacts,
+      runArtifacts,
+      runMetrics,
+      validationV2,
+      advisorSummary: preview.advisorSummary,
+      advisor: preview.advisor,
+      hybridRefinement: preview.hybridRefinement
+    }
   };
 }
 
@@ -312,161 +587,50 @@ export function createApp(): FastifyInstance {
     return await buildPreviewPayload(request.body);
   });
 
+  app.post<{ Body: QuestionnaireAnswers }>("/api/architecture/preview", async (request) => {
+    const preview = await buildArchitecturePreviewPayload(request.body);
+    const previewId = saveArchitecturePreviewSnapshot(request.body, preview);
+    return {
+      previewId,
+      createdAt: new Date().toISOString(),
+      ...preview
+    };
+  });
+
   app.post<{ Body: QuestionnaireAnswers }>("/api/advisor/plan", async (request) => {
-    const preview = await buildPreviewPayload(request.body);
-    const advisor = await buildArchitectureAdvisorReport({
-      answers: request.body,
-      spec: preview.spec,
-      manifest: preview.manifest,
-      validation: preview.validation.manifest,
-      mode: preview.profile.generationMode
-    });
+    const preview = await buildArchitecturePreviewPayload(request.body);
+    const advisor = preview.advisor;
 
     return { advisor, validation: preview.validation.manifest, preview };
   });
 
-  app.post<{ Body: QuestionnaireAnswers }>("/api/generations", async (request, reply) => {
-    const generationStartedAt = Date.now();
-    const preview = await buildPreviewPayload(request.body);
-    const directories = createRunDirectories(preview.profile.projectSlug);
-
-    const shouldBuildAdvisorReport = preview.spec.features.llmNotes || preview.profile.generationMode !== "baseline";
-    const advisorReport = shouldBuildAdvisorReport
-      ? await buildArchitectureAdvisorReport({
-        answers: request.body,
-        spec: preview.spec,
-        manifest: preview.manifest,
-        validation: preview.validation.manifest,
-        mode: preview.profile.generationMode
-      })
-      : undefined;
-
-    const hybridRefinement = preview.profile.generationMode === "hybrid"
-      ? await buildHybridRefinementReport({
-        answers: request.body,
-        spec: preview.spec,
-        manifest: preview.manifest,
-        validation: preview.validation.manifest,
-        fileTree: preview.fileTree,
-        advisorReport,
-        mode: preview.profile.generationMode
-      })
-      : undefined;
-
-    const responseFileTree = withHybridRefinementNodes(preview.fileTree, preview.manifest.rootFolderName, hybridRefinement);
-    const preMaterializationValidation = buildPreMaterializationValidation({
-      manifest: preview.manifest,
-      fileTree: responseFileTree,
-      architectureSynthesis: preview.architectureSynthesis,
-      hybridRefinement
-    });
-
-    const generationResult = await generatorRunner.run({
-      generationId: directories.generationId,
-      profile: preview.profile,
-      spec: preview.spec,
-      plan: preview.plan,
-      manifest: preview.manifest,
-      validation: preview.validation.manifest,
-      architectureSynthesis: preview.architectureSynthesis,
-      advisorReport,
-      hybridRefinement,
-      outputDir: directories.outputDir,
-      zipPath: directories.zipPath
-    });
-
-    const generatedArtifacts = buildGeneratedArtifacts(responseFileTree);
-    const postMaterializationValidation = generationResult.success
-      ? buildPostMaterializationValidation({
-        outputDir: directories.outputDir,
-        zipPath: directories.zipPath,
-        manifest: preview.manifest,
-        architectureSynthesis: preview.architectureSynthesis,
-        hybridRefinement
-      })
-      : undefined;
-    const validationV2 = {
-      preMaterialization: preMaterializationValidation,
-      postMaterialization: postMaterializationValidation
-    };
-    const runMetrics = scoreRunMetrics({
-      generationTimeMs: Date.now() - generationStartedAt,
-      artifactCount: preview.manifest.summary.totalArtifacts,
-      fileCount: responseFileTree.filter((node) => node.type === "file").length,
-      validation: preview.validation.manifest,
-      advisor: advisorReport ? {
-        ...advisorReport,
-        warnings: [
-          ...advisorReport.warnings,
-          ...validationV2Warnings(preMaterializationValidation, postMaterializationValidation)
-        ]
-      } : undefined,
-      architectureSynthesis: preview.architectureSynthesis,
-      hybridRefinement,
-      zipAvailable: Boolean(generationResult.success && generationResult.zipPath)
-    });
-    const runArtifacts = generationResult.success
-      ? buildRunArtifactRecords({
-        runId: directories.generationId,
-        rootFolderName: preview.manifest.rootFolderName,
-        outputDir: directories.outputDir,
-        artifacts: generatedArtifacts
-      })
-      : [];
-
-    const metadata: GenerationMetadata = {
-      id: directories.generationId,
-      profile: preview.profile.profile,
-      generationMode: preview.profile.generationMode,
-      projectName: preview.profile.projectName,
-      status: generationResult.success ? "completed" : "failed",
-      createdAt: new Date().toISOString(),
-      zipPath: generationResult.success ? generationResult.zipPath : undefined,
-      outputDir: directories.outputDir,
-      fileTree: responseFileTree,
-      answersJson: JSON.stringify(request.body),
-      profileJson: JSON.stringify(preview.profile),
-      planJson: JSON.stringify(preview.plan),
-      specJson: JSON.stringify(preview.spec),
-      manifestJson: JSON.stringify(preview.manifest),
-      validationJson: JSON.stringify(preview.validation),
-      validationV2Json: JSON.stringify(validationV2),
-      architectureSynthesisJson: JSON.stringify(preview.architectureSynthesis),
-      advisorJson: advisorReport ? JSON.stringify(advisorReport) : undefined,
-      hybridRefinementJson: hybridRefinement ? JSON.stringify(hybridRefinement) : undefined,
-      metricsJson: JSON.stringify(runMetrics),
-      generatorLogPath: generationResult.logFilePath,
-      diagnosticsPath: generationResult.diagnosticsPath,
-      errorMessage: generationResult.error
-    };
-
-    generationRepository.save(metadata, runArtifacts);
-
-    if (!generationResult.success) {
-      reply.code(500);
-      return {
-        error: generationResult.error ?? "Generation failed",
-        generationId: directories.generationId,
-        logFilePath: generationResult.logFilePath,
-        diagnosticsPath: generationResult.diagnosticsPath
-      };
+  app.post<{ Body: { previewId?: string } }>("/api/generations/from-preview", async (request, reply) => {
+    const previewId = request.body.previewId?.trim();
+    if (!previewId) {
+      reply.code(400);
+      return { error: "previewId is required" };
     }
 
-    return {
-      ...preview,
-      fileTree: responseFileTree,
-      generationId: directories.generationId,
-      zipPath: generationResult.zipPath,
-      logFilePath: generationResult.logFilePath,
-      diagnosticsPath: generationResult.diagnosticsPath,
-      artifacts: generatedArtifacts,
-      runArtifacts,
-      runMetrics,
-      validationV2,
-      advisorSummary: buildAdvisorSummary(advisorReport),
-      advisor: advisorReport,
-      hybridRefinement
-    };
+    const snapshot = previewFromSnapshot(previewId);
+    if (!snapshot) {
+      reply.code(404);
+      return { error: "Architecture preview not found or expired" };
+    }
+
+    const result = await materializePreview(snapshot);
+    if (!result.success) {
+      reply.code(result.statusCode);
+    }
+    return result.response;
+  });
+
+  app.post<{ Body: QuestionnaireAnswers }>("/api/generations", async (request, reply) => {
+    const preview = await buildArchitecturePreviewPayload(request.body);
+    const result = await materializePreview({ answers: request.body, preview });
+    if (!result.success) {
+      reply.code(result.statusCode);
+    }
+    return result.response;
   });
 
   return app;

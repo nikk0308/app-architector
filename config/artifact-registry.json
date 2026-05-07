@@ -303,24 +303,56 @@
         {
           "path": "Assets/Scripts/Managers/AuthManager.cs",
           "template": "unity/AuthManager.cs.tpl"
+        },
+        {
+          "path": "Assets/Scripts/Modules/Auth/AuthRepository.cs",
+          "template": "unity/AuthRepository.cs.tpl"
+        },
+        {
+          "path": "Assets/Scripts/Modules/Auth/AuthState.cs",
+          "template": "unity/AuthState.cs.tpl"
         }
       ],
       "ios": [
         {
-          "path": "ios/${project_pascal}/Sources/Services/AuthService.swift",
+          "path": "ios/${project_pascal}/Sources/Modules/Auth/AuthService.swift",
           "template": "ios/AuthService.swift.tpl"
+        },
+        {
+          "path": "ios/${project_pascal}/Sources/Modules/Auth/AuthViewModel.swift",
+          "template": "ios/AuthViewModel.swift.tpl"
+        },
+        {
+          "path": "ios/${project_pascal}/Sources/Modules/Auth/AuthRepository.swift",
+          "template": "ios/AuthRepository.swift.tpl"
         }
       ],
       "flutter": [
         {
           "path": "lib/features/auth/auth_gate.dart",
           "template": "flutter/auth_gate.dart.tpl"
+        },
+        {
+          "path": "lib/features/auth/auth_repository.dart",
+          "template": "flutter/auth_repository.dart.tpl"
+        },
+        {
+          "path": "lib/features/auth/auth_controller.dart",
+          "template": "flutter/auth_controller.dart.tpl"
         }
       ],
       "react-native": [
         {
-          "path": "src/screens/AuthScreen.tsx",
+          "path": "src/features/auth/AuthScreen.tsx",
           "template": "react-native/AuthScreen.tsx.tpl"
+        },
+        {
+          "path": "src/features/auth/authService.ts",
+          "template": "react-native/authService.ts.tpl"
+        },
+        {
+          "path": "src/features/auth/authState.ts",
+          "template": "react-native/authState.ts.tpl"
         }
       ]
     }
@@ -334,24 +366,40 @@
         {
           "path": "Assets/Scripts/Managers/AnalyticsManager.cs",
           "template": "unity/AnalyticsManager.cs.tpl"
+        },
+        {
+          "path": "Assets/Scripts/Modules/Analytics/AnalyticsEvent.cs",
+          "template": "unity/AnalyticsEvent.cs.tpl"
         }
       ],
       "ios": [
         {
-          "path": "ios/${project_pascal}/Sources/Services/AnalyticsService.swift",
+          "path": "ios/${project_pascal}/Sources/Modules/Analytics/AnalyticsService.swift",
           "template": "ios/AnalyticsService.swift.tpl"
+        },
+        {
+          "path": "ios/${project_pascal}/Sources/Modules/Analytics/AnalyticsEvent.swift",
+          "template": "ios/AnalyticsEvent.swift.tpl"
         }
       ],
       "flutter": [
         {
           "path": "lib/core/services/analytics_service.dart",
           "template": "flutter/analytics_service.dart.tpl"
+        },
+        {
+          "path": "lib/core/services/analytics_event.dart",
+          "template": "flutter/analytics_event.dart.tpl"
         }
       ],
       "react-native": [
         {
           "path": "src/services/analyticsService.ts",
           "template": "react-native/analyticsService.ts.tpl"
+        },
+        {
+          "path": "src/services/analyticsEvents.ts",
+          "template": "react-native/analyticsEvents.ts.tpl"
         }
       ]
     }
@@ -371,6 +419,10 @@
         {
           "path": "ios/${project_pascal}/Resources/Localizable.xcstrings",
           "template": "ios/Localizable.xcstrings.tpl"
+        },
+        {
+          "path": "ios/${project_pascal}/Sources/Modules/Localization/LocalizationManager.swift",
+          "template": "ios/LocalizationManager.swift.tpl"
         }
       ],
       "flutter": [
@@ -391,6 +443,14 @@
         {
           "path": "src/services/localization.ts",
           "template": "react-native/localization.ts.tpl"
+        },
+        {
+          "path": "src/i18n/en.json",
+          "template": "react-native/en.json.tpl"
+        },
+        {
+          "path": "src/i18n/uk.json",
+          "template": "react-native/uk.json.tpl"
         }
       ]
     }
@@ -408,14 +468,22 @@
       ],
       "ios": [
         {
-          "path": "ios/${project_pascal}/Sources/Services/PushService.swift",
+          "path": "ios/${project_pascal}/Sources/Modules/Push/PushService.swift",
           "template": "ios/PushService.swift.tpl"
+        },
+        {
+          "path": "ios/${project_pascal}/Sources/Modules/Push/PushConfig.swift",
+          "template": "ios/PushConfig.swift.tpl"
         }
       ],
       "flutter": [
         {
           "path": "lib/core/services/push_service.dart",
           "template": "flutter/push_service.dart.tpl"
+        },
+        {
+          "path": "lib/core/services/push_config.dart",
+          "template": "flutter/push_config.dart.tpl"
         }
       ],
       "react-native": [
@@ -439,20 +507,44 @@
       ],
       "ios": [
         {
-          "path": "ios/${project_pascal}/Sources/Services/NetworkClient.swift",
+          "path": "ios/${project_pascal}/Sources/Modules/Networking/NetworkClient.swift",
           "template": "ios/NetworkClient.swift.tpl"
+        },
+        {
+          "path": "ios/${project_pascal}/Sources/Modules/Networking/APIEndpoint.swift",
+          "template": "ios/APIEndpoint.swift.tpl"
+        },
+        {
+          "path": "ios/${project_pascal}/Sources/Modules/Networking/APIError.swift",
+          "template": "ios/APIError.swift.tpl"
         }
       ],
       "flutter": [
         {
           "path": "lib/core/network/network_client.dart",
           "template": "flutter/network_client.dart.tpl"
+        },
+        {
+          "path": "lib/core/network/endpoint.dart",
+          "template": "flutter/endpoint.dart.tpl"
+        },
+        {
+          "path": "lib/core/network/api_error.dart",
+          "template": "flutter/api_error.dart.tpl"
         }
       ],
       "react-native": [
         {
           "path": "src/services/apiClient.ts",
           "template": "react-native/apiClient.ts.tpl"
+        },
+        {
+          "path": "src/services/endpoints.ts",
+          "template": "react-native/endpoints.ts.tpl"
+        },
+        {
+          "path": "src/services/apiError.ts",
+          "template": "react-native/apiError.ts.tpl"
         }
       ]
     }
@@ -470,20 +562,36 @@
       ],
       "ios": [
         {
-          "path": "ios/${project_pascal}/Sources/Services/PersistenceService.swift",
+          "path": "ios/${project_pascal}/Sources/Modules/Persistence/PersistenceService.swift",
           "template": "ios/PersistenceService.swift.tpl"
+        },
+        {
+          "path": "ios/${project_pascal}/Sources/Modules/Persistence/AppCache.swift",
+          "template": "ios/AppCache.swift.tpl"
+        },
+        {
+          "path": "ios/${project_pascal}/Sources/Modules/Persistence/PersistenceRepository.swift",
+          "template": "ios/PersistenceRepository.swift.tpl"
         }
       ],
       "flutter": [
         {
           "path": "lib/core/services/persistence_service.dart",
           "template": "flutter/persistence_service.dart.tpl"
+        },
+        {
+          "path": "lib/core/services/cache_store.dart",
+          "template": "flutter/cache_store.dart.tpl"
         }
       ],
       "react-native": [
         {
           "path": "src/services/storageService.ts",
           "template": "react-native/storageService.ts.tpl"
+        },
+        {
+          "path": "src/services/cacheStore.ts",
+          "template": "react-native/cacheStore.ts.tpl"
         }
       ]
     }
@@ -905,6 +1013,130 @@
         {
           "path": "ProjectSettings/ProjectVersion.txt",
           "template": "unity/ProjectVersion.txt.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "architecture.feature-first",
+    "title": "Feature-first boundary",
+    "description": "Visible architecture marker for feature-first organization.",
+    "outputs": {
+      "unity": [
+        {
+          "path": "Assets/Scripts/Architecture/FeatureBoundary.cs",
+          "template": "unity/FeatureBoundary.cs.tpl"
+        }
+      ],
+      "ios": [
+        {
+          "path": "ios/${project_pascal}/Sources/Architecture/FeatureBoundary.swift",
+          "template": "ios/FeatureBoundary.swift.tpl"
+        }
+      ],
+      "flutter": [
+        {
+          "path": "lib/architecture/feature_boundary.dart",
+          "template": "flutter/feature_boundary.dart.tpl"
+        }
+      ],
+      "react-native": [
+        {
+          "path": "src/architecture/featureBoundary.ts",
+          "template": "react-native/featureBoundary.ts.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "architecture.mvvm",
+    "title": "MVVM boundary",
+    "description": "Visible architecture marker for ViewModel-oriented UI boundaries.",
+    "outputs": {
+      "unity": [
+        {
+          "path": "Assets/Scripts/Architecture/ViewModelBoundary.cs",
+          "template": "unity/ViewModelBoundary.cs.tpl"
+        }
+      ],
+      "ios": [
+        {
+          "path": "ios/${project_pascal}/Sources/Architecture/ViewModelBoundary.swift",
+          "template": "ios/ViewModelBoundary.swift.tpl"
+        }
+      ],
+      "flutter": [
+        {
+          "path": "lib/architecture/view_model_boundary.dart",
+          "template": "flutter/view_model_boundary.dart.tpl"
+        }
+      ],
+      "react-native": [
+        {
+          "path": "src/architecture/viewModelBoundary.ts",
+          "template": "react-native/viewModelBoundary.ts.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "architecture.layered",
+    "title": "Layered boundary",
+    "description": "Visible architecture marker for Data/Domain/Presentation separation.",
+    "outputs": {
+      "unity": [
+        {
+          "path": "Assets/Scripts/Architecture/LayeredBoundary.cs",
+          "template": "unity/LayeredBoundary.cs.tpl"
+        }
+      ],
+      "ios": [
+        {
+          "path": "ios/${project_pascal}/Sources/Architecture/LayeredBoundary.swift",
+          "template": "ios/LayeredBoundary.swift.tpl"
+        }
+      ],
+      "flutter": [
+        {
+          "path": "lib/architecture/layered_boundary.dart",
+          "template": "flutter/layered_boundary.dart.tpl"
+        }
+      ],
+      "react-native": [
+        {
+          "path": "src/architecture/layeredBoundary.ts",
+          "template": "react-native/layeredBoundary.ts.tpl"
+        }
+      ]
+    }
+  },
+  {
+    "id": "architecture.coordinator",
+    "title": "Coordinator boundary",
+    "description": "Visible architecture marker for explicit flow coordination.",
+    "outputs": {
+      "unity": [
+        {
+          "path": "Assets/Scripts/Architecture/CoordinatorBoundary.cs",
+          "template": "unity/CoordinatorBoundary.cs.tpl"
+        }
+      ],
+      "ios": [
+        {
+          "path": "ios/${project_pascal}/Sources/Architecture/CoordinatorBoundary.swift",
+          "template": "ios/CoordinatorBoundary.swift.tpl"
+        }
+      ],
+      "flutter": [
+        {
+          "path": "lib/architecture/coordinator_boundary.dart",
+          "template": "flutter/coordinator_boundary.dart.tpl"
+        }
+      ],
+      "react-native": [
+        {
+          "path": "src/architecture/coordinatorBoundary.ts",
+          "template": "react-native/coordinatorBoundary.ts.tpl"
         }
       ]
     }

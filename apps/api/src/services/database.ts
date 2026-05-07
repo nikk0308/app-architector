@@ -67,6 +67,26 @@ db.exec(`
   );
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS architecture_previews (
+    id TEXT PRIMARY KEY,
+    answersJson TEXT NOT NULL,
+    profileJson TEXT NOT NULL,
+    planJson TEXT NOT NULL,
+    specJson TEXT NOT NULL,
+    manifestJson TEXT NOT NULL,
+    validationJson TEXT NOT NULL,
+    validationV2Json TEXT,
+    fileTreeJson TEXT NOT NULL,
+    artifactsJson TEXT,
+    notesJson TEXT,
+    architectureSynthesisJson TEXT,
+    advisorJson TEXT,
+    hybridRefinementJson TEXT,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
 function ensureColumn(table: string, column: string, type: string): void {
   const existing = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
   if (!existing.some((entry) => entry.name === column)) {
@@ -127,6 +147,49 @@ const insertArtifactStatement = db.prepare(`
   ) VALUES (
     @runId, @path, @kind, @required, @generated, @sizeBytes, @hash, @description
   )
+`);
+
+export interface ArchitecturePreviewSnapshotRecord {
+  id: string;
+  answersJson: string;
+  profileJson: string;
+  planJson: string;
+  specJson: string;
+  manifestJson: string;
+  validationJson: string;
+  validationV2Json?: string;
+  fileTreeJson: string;
+  artifactsJson?: string;
+  notesJson?: string;
+  architectureSynthesisJson?: string;
+  advisorJson?: string;
+  hybridRefinementJson?: string;
+  createdAt?: string;
+}
+
+const insertPreviewStatement = db.prepare(`
+  INSERT INTO architecture_previews (
+    id, answersJson, profileJson, planJson, specJson, manifestJson, validationJson, validationV2Json,
+    fileTreeJson, artifactsJson, notesJson, architectureSynthesisJson, advisorJson, hybridRefinementJson, createdAt
+  ) VALUES (
+    @id, @answersJson, @profileJson, @planJson, @specJson, @manifestJson, @validationJson, @validationV2Json,
+    @fileTreeJson, @artifactsJson, @notesJson, @architectureSynthesisJson, @advisorJson, @hybridRefinementJson, @createdAt
+  )
+  ON CONFLICT(id) DO UPDATE SET
+    answersJson = excluded.answersJson,
+    profileJson = excluded.profileJson,
+    planJson = excluded.planJson,
+    specJson = excluded.specJson,
+    manifestJson = excluded.manifestJson,
+    validationJson = excluded.validationJson,
+    validationV2Json = excluded.validationV2Json,
+    fileTreeJson = excluded.fileTreeJson,
+    artifactsJson = excluded.artifactsJson,
+    notesJson = excluded.notesJson,
+    architectureSynthesisJson = excluded.architectureSynthesisJson,
+    advisorJson = excluded.advisorJson,
+    hybridRefinementJson = excluded.hybridRefinementJson,
+    createdAt = excluded.createdAt
 `);
 
 function parseJson<T>(value: unknown): T | undefined {
@@ -274,5 +337,47 @@ export const generationRepository = {
   list(limit = 20): GenerationMetadata[] {
     const rows = db.prepare("SELECT * FROM generations ORDER BY createdAt DESC LIMIT ?").all(limit) as Record<string, unknown>[];
     return rows.map(mapRow);
+  },
+  savePreview(snapshot: ArchitecturePreviewSnapshotRecord): void {
+    insertPreviewStatement.run({
+      id: snapshot.id,
+      answersJson: snapshot.answersJson,
+      profileJson: snapshot.profileJson,
+      planJson: snapshot.planJson,
+      specJson: snapshot.specJson,
+      manifestJson: snapshot.manifestJson,
+      validationJson: snapshot.validationJson,
+      validationV2Json: snapshot.validationV2Json ?? null,
+      fileTreeJson: snapshot.fileTreeJson,
+      artifactsJson: snapshot.artifactsJson ?? null,
+      notesJson: snapshot.notesJson ?? null,
+      architectureSynthesisJson: snapshot.architectureSynthesisJson ?? null,
+      advisorJson: snapshot.advisorJson ?? null,
+      hybridRefinementJson: snapshot.hybridRefinementJson ?? null,
+      createdAt: snapshot.createdAt ?? new Date().toISOString()
+    });
+  },
+  getPreviewById(id: string): ArchitecturePreviewSnapshotRecord | null {
+    const row = db.prepare("SELECT * FROM architecture_previews WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+    if (!row) {
+      return null;
+    }
+    return {
+      id: String(row.id),
+      answersJson: String(row.answersJson),
+      profileJson: String(row.profileJson),
+      planJson: String(row.planJson),
+      specJson: String(row.specJson),
+      manifestJson: String(row.manifestJson),
+      validationJson: String(row.validationJson),
+      validationV2Json: row.validationV2Json ? String(row.validationV2Json) : undefined,
+      fileTreeJson: String(row.fileTreeJson),
+      artifactsJson: row.artifactsJson ? String(row.artifactsJson) : undefined,
+      notesJson: row.notesJson ? String(row.notesJson) : undefined,
+      architectureSynthesisJson: row.architectureSynthesisJson ? String(row.architectureSynthesisJson) : undefined,
+      advisorJson: row.advisorJson ? String(row.advisorJson) : undefined,
+      hybridRefinementJson: row.hybridRefinementJson ? String(row.hybridRefinementJson) : undefined,
+      createdAt: row.createdAt ? String(row.createdAt) : undefined
+    };
   }
 };

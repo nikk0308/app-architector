@@ -1,17 +1,50 @@
 import { useEffect, useMemo, useState } from "react";
-import { getProjectProfile, type AIProviderStatusSummary, type ArchitectureAdvisorReport, type ArchitectureAdvisorStatus, type GeneratedArtifactSummary, type GenerationAdvisorSummary, type GenerationMetadata, type GenerationMode, type GenerationRunDetails, type ProfileId, type QuestionnaireAnswers, type QuestionnaireField, type QuestionnaireSection, type RunComparison, type RuntimeHealthReport, type TreeNode } from "@mag/shared";
-import { apiUrl, compareGenerations, createAdvisorPlan, createGeneration, fetchAdvisorStatus, fetchGenerationDetails, fetchProviderStatuses, fetchQuestionnaire, fetchRuntimeHealth, listGenerations, previewProfile, type GenerationResponse, type PreviewResponse } from "./api";
-import { PlatformPackPanel } from "./components/PlatformPackPanel";
+import type {
+  AIProviderStatusSummary,
+  GeneratedArtifactSummary,
+  GenerationMetadata,
+  GenerationMode,
+  GenerationRunDetails,
+  ProfileId,
+  QuestionnaireAnswers,
+  RunComparison
+} from "@mag/shared";
+import {
+  apiUrl,
+  compareGenerations,
+  createArchitecturePreview,
+  createGenerationFromPreview,
+  fetchGenerationDetails,
+  fetchProviderStatuses,
+  listGenerations,
+  type ArchitecturePreviewResponse,
+  type GenerationResponse
+} from "./api";
+import { FileTreeViewer } from "./components/FileTreeViewer";
 import { RunComparisonPanel } from "./components/RunComparisonPanel";
 import { RunDetailsPanel } from "./components/RunDetailsPanel";
-import { RuntimeHealthPanel } from "./components/RuntimeHealthPanel";
+import { TopBar } from "./components/TopBar";
 import { ValidationSummary } from "./components/ValidationSummary";
+
+type Lang = "ua" | "en";
+type Theme = "dark" | "light";
+type StepId =
+  | "platform"
+  | "basics"
+  | "ai"
+  | "architecture"
+  | "modules"
+  | "extras"
+  | "tree"
+  | "result"
+  | "history"
+  | "compare";
 
 const initialForm: QuestionnaireAnswers = {
   projectName: "AI Commerce Demo",
   appDisplayName: "AI Commerce",
   profile: "ios",
-  generationMode: "commercial",
+  generationMode: "hf-open",
   packageId: "com.example.aicommerce",
   architectureStyle: "feature-first",
   stateManagement: "native",
@@ -27,858 +60,664 @@ const initialForm: QuestionnaireAnswers = {
   includeLLMNotes: true
 };
 
-const demoForm: QuestionnaireAnswers = { ...initialForm };
-
-const hiddenFieldKeys = new Set(["generationMode", "includeLLMNotes"]);
-
-const generationModeOptions: Array<{
-  mode: GenerationMode;
-  title: string;
-  subtitle: string;
-  badge: string;
-  provider: "deterministic" | "openai" | "huggingface" | "hybrid";
-}> = [
-  {
-    mode: "baseline",
-    title: "Кодом",
-    subtitle: "Стабільна deterministic-генерація без ШІ.",
-    badge: "STABLE",
-    provider: "deterministic"
+const copy: Record<Lang, Record<string, string>> = {
+  ua: {
+    lab: "AI-assisted architecture lab",
+    intro: "Стенд для порівняння Baseline / GPT / Qwen / Hybrid генерації мобільної архітектури.",
+    demo: "Demo data",
+    generateTree: "Згенерувати структурне дерево",
+    generatingTree: "Генеруємо дерево...",
+    createZip: "Створити ZIP з цієї архітектури",
+    creatingZip: "Створюємо ZIP...",
+    downloadZip: "Download ZIP",
+    previewOutdated: "Preview outdated: форма змінилась. Згенеруй дерево ще раз.",
+    requiredError: "Заповни назву проєкту, назву для користувача і bundle/package id.",
+    platform: "Platform",
+    basics: "Basics",
+    ai: "AI Mode",
+    architecture: "Architecture",
+    modules: "Modules",
+    extras: "Example / Extras",
+    tree: "Generated Tree",
+    result: "Result",
+    history: "History",
+    compare: "Compare",
+    projectName: "Назва проєкту",
+    displayName: "Назва для користувача",
+    packageId: "Bundle / Package ID",
+    selectedModules: "Обрані модулі",
+    validation: "Validation",
+    architectureExplanation: "Пояснення архітектури",
+    modeReady: "ready",
+    noPreview: "Спочатку згенеруй структурне дерево.",
+    zipReady: "ZIP готовий",
+    filters: "Фільтри",
+    runDetails: "Run Details",
+    compareSelected: "Compare selected",
+    latest: "Останні генерації",
+    fullHistory: "Full list",
+    selectRun: "Обери run для деталей.",
+    compareEmpty: "Обери мінімум два runs для порівняння.",
+    copyTree: "Copy tree",
+    files: "Files",
+    folders: "Folders",
+    docs: "Docs",
+    metadata: "Metadata"
   },
-  {
-    mode: "commercial",
-    title: "GPT",
-    subtitle: "OpenAI provider для ArchitectureSpec і advisor-звіту.",
-    badge: "OPENAI",
-    provider: "openai"
-  },
-  {
-    mode: "hf-open",
-    title: "Qwen",
-    subtitle: "Hugging Face / Qwen open-model path для ArchitectureSpec і advisor.",
-    badge: "HF",
-    provider: "huggingface"
-  },
-  {
-    mode: "hybrid",
-    title: "Гібрид",
-    subtitle: "Baseline-структура + контрольоване ШІ-покращення і advisor.",
-    badge: "AI + CODE",
-    provider: "hybrid"
+  en: {
+    lab: "AI-assisted architecture lab",
+    intro: "Engineering console for comparing Baseline / GPT / Qwen / Hybrid mobile architecture generation.",
+    demo: "Demo data",
+    generateTree: "Generate structure tree",
+    generatingTree: "Generating tree...",
+    createZip: "Create ZIP from this architecture",
+    creatingZip: "Creating ZIP...",
+    downloadZip: "Download ZIP",
+    previewOutdated: "Preview outdated: the form changed. Generate the tree again.",
+    requiredError: "Fill project name, display name and bundle/package id.",
+    platform: "Platform",
+    basics: "Basics",
+    ai: "AI Mode",
+    architecture: "Architecture",
+    modules: "Modules",
+    extras: "Example / Extras",
+    tree: "Generated Tree",
+    result: "Result",
+    history: "History",
+    compare: "Compare",
+    projectName: "Project name",
+    displayName: "Display name",
+    packageId: "Bundle / Package ID",
+    selectedModules: "Selected modules",
+    validation: "Validation",
+    architectureExplanation: "Architecture explanation",
+    modeReady: "ready",
+    noPreview: "Generate a structure tree first.",
+    zipReady: "ZIP ready",
+    filters: "Filters",
+    runDetails: "Run Details",
+    compareSelected: "Compare selected",
+    latest: "Latest generations",
+    fullHistory: "Full list",
+    selectRun: "Select a run to inspect details.",
+    compareEmpty: "Select at least two runs to compare.",
+    copyTree: "Copy tree",
+    files: "Files",
+    folders: "Folders",
+    docs: "Docs",
+    metadata: "Metadata"
   }
-];
-
-const platformLabels: Record<string, string> = {
-  ios: "iOS / Swift",
-  flutter: "Flutter",
-  "react-native": "React Native",
-  unity: "Unity"
 };
 
-const featureLabels: Array<{ key: keyof QuestionnaireAnswers; label: string }> = [
-  { key: "hasNetworking", label: "API-клієнт" },
-  { key: "hasAuth", label: "Авторизація" },
-  { key: "hasPersistence", label: "Локальне збереження" },
-  { key: "hasLocalization", label: "Локалізація" },
-  { key: "hasAnalytics", label: "Аналітика" },
-  { key: "hasPush", label: "Push" },
-  { key: "includeExampleScreen", label: "Приклад екрана" }
+const steps: Array<{ id: StepId; labelKey: string }> = [
+  { id: "platform", labelKey: "platform" },
+  { id: "basics", labelKey: "basics" },
+  { id: "ai", labelKey: "ai" },
+  { id: "architecture", labelKey: "architecture" },
+  { id: "modules", labelKey: "modules" },
+  { id: "extras", labelKey: "extras" },
+  { id: "tree", labelKey: "tree" },
+  { id: "result", labelKey: "result" },
+  { id: "history", labelKey: "history" },
+  { id: "compare", labelKey: "compare" }
 ];
 
-function fieldValue(form: QuestionnaireAnswers, key: string): string | boolean {
-  const value = form[key as keyof QuestionnaireAnswers];
-  return typeof value === "undefined" ? "" : value;
+const platformOptions: Array<{ id: ProfileId; title: string; description: string }> = [
+  { id: "ios", title: "iOS / Swift", description: "SwiftUI, coordinator-lite, services, XCTest-ready seams." },
+  { id: "flutter", title: "Flutter", description: "Feature-first lib structure, router, core services and state." },
+  { id: "react-native", title: "React Native", description: "TypeScript shell with navigation, services and state." },
+  { id: "unity", title: "Unity / C#", description: "Bootstrap scene, managers, services and gameplay flow." }
+];
+
+const modeOptions: Array<{ id: GenerationMode; title: string; badge: string; description: string; provider: "deterministic" | "openai" | "huggingface" | "hybrid" }> = [
+  { id: "baseline", title: "Baseline", badge: "CODE", description: "Deterministic ArchitectureSpec and ZIP materialization.", provider: "deterministic" },
+  { id: "commercial", title: "GPT", badge: "OPENAI", description: "OpenAI synthesizes ArchitectureSpec and advisor output.", provider: "openai" },
+  { id: "hf-open", title: "Qwen", badge: "HF", description: "Qwen/Hugging Face synthesizes ArchitectureSpec and advisor output.", provider: "huggingface" },
+  { id: "hybrid", title: "Hybrid", badge: "AI + CODE", description: "Baseline structure with allowlisted AI refinement.", provider: "hybrid" }
+];
+
+const architectureOptions = [
+  { key: "architectureStyle", value: "feature-first", title: "Feature-first", description: "Features own screens, state and services. Good for modular growth." },
+  { key: "architectureStyle", value: "mvvm", title: "MVVM", description: "ViewModel boundary for screen state and presentation logic." },
+  { key: "architectureStyle", value: "layered", title: "Layered", description: "Data / Domain / Presentation separation for stricter boundaries." },
+  { key: "architectureStyle", value: "coordinator", title: "Coordinator", description: "Navigation and flow ownership is explicit and testable." }
+] as const;
+
+const stateOptions = [
+  { value: "native", title: "Native / light", description: "Use platform-native state primitives first." },
+  { value: "riverpod", title: "Riverpod", description: "Flutter provider graph and testable state boundaries." },
+  { value: "zustand", title: "Zustand", description: "Small React Native state store for feature-first screens." },
+  { value: "redux-toolkit", title: "Redux Toolkit", description: "Explicit centralized state for larger RN apps." },
+  { value: "scriptable-object", title: "ScriptableObject", description: "Unity-friendly config and state assets." }
+] as const;
+
+const navOptions = [
+  { value: "coordinator", title: "Coordinator", description: "Flow objects coordinate screens and routes." },
+  { value: "router", title: "Router", description: "Route table and app-level navigation shell." },
+  { value: "stack", title: "Stack", description: "Simple screen stack for mobile flows." },
+  { value: "scene-flow", title: "Scene flow", description: "Unity scene-oriented flow control." }
+] as const;
+
+const modules = [
+  { key: "hasAuth", title: "Auth", description: "Feature/service/state scaffold for sign-in and token flow." },
+  { key: "hasAnalytics", title: "Analytics", description: "Analytics service, event model and hook boundary." },
+  { key: "hasLocalization", title: "Localization", description: "Resource/service skeleton for EN/UA text." },
+  { key: "hasPush", title: "Push", description: "Provider placeholder and config boundary." },
+  { key: "hasNetworking", title: "Networking", description: "Client, endpoints and error model skeleton." },
+  { key: "hasPersistence", title: "Persistence", description: "Storage service, repository/cache facade." }
+] as const;
+
+function getStored<T extends string>(key: string, fallback: T, allowed: readonly T[]): T {
+  const value = localStorage.getItem(key) as T | null;
+  return value && allowed.includes(value) ? value : fallback;
+}
+
+function formFingerprint(form: QuestionnaireAnswers): string {
+  return JSON.stringify({
+    ...form,
+    includeLLMNotes: (form.generationMode ?? "baseline") !== "baseline"
+  });
+}
+
+function providerForMode(mode: GenerationMode, statuses: AIProviderStatusSummary[]): AIProviderStatusSummary | undefined {
+  const byProvider = new Map(statuses.map((status) => [status.provider, status]));
+  if (mode === "baseline") return byProvider.get("deterministic");
+  if (mode === "commercial") return byProvider.get("openai");
+  if (mode === "hf-open") return byProvider.get("huggingface");
+  return byProvider.get("openai") ?? byProvider.get("huggingface") ?? byProvider.get("deterministic");
 }
 
 function downloadUrlForGeneration(generationId: string): string {
   return apiUrl(`/api/generations/${generationId}/download`);
 }
 
-const actionDescriptions = {
-  advisorPlan: "AI-план показує архітектурні рішення, ризики й рекомендації без створення ZIP.",
-  structurePreview: "Preview структури показує майбутній вміст ZIP без запису архіву.",
-  generateZip: "Створення ZIP матеріалізує файли й додає архів у історію."
-} as const;
-
-function humanError(message: string): string {
-  if (message === "Failed to fetch") {
-    return "Не вдалося підключитися до серверної частини. Перевір, чи запущений API та чи правильно налаштований домен.";
-  }
-  return message;
-}
-
 function formatDate(value: string): string {
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return date.toLocaleString();
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
-function visibleFields(fields: QuestionnaireField[]): QuestionnaireField[] {
-  return fields.filter((field) => !hiddenFieldKeys.has(field.key));
+function countKind(artifacts: GeneratedArtifactSummary[] | undefined, kind: GeneratedArtifactSummary["kind"]): number {
+  return artifacts?.filter((artifact) => artifact.kind === kind).length ?? 0;
 }
 
-function artifactKindForPath(path: string): GeneratedArtifactSummary["kind"] {
-  const normalized = path.toLowerCase();
-  if (normalized.includes("/.mag/")) return "metadata";
-  if (normalized.includes("/docs/") || normalized.endsWith("/readme.md")) return "documentation";
-  if (normalized.endsWith(".json") || normalized.endsWith(".yaml") || normalized.endsWith(".yml") || normalized.endsWith(".env.example") || normalized.endsWith(".xcconfig")) return "config";
-  if (/\.(ts|tsx|js|jsx|swift|dart|cs|arb)$/i.test(path)) return "source";
-  return "other";
+function OptionCard(props: {
+  active: boolean;
+  title: string;
+  description: string;
+  badge?: string;
+  meta?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button className={props.active ? "option-card active" : "option-card"} type="button" onClick={props.onClick} aria-pressed={props.active}>
+      <span>
+        <strong>{props.title}</strong>
+        {props.badge ? <em>{props.badge}</em> : null}
+      </span>
+      <small>{props.description}</small>
+      {props.meta ? <i>{props.meta}</i> : null}
+    </button>
+  );
 }
 
-function fallbackArtifacts(fileTree?: TreeNode[]): GeneratedArtifactSummary[] {
-  return (fileTree ?? [])
-    .filter((node) => node.type === "file")
-    .map((node) => ({
-      path: node.path,
-      kind: artifactKindForPath(node.path),
-      description: `${artifactKindForPath(node.path)} artifact`
-    }));
-}
-
-function advisorSummaryFromReport(report: ArchitectureAdvisorReport | null): GenerationAdvisorSummary | null {
-  if (!report) return null;
-  return {
-    summary: report.summary,
-    mode: report.mode ?? report.status,
-    status: report.status,
-    warnings: [...report.warnings, ...(report.llm?.warnings ?? [])].filter(Boolean)
-  };
-}
-
-function artifactLabel(kind: GeneratedArtifactSummary["kind"]): string {
-  switch (kind) {
-    case "metadata":
-      return "META";
-    case "documentation":
-      return "DOC";
-    case "source":
-      return "SRC";
-    case "config":
-      return "CFG";
-    default:
-      return "FILE";
-  }
-}
-
-function compactArtifactPath(path: string): string {
-  const parts = path.split("/");
-  return parts.length > 4 ? `${parts[0]}/.../${parts.slice(-2).join("/")}` : path;
-}
-
-function readyOrFallback(...statuses: Array<AIProviderStatusSummary | undefined>): AIProviderStatusSummary | undefined {
-  return statuses.find((status) => status?.status === "ready") ?? statuses.find(Boolean);
-}
-
-function providerStatusForMode(
-  mode: GenerationMode,
-  providerById: Map<AIProviderStatusSummary["provider"], AIProviderStatusSummary>
-): AIProviderStatusSummary | undefined {
-  if (mode === "baseline") return providerById.get("deterministic");
-  if (mode === "commercial") return providerById.get("openai");
-  if (mode === "hf-open") return providerById.get("huggingface");
-  return readyOrFallback(providerById.get("openai"), providerById.get("huggingface"), providerById.get("deterministic"));
-}
-
-function synthesisStatusLabel(status?: string): string | undefined {
-  switch (status) {
-    case "ai-applied":
-      return "AI spec applied";
-    case "repaired":
-      return "AI spec repaired";
-    case "fallback":
-      return "Fallback";
-    case "baseline":
-      return "Code baseline";
-    default:
-      return status;
-  }
+function TextField(props: {
+  label: string;
+  value: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="text-field">
+      <span>{props.label}</span>
+      <input value={props.value} placeholder={props.placeholder} onChange={(event) => props.onChange(event.target.value)} />
+    </label>
+  );
 }
 
 export default function App() {
-  const [sections, setSections] = useState<QuestionnaireSection[]>([]);
+  const [theme, setTheme] = useState<Theme>(() => getStored("mag-theme", "dark", ["dark", "light"]));
+  const [language, setLanguage] = useState<Lang>(() => getStored("mag-lang", "ua", ["ua", "en"]));
+  const [activeStep, setActiveStep] = useState<StepId>("platform");
   const [form, setForm] = useState<QuestionnaireAnswers>(initialForm);
-  const [preview, setPreview] = useState<PreviewResponse | null>(null);
+  const [preview, setPreview] = useState<ArchitecturePreviewResponse | null>(null);
+  const [previewFingerprint, setPreviewFingerprint] = useState<string | null>(null);
+  const [generation, setGeneration] = useState<GenerationResponse | null>(null);
   const [generations, setGenerations] = useState<GenerationMetadata[]>([]);
-  const [createdGeneration, setCreatedGeneration] = useState<GenerationResponse | null>(null);
+  const [providers, setProviders] = useState<AIProviderStatusSummary[]>([]);
   const [loadingPreview, setLoadingPreview] = useState(false);
-  const [loadingGenerate, setLoadingGenerate] = useState(false);
+  const [loadingZip, setLoadingZip] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [advisorStatus, setAdvisorStatus] = useState<ArchitectureAdvisorStatus | null>(null);
-  const [providerStatuses, setProviderStatuses] = useState<AIProviderStatusSummary[]>([]);
-  const [advisorPlan, setAdvisorPlan] = useState<ArchitectureAdvisorReport | null>(null);
-  const [advisorLoading, setAdvisorLoading] = useState(false);
-  const [advisorError, setAdvisorError] = useState<string | null>(null);
-  const [selectedRunDetails, setSelectedRunDetails] = useState<GenerationRunDetails | null>(null);
-  const [runDetailsLoading, setRunDetailsLoading] = useState(false);
-  const [runDetailsError, setRunDetailsError] = useState<string | null>(null);
+  const [selectedDetails, setSelectedDetails] = useState<GenerationRunDetails | null>(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [detailsError, setDetailsError] = useState<string | null>(null);
   const [compareSelection, setCompareSelection] = useState<string[]>([]);
-  const [runComparison, setRunComparison] = useState<RunComparison | null>(null);
+  const [comparison, setComparison] = useState<RunComparison | null>(null);
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [comparisonError, setComparisonError] = useState<string | null>(null);
-  const [runtimeHealth, setRuntimeHealth] = useState<RuntimeHealthReport | null>(null);
+  const [historyPlatform, setHistoryPlatform] = useState<string>("all");
+  const [historyMode, setHistoryMode] = useState<string>("all");
+  const [historyStatus, setHistoryStatus] = useState<string>("all");
+
+  const t = copy[language];
+  const currentFingerprint = useMemo(() => formFingerprint(form), [form]);
+  const previewOutdated = Boolean(preview && previewFingerprint !== currentFingerprint);
+  const requiredValid = Boolean(form.projectName.trim() && form.appDisplayName.trim() && form.packageId?.trim());
+  const activeMode = form.generationMode ?? "baseline";
+  const activeProvider = providerForMode(activeMode, providers);
+  const shown = generation ?? preview;
+  const shownArtifacts = shown?.artifacts ?? [];
+  const fileCount = shown?.fileTree.filter((node) => node.type === "file").length ?? 0;
+  const folderCount = shown?.fileTree.filter((node) => node.type === "directory").length ?? 0;
 
   useEffect(() => {
-    fetchQuestionnaire().then(setSections).catch((err) => setError(humanError(err.message)));
-    listGenerations().then(setGenerations).catch((err) => setError(humanError(err.message)));
-    fetchAdvisorStatus().then(setAdvisorStatus).catch(() => setAdvisorStatus(null));
-    fetchProviderStatuses().then(setProviderStatuses).catch(() => setProviderStatuses([]));
-    fetchRuntimeHealth().then(setRuntimeHealth).catch(() => setRuntimeHealth(null));
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("mag-theme", theme);
+  }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem("mag-lang", language);
+  }, [language]);
+
+  useEffect(() => {
+    fetchProviderStatuses().then(setProviders).catch(() => setProviders([]));
+    listGenerations().then(setGenerations).catch(() => setGenerations([]));
   }, []);
 
-  const displayedSections = useMemo(
-    () => sections
-      .map((section) => ({ ...section, fields: visibleFields(section.fields) }))
-      .filter((section) => section.fields.length > 0),
-    [sections]
-  );
-
-  const enabledFeatures = useMemo(
-    () => featureLabels.filter((feature) => Boolean(form[feature.key])),
-    [form]
-  );
-
-  const canSubmit = form.projectName.trim().length > 0 && form.appDisplayName.trim().length > 0;
-  const selectedPlatform = platformLabels[form.profile] ?? form.profile;
-  const latestGeneration = createdGeneration ?? null;
-  const isBusy = loadingPreview || loadingGenerate;
-  const displayedArtifacts = useMemo(
-    () => (latestGeneration?.artifacts ?? preview?.artifacts ?? fallbackArtifacts(preview?.fileTree)).slice(0, 10),
-    [latestGeneration, preview]
-  );
-  const generatedFileCount = preview?.fileTree.filter((node) => node.type === "file").length ?? 0;
-  const activeAdvisor = advisorPlan ?? latestGeneration?.advisor ?? null;
-  const advisorSummary = latestGeneration?.advisorSummary ?? advisorSummaryFromReport(activeAdvisor);
-  const advisorWarnings = advisorSummary?.warnings?.filter(Boolean) ?? [];
-  const architectureSynthesis = latestGeneration?.architectureSynthesis ?? preview?.architectureSynthesis;
-  const hybridRefinement = latestGeneration?.hybridRefinement;
-  const validationV2 = latestGeneration?.validationV2 ?? preview?.validationV2;
-  const selectedMode = form.generationMode ?? "baseline";
-  const selectedModeOption = generationModeOptions.find((option) => option.mode === selectedMode) ?? generationModeOptions[0];
-  const selectedPlatformPack = getProjectProfile(form.profile as ProfileId).platformPack;
-  const providerById = useMemo(
-    () => new Map(providerStatuses.map((provider) => [provider.provider, provider])),
-    [providerStatuses]
-  );
-  const selectedProviderStatus = selectedModeOption.provider === "hybrid"
-    ? readyOrFallback(providerById.get("openai"), providerById.get("huggingface"), providerById.get("deterministic"))
-    : providerById.get(selectedModeOption.provider);
-  const selectedArchitectureProviderStatus = selectedMode === "hybrid"
-    ? providerById.get("deterministic")
-    : selectedProviderStatus;
-  const selectedHybridProviderStatus = selectedMode === "hybrid"
-    ? selectedProviderStatus
-    : undefined;
-  const selectedAdvisorProviderStatus = providerStatusForMode(selectedMode, providerById);
-
-  function buildRequestPayload() {
-    return {
-      ...form,
-      generationMode: selectedMode,
-      includeLLMNotes: selectedMode !== "baseline"
-    } as const;
-  }
-
-  function updateField(key: string, value: string | boolean) {
+  function updateForm<K extends keyof QuestionnaireAnswers>(key: K, value: QuestionnaireAnswers[K]) {
     setForm((current) => ({
       ...current,
       [key]: value
     }));
+    setGeneration(null);
   }
 
-  function updateGenerationMode(mode: GenerationMode) {
+  function updateMode(mode: GenerationMode) {
     setForm((current) => ({
       ...current,
       generationMode: mode,
       includeLLMNotes: mode !== "baseline"
     }));
-    setAdvisorPlan(null);
-    setCreatedGeneration(null);
+    setGeneration(null);
   }
 
-  function fillDemoForm() {
-    setForm(demoForm);
-    setPreview(null);
-    setAdvisorPlan(null);
-    setCreatedGeneration(null);
-    setError(null);
+  function payload(): QuestionnaireAnswers {
+    const mode = form.generationMode ?? "baseline";
+    return {
+      ...form,
+      generationMode: mode,
+      includeLLMNotes: mode !== "baseline"
+    };
   }
 
-  async function handlePreview() {
-    if (!canSubmit) {
-      setError("Заповни назву проєкту і назву додатка, щоб зібрати попередній перегляд.");
+  async function generateTree() {
+    if (!requiredValid) {
+      setError(t.requiredError);
       return;
     }
-
     try {
       setLoadingPreview(true);
       setError(null);
-      const result = await previewProfile(buildRequestPayload());
+      const request = payload();
+      const result = await createArchitecturePreview(request);
       setPreview(result);
+      setPreviewFingerprint(formFingerprint(request));
+      setGeneration(null);
+      setActiveStep("tree");
     } catch (err) {
-      setError(err instanceof Error ? humanError(err.message) : "Не вдалося підготувати попередній перегляд.");
+      setError(err instanceof Error ? err.message : "Preview failed");
     } finally {
       setLoadingPreview(false);
     }
   }
 
-  async function handleGenerate() {
-    if (!canSubmit) {
-      setError("Заповни назву проєкту і назву додатка, щоб створити ZIP.");
+  async function createZip() {
+    if (!preview || previewOutdated) {
+      setError(t.previewOutdated);
       return;
     }
-
     try {
-      setLoadingGenerate(true);
+      setLoadingZip(true);
       setError(null);
-      const result = await createGeneration(buildRequestPayload());
-      setAdvisorPlan(result.advisor ?? null);
-      setCreatedGeneration(result);
-      setPreview(result);
+      const result = await createGenerationFromPreview(preview.previewId);
+      setGeneration(result);
+      setPreview((current) => current ? { ...current, ...result, previewId: current.previewId, createdAt: current.createdAt } : current);
       setGenerations(await listGenerations());
+      setActiveStep("result");
     } catch (err) {
-      setError(err instanceof Error ? humanError(err.message) : "Не вдалося створити архів.");
+      setError(err instanceof Error ? err.message : "Generation failed");
     } finally {
-      setLoadingGenerate(false);
+      setLoadingZip(false);
     }
   }
 
-  async function handleAdvisorPlan() {
-    if (!canSubmit) {
-      setAdvisorError("Заповни назву проєкту і назву додатка, щоб підготувати рекомендації.");
-      return;
-    }
-
+  async function loadDetails(id: string) {
     try {
-      setAdvisorLoading(true);
-      setAdvisorError(null);
-      const result = await createAdvisorPlan(buildRequestPayload());
-      setAdvisorPlan(result.advisor);
-      if (result.preview) {
-        setPreview(result.preview);
-        setCreatedGeneration(null);
-      }
+      setDetailsLoading(true);
+      setDetailsError(null);
+      setSelectedDetails(await fetchGenerationDetails(id));
+      setActiveStep("history");
     } catch (err) {
-      setAdvisorError(err instanceof Error ? humanError(err.message) : "Не вдалося підготувати рекомендації архітектурного радника.");
+      setDetailsError(err instanceof Error ? err.message : "Run details failed");
     } finally {
-      setAdvisorLoading(false);
+      setDetailsLoading(false);
     }
   }
 
-  async function handleRunDetails(id: string) {
-    try {
-      setRunDetailsLoading(true);
-      setRunDetailsError(null);
-      const details = await fetchGenerationDetails(id);
-      setSelectedRunDetails(details);
-    } catch (err) {
-      setRunDetailsError(err instanceof Error ? humanError(err.message) : "Could not load generation details.");
-    } finally {
-      setRunDetailsLoading(false);
-    }
+  function toggleCompare(id: string) {
+    setComparison(null);
+    setCompareSelection((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current.slice(-4), id]);
   }
 
-  function toggleCompareRun(id: string) {
-    setComparisonError(null);
-    setRunComparison(null);
-    setCompareSelection((current) => {
-      if (current.includes(id)) {
-        return current.filter((item) => item !== id);
-      }
-      return [...current.slice(-3), id];
-    });
-  }
-
-  async function handleCompareRuns() {
+  async function runCompare() {
     if (compareSelection.length < 2) {
-      setComparisonError("Select at least two generation runs for comparison.");
+      setComparisonError(t.compareEmpty);
       return;
     }
-
     try {
       setComparisonLoading(true);
       setComparisonError(null);
-      setRunComparison(await compareGenerations(compareSelection));
+      setComparison(await compareGenerations(compareSelection));
+      setActiveStep("compare");
     } catch (err) {
-      setComparisonError(err instanceof Error ? humanError(err.message) : "Could not compare generation runs.");
+      setComparisonError(err instanceof Error ? err.message : "Compare failed");
     } finally {
       setComparisonLoading(false);
     }
   }
 
+  const filteredGenerations = generations.filter((item) => {
+    const platformOk = historyPlatform === "all" || item.profile === historyPlatform;
+    const modeOk = historyMode === "all" || (item.generationMode ?? "baseline") === historyMode;
+    const statusOk = historyStatus === "all" || item.status === historyStatus;
+    return platformOk && modeOk && statusOk;
+  });
+
+  const stepState = (id: StepId): string => {
+    if (id === activeStep) return "active";
+    if ((id === "tree" || id === "result") && !preview) return "locked";
+    if (id === "result" && !generation) return "locked";
+    if (!requiredValid && (id === "tree" || id === "result")) return "error";
+    return "ready";
+  };
+
   return (
-    <div className="shell">
-      <header className="top-bar">
-        <h1>App architector</h1>
-        <nav className="top-steps" aria-label="Основні кроки генерації">
-          <span><strong>1</strong> Заповни форму</span>
-          <span><strong>2</strong> Перевір структуру</span>
-          <span><strong>3</strong> Завантаж ZIP</span>
-        </nav>
-      </header>
+    <div className="app-shell">
+      <TopBar theme={theme} language={language} onThemeChange={setTheme} onLanguageChange={setLanguage} />
 
-      {error ? <div className="error-banner">{error}</div> : null}
-
-      <main className="layout">
-        <section className="panel form-panel">
-          <div className="panel-header">
-            <div>
-              <span className="section-kicker">Налаштування</span>
-              <h2>Опиши майбутній додаток</h2>
-            </div>
-            <div className="header-actions">
-              <button className="secondary small-button" type="button" onClick={fillDemoForm}>
-                Demo data
+      <main className="console-layout">
+        <aside className="flow-sidebar">
+          <div className="mini-hero">
+            <span className="kicker">{t.lab}</span>
+            <p>{t.intro}</p>
+          </div>
+          <nav className="step-list" aria-label="Flow steps">
+            {steps.map((step, index) => (
+              <button className={`step-button ${stepState(step.id)}`} key={step.id} type="button" onClick={() => setActiveStep(step.id)}>
+                <b>{index + 1}</b>
+                <span>{t[step.labelKey]}</span>
               </button>
-              <span className="status-pill">{selectedModeOption.title}</span>
+            ))}
+          </nav>
+          <button className="ghost-button demo-button" type="button" onClick={() => {
+            setForm(initialForm);
+            setError(null);
+          }}>{t.demo}</button>
+        </aside>
+
+        <section className="workspace-panel">
+          {error ? <div className="error-banner">{error}</div> : null}
+          {previewOutdated ? <div className="warning-banner">{t.previewOutdated}</div> : null}
+
+          {activeStep === "platform" ? (
+            <div className="step-panel">
+              <div className="section-head"><div><span className="kicker">01</span><h1>{t.platform}</h1></div></div>
+              <div className="option-grid four">
+                {platformOptions.map((option) => (
+                  <OptionCard
+                    key={option.id}
+                    active={form.profile === option.id}
+                    title={option.title}
+                    description={option.description}
+                    onClick={() => updateForm("profile", option.id)}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-
-          <div className="mode-selector" aria-label="Вибір режиму генерації">
-            {generationModeOptions.map((option) => {
-              const providerStatus = option.provider === "hybrid"
-                ? readyOrFallback(providerById.get("openai"), providerById.get("huggingface"), providerById.get("deterministic"))
-                : providerById.get(option.provider);
-              const active = selectedMode === option.mode;
-
-              return (
-                <button
-                  key={option.mode}
-                  type="button"
-                  className={active ? "mode-card active" : "mode-card"}
-                  onClick={() => updateGenerationMode(option.mode)}
-                  aria-pressed={active}
-                >
-                  <span className="mode-card-top">
-                    <strong>{option.title}</strong>
-                    <em>{option.badge}</em>
-                  </span>
-                  <small>{option.subtitle}</small>
-                  <span className="mode-status">
-                    {providerStatus ? `${providerStatus.status}${providerStatus.model ? ` · ${providerStatus.model}` : ""}` : "status pending"}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {displayedSections.length === 0 ? (
-            <div className="empty-state">Завантажуємо форму...</div>
           ) : null}
 
-          {displayedSections.map((section, index) => (
-            <div className="section-block" key={section.id}>
-              <div className="section-title-row">
-                <span className="step-number">{index + 1}</span>
-                <div>
-                  <h3>{section.title}</h3>
-                  <p>{section.description}</p>
-                </div>
+          {activeStep === "basics" ? (
+            <div className="step-panel">
+              <div className="section-head"><div><span className="kicker">02</span><h1>{t.basics}</h1></div></div>
+              <div className="form-grid">
+                <TextField label={t.projectName} value={form.projectName} placeholder="Finance Tracker" onChange={(value) => updateForm("projectName", value)} />
+                <TextField label={t.displayName} value={form.appDisplayName} placeholder="Finance" onChange={(value) => updateForm("appDisplayName", value)} />
+                <TextField label={t.packageId} value={form.packageId ?? ""} placeholder="com.company.product" onChange={(value) => updateForm("packageId", value)} />
               </div>
-              <div className="field-grid">
-                {section.fields.map((field) => {
-                  const value = fieldValue(form, field.key);
-                  const fieldId = `field-${field.key}`;
-                  const booleanField = field.type === "boolean";
+            </div>
+          ) : null}
 
+          {activeStep === "ai" ? (
+            <div className="step-panel">
+              <div className="section-head"><div><span className="kicker">03</span><h1>{t.ai}</h1></div></div>
+              <div className="option-grid four">
+                {modeOptions.map((option) => {
+                  const status = option.provider === "hybrid" ? providerForMode("hybrid", providers) : providers.find((item) => item.provider === option.provider);
                   return (
-                    <label className={booleanField ? "field checkbox-field" : "field"} key={field.key} htmlFor={fieldId}>
-                      <span className="field-label">{field.label}</span>
-                      {field.type === "select" ? (
-                        <select
-                          id={fieldId}
-                          value={String(value)}
-                          onChange={(event) => updateField(field.key, event.target.value)}
-                        >
-                          <option value="">Обрати автоматично</option>
-                          {field.options?.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      ) : booleanField ? (
-                        <div className="checkbox-row">
-                          <input
-                            id={fieldId}
-                            type="checkbox"
-                            checked={Boolean(value)}
-                            onChange={(event) => updateField(field.key, event.target.checked)}
-                          />
-                          <span>{Boolean(value) ? "Додати" : "Не додавати"}</span>
-                        </div>
-                      ) : (
-                        <input
-                          id={fieldId}
-                          type="text"
-                          value={String(value)}
-                          onChange={(event) => updateField(field.key, event.target.value)}
-                          placeholder={field.help}
-                        />
-                      )}
-                      <small>{field.help}</small>
-                    </label>
+                    <OptionCard
+                      key={option.id}
+                      active={activeMode === option.id}
+                      title={option.title}
+                      badge={option.badge}
+                      description={option.description}
+                      meta={status ? `${status.status}${status.model ? ` · ${status.model}` : ""}` : t.modeReady}
+                      onClick={() => updateMode(option.id)}
+                    />
                   );
                 })}
               </div>
+              {activeProvider ? <p className="quiet-note">Provider: {activeProvider.provider} · {activeProvider.status}{activeProvider.model ? ` · ${activeProvider.model}` : ""}</p> : null}
             </div>
-          ))}
+          ) : null}
 
-          <div className="advisor-option">
-            <div className="advisor-mode-summary">
-              <strong>{selectedModeOption.title}</strong>
-              <span>{selectedMode === "baseline" ? "ZIP буде згенеровано кодом без ШІ." : "У ZIP буде додано AI/advisor артефакти."}</span>
-            </div>
-            <p>{selectedModeOption.subtitle} Якщо провайдер недоступний або поверне некоректний JSON, генерація не впаде: буде використано deterministic fallback.</p>
-            {selectedArchitectureProviderStatus ? <small>Architecture provider: {selectedArchitectureProviderStatus.provider} · {selectedArchitectureProviderStatus.status}{selectedArchitectureProviderStatus.model ? ` · ${selectedArchitectureProviderStatus.model}` : ""}</small> : null}
-            {selectedHybridProviderStatus ? <small>Hybrid refinement provider: {selectedHybridProviderStatus.provider} · {selectedHybridProviderStatus.status}{selectedHybridProviderStatus.model ? ` · ${selectedHybridProviderStatus.model}` : ""}</small> : null}
-            {selectedAdvisorProviderStatus ? (
-              <small>Advisor provider: {selectedAdvisorProviderStatus.provider} · {selectedAdvisorProviderStatus.status}{selectedAdvisorProviderStatus.model ? ` · ${selectedAdvisorProviderStatus.model}` : ""}</small>
-            ) : advisorStatus ? (
-              <small>Advisor provider: {advisorStatus.provider} · {advisorStatus.status}{advisorStatus.model ? ` · ${advisorStatus.model}` : ""}</small>
-            ) : null}
-            <button className="secondary small-button" onClick={handleAdvisorPlan} disabled={!canSubmit || isBusy || advisorLoading}>
-              {advisorLoading ? "Готуємо AI-план..." : "AI-план без ZIP"}
-            </button>
-            <small>{actionDescriptions.advisorPlan}</small>
-            {advisorError ? <small className="error-text">{advisorError}</small> : null}
-          </div>
-
-          <div className="actions">
-            <button className="secondary" onClick={handlePreview} disabled={!canSubmit || isBusy}>
-              {loadingPreview ? "Перевіряємо..." : "Preview структури ZIP"}
-            </button>
-            <button className="primary" onClick={handleGenerate} disabled={!canSubmit || isBusy}>
-              {loadingGenerate ? "Створюємо ZIP..." : "Створити ZIP"}
-            </button>
-          </div>
-          <div className="action-explainers">
-            <small>{actionDescriptions.structurePreview}</small>
-            <small>{actionDescriptions.generateZip}</small>
-          </div>
-        </section>
-
-        <aside className="side-column">
-          <section className="panel preview-panel">
-            <div className="panel-header compact">
-              <div>
-                <span className="section-kicker">Попередній перегляд</span>
-                <h2>Що буде у ZIP</h2>
+          {activeStep === "architecture" ? (
+            <div className="step-panel">
+              <div className="section-head"><div><span className="kicker">04</span><h1>{t.architecture}</h1></div></div>
+              <h3>Architecture style</h3>
+              <div className="option-grid four compact">
+                {architectureOptions.map((option) => (
+                  <OptionCard key={option.value} active={form.architectureStyle === option.value} title={option.title} description={option.description} onClick={() => updateForm("architectureStyle", option.value)} />
+                ))}
+              </div>
+              <h3>State management</h3>
+              <div className="option-grid five compact">
+                {stateOptions.map((option) => (
+                  <OptionCard key={option.value} active={form.stateManagement === option.value} title={option.title} description={option.description} onClick={() => updateForm("stateManagement", option.value)} />
+                ))}
+              </div>
+              <h3>Navigation</h3>
+              <div className="option-grid four compact">
+                {navOptions.map((option) => (
+                  <OptionCard key={option.value} active={form.navigationStyle === option.value} title={option.title} description={option.description} onClick={() => updateForm("navigationStyle", option.value)} />
+                ))}
+              </div>
+              <h3>Environment</h3>
+              <div className="option-grid two compact">
+                <OptionCard active={form.environmentMode === "single"} title="Single" description="One environment config for first prototype runs." onClick={() => updateForm("environmentMode", "single")} />
+                <OptionCard active={form.environmentMode === "multi"} title="Dev / Stage / Prod" description="Separate config boundaries for real deployment paths." onClick={() => updateForm("environmentMode", "multi")} />
               </div>
             </div>
+          ) : null}
 
-            <div className="summary-grid">
-              <div className="summary-tile">
-                <span>Платформа</span>
-                <strong>{selectedPlatform}</strong>
-              </div>
-              <div className="summary-tile">
-                <span>Архітектура</span>
-                <strong>{form.architectureStyle || "Автоматично"}</strong>
-              </div>
-              <div className="summary-tile">
-                <span>Файлів</span>
-                <strong>{preview ? preview.fileTree.filter((node) => node.type === "file").length : "—"}</strong>
-              </div>
-              <div className="summary-tile">
-                <span>Перевірка</span>
-                <strong>{preview?.validation.spec.status === "passed" && preview.validation.manifest.status === "passed" ? "Готово" : preview ? "Є зауваження" : "—"}</strong>
+          {activeStep === "modules" ? (
+            <div className="step-panel">
+              <div className="section-head"><div><span className="kicker">05</span><h1>{t.modules}</h1></div></div>
+              <div className="module-grid">
+                {modules.map((module) => (
+                  <button
+                    className={form[module.key] ? "module-card active" : "module-card"}
+                    key={module.key}
+                    type="button"
+                    onClick={() => updateForm(module.key, !form[module.key])}
+                  >
+                    <span><strong>{module.title}</strong><i>{form[module.key] ? "on" : "off"}</i></span>
+                    <small>{module.description}</small>
+                  </button>
+                ))}
               </div>
             </div>
+          ) : null}
 
-            <div className="selected-modules">
-              <h3>Обрані модулі</h3>
-              {enabledFeatures.length > 0 ? (
-                <div className="chips">
-                  {enabledFeatures.map((feature) => <span className="chip" key={String(feature.key)}>{feature.label}</span>)}
+          {activeStep === "extras" ? (
+            <div className="step-panel">
+              <div className="section-head"><div><span className="kicker">06</span><h1>{t.extras}</h1></div></div>
+              <div className="option-grid two">
+                <OptionCard active={Boolean(form.includeExampleScreen)} title="Example screen" description="Adds visible starter screen/home flow files to the generated tree." onClick={() => updateForm("includeExampleScreen", !form.includeExampleScreen)} />
+                <OptionCard active={activeMode !== "baseline"} title="Advisor artifacts" description="Automatic for GPT, Qwen and Hybrid. Baseline still gets deterministic explanation in preview." onClick={() => undefined} />
+              </div>
+            </div>
+          ) : null}
+
+          {activeStep === "tree" ? (
+            <div className="step-panel">
+              <div className="section-head">
+                <div><span className="kicker">07</span><h1>{t.tree}</h1></div>
+                <button className="primary-button" type="button" disabled={!requiredValid || loadingPreview} onClick={() => void generateTree()}>
+                  {loadingPreview ? t.generatingTree : t.generateTree}
+                </button>
+              </div>
+              {shown ? (
+                <div className="tree-layout">
+                  <FileTreeViewer
+                    nodes={shown.fileTree}
+                    artifacts={shownArtifacts}
+                    labels={{
+                      title: t.tree,
+                      copy: t.copyTree,
+                      copied: "Copied",
+                      files: t.files,
+                      folders: t.folders,
+                      docs: t.docs,
+                      metadata: t.metadata,
+                      empty: t.noPreview
+                    }}
+                  />
+                  <aside className="tree-side">
+                    <div className="metric-grid">
+                      <span><small>{t.files}</small><strong>{fileCount}</strong></span>
+                      <span><small>{t.folders}</small><strong>{folderCount}</strong></span>
+                      <span><small>Artifacts</small><strong>{shown.manifest.summary.totalArtifacts}</strong></span>
+                      <span><small>Docs</small><strong>{countKind(shownArtifacts, "documentation")}</strong></span>
+                    </div>
+                    <ValidationSummary validationV2={shown.validationV2} />
+                    <div className="advisor-summary-card">
+                      <h3>{t.architectureExplanation}</h3>
+                      <p>{shown.advisorSummary?.summary ?? shown.spec.explanation}</p>
+                      <div className="chip-row">
+                        <span className="chip">{shown.architectureSynthesis?.status ?? "baseline"}</span>
+                        <span className="chip">{shown.profile.generationMode}</span>
+                        <span className="chip">{shown.spec.architecture.style}</span>
+                      </div>
+                    </div>
+                  </aside>
                 </div>
               ) : (
-                <p>Поки що додаткові модулі не вибрані.</p>
+                <div className="empty-state">{t.noPreview}</div>
               )}
             </div>
-
-            <PlatformPackPanel pack={selectedPlatformPack} />
-
-            {preview ? (
-              <div className="preview-stack">
-                <div className="card success-card">
-                  <h3>Структура готова до генерації</h3>
-                  <p>
-                    Коренева папка: <strong>{preview.manifest.rootFolderName}</strong>. Артефактів у плані: {preview.manifest.summary.totalArtifacts}.
-                  </p>
-                </div>
-
-                <div className="card package-console">
-                  <div className="card-row">
-                    <div>
-                      <span className="section-kicker">Generated package</span>
-                      <h3>{latestGeneration ? "Архів зібрано" : "Пакет готовий до генерації"}</h3>
-                    </div>
-                    <span className="status-pill accent-pill">{latestGeneration ? "ZIP READY" : "PREVIEW"}</span>
-                  </div>
-                  <div className="result-metrics">
-                    <div>
-                      <span>Root</span>
-                      <strong>{preview.manifest.rootFolderName}</strong>
-                    </div>
-                    <div>
-                      <span>Files</span>
-                      <strong>{generatedFileCount}</strong>
-                    </div>
-                    <div>
-                      <span>Artifacts</span>
-                      <strong>{preview.manifest.summary.totalArtifacts}</strong>
-                    </div>
-                    <div>
-                      <span>AI spec</span>
-                      <strong>{synthesisStatusLabel(architectureSynthesis?.status) ?? selectedModeOption.title}</strong>
-                    </div>
-                  </div>
-                  {latestGeneration ? (
-                    <a className="download-link compact-download" href={downloadUrlForGeneration(latestGeneration.generationId)}>Download ZIP</a>
-                  ) : null}
-                </div>
-
-                <ValidationSummary validationV2={validationV2} />
-
-                {displayedArtifacts.length > 0 ? (
-                  <div className="card artifact-card">
-                    <div className="card-row">
-                      <h3>Included artifacts</h3>
-                      <span className="status-pill">{displayedArtifacts.length} shown</span>
-                    </div>
-                    <ul className="artifact-list">
-                      {displayedArtifacts.map((artifact) => (
-                        <li key={artifact.path}>
-                          <span className={`artifact-kind artifact-${artifact.kind}`}>{artifactLabel(artifact.kind)}</span>
-                          <div>
-                            <strong title={artifact.path}>{compactArtifactPath(artifact.path)}</strong>
-                            {artifact.description ? <small>{artifact.description}</small> : null}
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-
-                {architectureSynthesis ? (
-                  <div className="card synthesis-card">
-                    <div className="card-row">
-                      <h3>Architecture generation</h3>
-                      <span className="status-pill accent-pill">
-                        {architectureSynthesis.usedAi ? architectureSynthesis.provider : "code"}
-                      </span>
-                    </div>
-                    <p>
-                      {architectureSynthesis.usedAi
-                        ? `ArchitectureSpec was synthesized by ${architectureSynthesis.provider}${architectureSynthesis.model ? ` (${architectureSynthesis.model})` : ""}.`
-                        : "ArchitectureSpec was built by deterministic code."}
-                    </p>
-                    <small>Status: {synthesisStatusLabel(architectureSynthesis.status)} · Mode: {architectureSynthesis.mode}</small>
-                    <small className="synthesis-footnote">
-                      {architectureSynthesis.usedAi
-                        ? "AI produced the ArchitectureSpec; the ZIP file tree is still materialized by the deterministic generator."
-                        : "The deterministic generator produced both the ArchitectureSpec and ZIP file tree."}
-                    </small>
-                    {architectureSynthesis.warnings.length > 0 ? (
-                      <details className="inline-debug-details">
-                        <summary>Provider safeguards: {architectureSynthesis.warnings.length}</summary>
-                        <ul className="note-list">
-                          {architectureSynthesis.warnings.slice(0, 5).map((warning) => <li key={warning}>{warning}</li>)}
-                        </ul>
-                      </details>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {hybridRefinement ? (
-                  <div className="card synthesis-card">
-                    <div className="card-row">
-                      <h3>Hybrid refinement</h3>
-                      <span className="status-pill accent-pill">{hybridRefinement.status}</span>
-                    </div>
-                    <p>
-                      AI can refine only allowlisted documentation files. Source files, manifest, metadata and required tree contracts stay deterministic.
-                    </p>
-                    <small>
-                      Provider: {hybridRefinement.provider}{hybridRefinement.model ? ` - ${hybridRefinement.model}` : ""} - Accepted: {hybridRefinement.acceptedPatches.length} - Rejected: {hybridRefinement.rejectedPatches.length}
-                    </small>
-                    {hybridRefinement.acceptedPatches.length > 0 ? (
-                      <ul className="note-list">
-                        {hybridRefinement.acceptedPatches.slice(0, 4).map((patch) => (
-                          <li key={`${patch.operation}:${patch.path}`}>
-                            <strong>{patch.path}:</strong> {patch.rationale}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                    {hybridRefinement.warnings.length > 0 ? (
-                      <details className="inline-debug-details">
-                        <summary>Hybrid safeguards: {hybridRefinement.warnings.length}</summary>
-                        <ul className="note-list">
-                          {hybridRefinement.warnings.slice(0, 5).map((warning) => <li key={warning}>{warning}</li>)}
-                        </ul>
-                      </details>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                <div className="card">
-                  <h3>Дерево файлів</h3>
-                  <ul className="tree-list">
-                    {preview.fileTree.slice(0, 80).map((node) => (
-                      <li className={node.type === "directory" ? "directory-node" : "file-node"} key={node.path}>{node.path}</li>
-                    ))}
-                  </ul>
-                  {preview.fileTree.length > 80 ? <small>Показано перші 80 елементів з {preview.fileTree.length}.</small> : null}
-                </div>
-
-                {preview.notes.length > 0 ? (
-                  <div className="card">
-                    <h3>Нотатки генерації</h3>
-                    <ul className="note-list">
-                      {preview.notes.map((note) => <li key={note}>{note}</li>)}
-                    </ul>
-                  </div>
-                ) : null}
-
-                {activeAdvisor || advisorSummary ? (
-                  <div className="card advisor-card">
-                    <div className="card-row">
-                      <h3>Архітектурний план</h3>
-                      <span className="status-pill accent-pill">{advisorSummary?.mode ?? activeAdvisor?.status ?? "summary"}</span>
-                    </div>
-                    <p>{advisorSummary?.summary ?? activeAdvisor?.summary}</p>
-                    {activeAdvisor?.recommendations && activeAdvisor.recommendations.length > 0 ? (
-                      <div className="advisor-section">
-                        <h4>Recommendations</h4>
-                        <ul className="note-list">
-                          {activeAdvisor.recommendations.slice(0, 3).map((recommendation) => <li key={recommendation}>{recommendation}</li>)}
-                        </ul>
-                      </div>
-                    ) : null}
-                    {advisorWarnings.length > 0 ? (
-                      <div className="advisor-section warning-section">
-                        <h4>Warnings</h4>
-                        <ul className="note-list">
-                          {advisorWarnings.slice(0, 3).map((warning) => <li key={warning}>{warning}</li>)}
-                        </ul>
-                      </div>
-                    ) : null}
-                    {activeAdvisor?.decisions && activeAdvisor.decisions.length > 0 ? (
-                      <ul className="note-list">
-                        {activeAdvisor.decisions.slice(0, 4).map((decision) => (
-                          <li key={decision.id}>
-                            <strong>{decision.title}:</strong> {decision.recommendation}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                <details className="technical-details">
-                  <summary>Технічні деталі для перевірки</summary>
-                  <div className="technical-grid">
-                    <div className="card">
-                      <h3>Profile</h3>
-                      <pre>{JSON.stringify(preview.profile, null, 2)}</pre>
-                    </div>
-                    <div className="card">
-                      <h3>Spec</h3>
-                      <pre>{JSON.stringify(preview.spec, null, 2)}</pre>
-                    </div>
-                    <div className="card">
-                      <h3>Manifest</h3>
-                      <pre>{JSON.stringify(preview.manifest, null, 2)}</pre>
-                    </div>
-                    <div className="card">
-                      <h3>Validation</h3>
-                      <pre>{JSON.stringify(preview.validation, null, 2)}</pre>
-                    </div>
-                    <div className="card">
-                      <h3>Validation v2</h3>
-                      <pre>{JSON.stringify(validationV2 ?? null, null, 2)}</pre>
-                    </div>
-                  </div>
-                </details>
-              </div>
-            ) : (
-              <div className="empty-state">
-                Заповни базові поля і натисни «Переглянути структуру», щоб побачити майбутній ZIP до генерації.
-              </div>
-            )}
-          </section>
-
-          {latestGeneration ? (
-            <section className="panel download-panel">
-              <h2>Архів готовий</h2>
-              <p>Остання генерація успішно зібрана. ZIP можна завантажити прямо зараз.</p>
-              <a className="download-link" href={downloadUrlForGeneration(latestGeneration.generationId)}>Завантажити ZIP</a>
-            </section>
           ) : null}
 
-          {runtimeHealth ? (
-            <section className="panel runtime-panel">
-              <RuntimeHealthPanel health={runtimeHealth} />
-            </section>
+          {activeStep === "result" ? (
+            <div className="step-panel">
+              <div className="section-head">
+                <div><span className="kicker">08</span><h1>{t.result}</h1></div>
+                <button className="primary-button" type="button" disabled={!preview || previewOutdated || loadingZip} onClick={() => void createZip()}>
+                  {loadingZip ? t.creatingZip : t.createZip}
+                </button>
+              </div>
+              {generation ? (
+                <div className="result-card">
+                  <span className="status-pill">{t.zipReady}</span>
+                  <h2>{generation.profile.projectName}</h2>
+                  <p>{generation.profile.profile} · {generation.profile.generationMode} · {generation.runMetrics?.fileCount ?? fileCount} files · validation {generation.runMetrics?.validationStatus ?? "passed"}</p>
+                  <a className="primary-link" href={downloadUrlForGeneration(generation.generationId)}>{t.downloadZip}</a>
+                </div>
+              ) : (
+                <div className="empty-state">{preview ? t.createZip : t.noPreview}</div>
+              )}
+            </div>
           ) : null}
-        </aside>
+
+          {activeStep === "history" ? (
+            <div className="step-panel">
+              <div className="section-head"><div><span className="kicker">09</span><h1>{t.history}</h1></div></div>
+              <div className="filters-row">
+                <select value={historyPlatform} onChange={(event) => setHistoryPlatform(event.target.value)}>
+                  <option value="all">All platforms</option>
+                  {platformOptions.map((option) => <option key={option.id} value={option.id}>{option.title}</option>)}
+                </select>
+                <select value={historyMode} onChange={(event) => setHistoryMode(event.target.value)}>
+                  <option value="all">All modes</option>
+                  {modeOptions.map((option) => <option key={option.id} value={option.id}>{option.title}</option>)}
+                </select>
+                <select value={historyStatus} onChange={(event) => setHistoryStatus(event.target.value)}>
+                  <option value="all">All statuses</option>
+                  <option value="completed">completed</option>
+                  <option value="failed">failed</option>
+                </select>
+              </div>
+              <div className="history-grid">
+                {filteredGenerations.slice(0, 12).map((item) => (
+                  <article className={compareSelection.includes(item.id) ? "history-card selected" : "history-card"} key={item.id}>
+                    <div>
+                      <strong>{item.projectName} · {item.generationMode ?? "baseline"} · {item.profile}</strong>
+                      <small>{formatDate(item.createdAt)}</small>
+                    </div>
+                    <div className="history-actions">
+                      <button className="ghost-button" type="button" onClick={() => void loadDetails(item.id)}>Details</button>
+                      <button className="ghost-button" type="button" onClick={() => toggleCompare(item.id)}>Compare</button>
+                      <a href={downloadUrlForGeneration(item.id)}>ZIP</a>
+                    </div>
+                  </article>
+                ))}
+              </div>
+              <RunDetailsPanel details={selectedDetails} loading={detailsLoading} error={detailsError} labels={{
+                empty: t.selectRun,
+                loading: "Loading...",
+                title: t.runDetails,
+                summary: "Summary",
+                modules: t.selectedModules,
+                metrics: "Metrics",
+                advanced: "Advanced"
+              }} />
+            </div>
+          ) : null}
+
+          {activeStep === "compare" ? (
+            <div className="step-panel">
+              <div className="section-head">
+                <div><span className="kicker">10</span><h1>{t.compare}</h1></div>
+                <button className="primary-button" type="button" disabled={compareSelection.length < 2 || comparisonLoading} onClick={() => void runCompare()}>{t.compareSelected}</button>
+              </div>
+              <div className="compare-selection-note">{compareSelection.length} selected</div>
+              <RunComparisonPanel comparison={comparison} selectedCount={compareSelection.length} loading={comparisonLoading} error={comparisonError} labels={{
+                empty: t.compareEmpty,
+                loading: "Comparing...",
+                title: t.compare,
+                strongest: "Most complete"
+              }} />
+            </div>
+          ) : null}
+        </section>
       </main>
 
-      <section className="panel history-panel">
-        <div className="panel-header">
-          <div>
-            <span className="section-kicker">Історія</span>
-            <h2>Останні готові архіви</h2>
-          </div>
-          <span className="status-pill">{generations.length} збережено</span>
-        </div>
-
-        <div className="history-list">
-          {generations.map((item) => (
-            <article className={compareSelection.includes(item.id) ? "history-card selected" : "history-card"} key={item.id}>
-              <div>
-                <strong>{item.projectName}</strong>
-                <div>{platformLabels[item.profile] ?? item.profile} · {item.status === "completed" ? "готово" : "помилка"}</div>
-                <small>{formatDate(item.createdAt)}</small>
-              </div>
-              <div className="history-actions">
-                <button className="secondary small-button" type="button" onClick={() => handleRunDetails(item.id)}>
-                  Details
-                </button>
-                <button
-                  className={compareSelection.includes(item.id) ? "secondary small-button active-toggle" : "secondary small-button"}
-                  type="button"
-                  onClick={() => toggleCompareRun(item.id)}
-                  aria-pressed={compareSelection.includes(item.id)}
-                >
-                  Compare
-                </button>
-                <a href={downloadUrlForGeneration(item.id)}>ZIP</a>
-              </div>
-            </article>
-          ))}
-          {generations.length === 0 ? <div className="empty-state">Після першої генерації тут з’явиться посилання на архів.</div> : null}
-        </div>
-
-        <div className="console-grid">
-          <section className="console-card">
-            <RunDetailsPanel details={selectedRunDetails} loading={runDetailsLoading} error={runDetailsError} />
-          </section>
-          <section className="console-card">
-            <div className="compare-actions">
-              <button className="primary" type="button" onClick={handleCompareRuns} disabled={compareSelection.length < 2 || comparisonLoading}>
-                Compare selected
-              </button>
-              <span>{compareSelection.length} selected</span>
-            </div>
-            <RunComparisonPanel comparison={runComparison} selectedCount={compareSelection.length} loading={comparisonLoading} error={comparisonError} />
-          </section>
-        </div>
-      </section>
+      <div className="floating-actions">
+        <button className="secondary-button" type="button" disabled={!requiredValid || loadingPreview} onClick={() => void generateTree()}>
+          {loadingPreview ? t.generatingTree : t.generateTree}
+        </button>
+        <button className="primary-button" type="button" disabled={!preview || previewOutdated || loadingZip} onClick={() => void createZip()}>
+          {loadingZip ? t.creatingZip : t.createZip}
+        </button>
+      </div>
     </div>
   );
 }

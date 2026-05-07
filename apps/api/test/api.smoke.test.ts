@@ -124,6 +124,41 @@ describe("API smoke", () => {
     await app.close();
   });
 
+  it("materializes ZIP from the stored architecture preview snapshot", async () => {
+    const app = createApp();
+    const preview = await app.inject({
+      method: "POST",
+      url: "/api/architecture/preview",
+      payload: {
+        ...phaseFourPayload,
+        profile: "ios",
+        architectureStyle: "feature-first",
+        hasAuth: true,
+        includeExampleScreen: true
+      }
+    });
+
+    const previewPayload = preview.json();
+    expect(preview.statusCode).toBe(200);
+    expect(previewPayload.previewId).toBeTruthy();
+    expect(previewPayload.fileTree.some((node: { path: string }) => node.path.endsWith("AuthViewModel.swift"))).toBe(true);
+
+    const generation = await app.inject({
+      method: "POST",
+      url: "/api/generations/from-preview",
+      payload: { previewId: previewPayload.previewId }
+    });
+
+    const generationPayload = generation.json();
+    expect(generation.statusCode).toBe(200);
+    expect(generationPayload.generationId).toBeTruthy();
+    expect(generationPayload.spec).toEqual(previewPayload.spec);
+    expect(generationPayload.manifest).toEqual(previewPayload.manifest);
+    expect(generationPayload.fileTree).toEqual(previewPayload.fileTree);
+    expect(generationPayload.zipPath).toBeTruthy();
+    await app.close();
+  });
+
   it("returns generation artifacts and advisor summary after creating a ZIP", async () => {
     const app = createApp();
     const response = await app.inject({

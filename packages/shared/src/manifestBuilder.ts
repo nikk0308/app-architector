@@ -29,6 +29,14 @@ function pushArtifact(
   collection.push(artifact);
 }
 
+function architectureArtifactId(style: string): string {
+  const normalized = style.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  if (normalized === "mvvm") return "architecture.mvvm";
+  if (normalized === "layered") return "architecture.layered";
+  if (normalized === "coordinator") return "architecture.coordinator";
+  return "architecture.feature-first";
+}
+
 export function buildArtifactManifest(spec: ArchitectureSpec): ArtifactManifest {
   const profile = getProjectProfile(spec.profileId);
   const artifacts: ArtifactDefinition[] = [];
@@ -74,6 +82,15 @@ export function buildArtifactManifest(spec: ArchitectureSpec): ArtifactManifest 
     id: profile.baseArtifactId,
     title: `${profile.label} foundation`,
     reason: "Each platform profile contributes a deterministic foundation scaffold.",
+    required: true,
+    category: "profile",
+    source: "baseline"
+  });
+
+  pushArtifact(artifacts, {
+    id: architectureArtifactId(spec.architecture.style),
+    title: `${spec.architecture.style} architecture marker`,
+    reason: "The selected architecture style contributes a visible source boundary to the generated tree.",
     required: true,
     category: "profile",
     source: "baseline"

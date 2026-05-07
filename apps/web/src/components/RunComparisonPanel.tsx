@@ -5,22 +5,35 @@ interface RunComparisonPanelProps {
   selectedCount: number;
   loading: boolean;
   error: string | null;
+  labels?: {
+    empty: string;
+    loading: string;
+    title: string;
+    strongest: string;
+  };
 }
 
-function formatDelta(value: number): string {
-  if (value === 0) return "0";
-  return value > 0 ? `+${value}` : String(value);
+function formatMs(value?: number): string {
+  if (!value) return "0 ms";
+  return value < 1000 ? `${value} ms` : `${(value / 1000).toFixed(1)} s`;
 }
 
-function formatMs(value: number): string {
-  if (value === 0) return "0 ms";
-  const sign = value > 0 ? "+" : "";
-  return `${sign}${value} ms`;
+function score(run: RunComparison["runs"][number]): number {
+  const metrics = run.metrics;
+  if (!metrics) return 0;
+  return metrics.fileCount + metrics.artifactCount * 2 - metrics.warningCount * 4 + (metrics.zipAvailable ? 8 : 0);
 }
 
-export function RunComparisonPanel({ comparison, selectedCount, loading, error }: RunComparisonPanelProps) {
+export function RunComparisonPanel({ comparison, selectedCount, loading, error, labels }: RunComparisonPanelProps) {
+  const text = labels ?? {
+    empty: "Select at least two runs to compare.",
+    loading: "Building comparison...",
+    title: "Run comparison",
+    strongest: "Most complete run"
+  };
+
   if (loading) {
-    return <div className="empty-state">Building comparison...</div>;
+    return <div className="empty-state">{text.loading}</div>;
   }
 
   if (error) {
@@ -28,53 +41,57 @@ export function RunComparisonPanel({ comparison, selectedCount, loading, error }
   }
 
   if (!comparison) {
-    return (
-      <div className="empty-state">
-        Select at least two runs from history to compare modes, artifact counts, warnings and generation time.
-        Current selection: {selectedCount}.
-      </div>
-    );
+    return <div className="empty-state">{text.empty} Current selection: {selectedCount}.</div>;
   }
 
+  const strongest = [...comparison.runs].sort((left, right) => score(right) - score(left))[0];
+  const maxFiles = Math.max(1, ...comparison.runs.map((run) => run.metrics?.fileCount ?? 0));
+  const maxTime = Math.max(1, ...comparison.runs.map((run) => run.metrics?.generationTimeMs ?? 0));
+
   return (
-    <div className="comparison-panel">
-      <div className="card-row">
+    <div className="comparison-panel redesigned-panel">
+      <div className="section-head">
         <div>
-          <span className="section-kicker">Compare</span>
-          <h3>Generation runs</h3>
+          <span className="kicker">{text.title}</span>
+          <h2>{comparison.runs.length} runs</h2>
         </div>
-        <span className="status-pill">{comparison.runs.length} runs</span>
+        {strongest ? <span className="status-pill">{text.strongest}: {strongest.projectName}</span> : null}
       </div>
 
-      <div className="compare-run-grid">
+      <div className="compare-table">
+        <div className="compare-row compare-head">
+          <span>Run</span>
+          <span>Mode</span>
+          <span>Platform</span>
+          <span>Files</span>
+          <span>Artifacts</span>
+          <span>Warnings</span>
+          <span>Time</span>
+        </div>
         {comparison.runs.map((run) => (
-          <div className="compare-run-card" key={run.id}>
+          <div className={run.id === strongest?.id ? "compare-row strongest-row" : "compare-row"} key={run.id}>
             <strong>{run.projectName}</strong>
-            <small>{run.mode} · {run.profileId} · {run.status}</small>
-            <div className="compare-metrics">
-              <span>{run.metrics?.artifactCount ?? "-"} artifacts</span>
-              <span>{run.metrics?.fileCount ?? "-"} files</span>
-              <span>{run.metrics?.warningCount ?? "-"} warnings</span>
-            </div>
+            <span>{run.mode}</span>
+            <span>{run.profileId}</span>
+            <span>{run.metrics?.fileCount ?? "-"}</span>
+            <span>{run.metrics?.artifactCount ?? "-"}</span>
+            <span className={(run.metrics?.warningCount ?? 0) > 0 ? "warn-text" : ""}>{run.metrics?.warningCount ?? "-"}</span>
+            <span>{formatMs(run.metrics?.generationTimeMs)}</span>
           </div>
         ))}
       </div>
 
-      {comparison.deltas.length > 0 ? (
-        <div className="delta-table">
-          {comparison.deltas.map((delta) => (
-            <div className="delta-row" key={delta.runId}>
-              <strong>{delta.runId.slice(0, 8)}</strong>
-              <span>artifacts {formatDelta(delta.artifactDelta)}</span>
-              <span>files {formatDelta(delta.fileDelta)}</span>
-              <span>warnings {formatDelta(delta.warningDelta)}</span>
-              <span>time {formatMs(delta.generationTimeDeltaMs)}</span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p>Comparison baseline is selected, but the chosen runs do not have enough metrics for deltas yet.</p>
-      )}
+      <div className="compare-bars">
+        {comparison.runs.map((run) => (
+          <div className="compare-bar-card" key={`${run.id}:bars`}>
+            <strong>{run.projectName}</strong>
+            <span>Files</span>
+            <i style={{ width: `${((run.metrics?.fileCount ?? 0) / maxFiles) * 100}%` }} />
+            <span>Generation time</span>
+            <i className="info-bar" style={{ width: `${((run.metrics?.generationTimeMs ?? 0) / maxTime) * 100}%` }} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

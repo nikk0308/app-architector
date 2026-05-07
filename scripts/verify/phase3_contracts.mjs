@@ -176,11 +176,11 @@ try {
   const runtimeHealthSource = read("apps/api/src/services/runtimeHealth.ts");
   const webAppSource = read("apps/web/src/App.tsx");
   const webApiSource = read("apps/web/src/api.ts");
-  const webPlatformPackSource = read("apps/web/src/components/PlatformPackPanel.tsx");
-  const webRuntimeHealthSource = read("apps/web/src/components/RuntimeHealthPanel.tsx");
   const webValidationSummarySource = read("apps/web/src/components/ValidationSummary.tsx");
   const webRunDetailsSource = read("apps/web/src/components/RunDetailsPanel.tsx");
   const webRunComparisonSource = read("apps/web/src/components/RunComparisonPanel.tsx");
+  const webFileTreeSource = read("apps/web/src/components/FileTreeViewer.tsx");
+  const webTopBarSource = read("apps/web/src/components/TopBar.tsx");
   const advisorSource = read("apps/api/src/services/advisor/architectureAdvisor.ts");
   const architectureSynthesisSource = read("apps/api/src/services/architectureSynthesis.ts");
   const hybridRefinementSource = read("apps/api/src/services/hybridRefinement.ts");
@@ -326,9 +326,9 @@ try {
   );
 
   check(
-    directProfileIncludeLlmNotes.length === 0 && contains(appSource, "spec.features.llmNotes"),
+    directProfileIncludeLlmNotes.length === 0 && contains(appSource, "buildArchitecturePreviewPayload"),
     "api.no-normalized-profile-include-llm-notes",
-    "The API no longer reads includeLLMNotes from NormalizedProfile; it reads the normalized spec feature flag.",
+    "The API no longer reads includeLLMNotes from NormalizedProfile; preview/advisor flow derives it before materialization.",
     { matches: directProfileIncludeLlmNotes }
   );
 
@@ -368,25 +368,27 @@ try {
   check(
     contains(webApiSource, "fetchGenerationDetails")
       && contains(webApiSource, "compareGenerations")
-      && contains(webAppSource, "handleRunDetails")
-      && contains(webAppSource, "handleCompareRuns"),
+      && contains(webApiSource, "createArchitecturePreview")
+      && contains(webApiSource, "createGenerationFromPreview")
+      && contains(webAppSource, "loadDetails")
+      && contains(webAppSource, "runCompare"),
     "web.phase10-run-console-api",
-    "Web console consumes run details and compare endpoints through typed API helpers."
+    "Web console consumes preview snapshot, generate-from-preview, run details and compare endpoints through typed API helpers."
   );
 
   check(
     contains(webValidationSummarySource, "ValidationSummary")
       && contains(webRunDetailsSource, "RunDetailsPanel")
       && contains(webRunComparisonSource, "RunComparisonPanel")
-      && contains(webPlatformPackSource, "PlatformPackPanel")
-      && contains(webRuntimeHealthSource, "RuntimeHealthPanel")
+      && contains(webFileTreeSource, "FileTreeViewer")
+      && contains(webTopBarSource, "TopBar")
       && contains(webAppSource, "<ValidationSummary")
       && contains(webAppSource, "<RunDetailsPanel")
       && contains(webAppSource, "<RunComparisonPanel")
-      && contains(webAppSource, "<PlatformPackPanel")
-      && contains(webAppSource, "<RuntimeHealthPanel"),
+      && contains(webAppSource, "<FileTreeViewer")
+      && contains(webAppSource, "<TopBar"),
     "web.phase10-console-components",
-    "Web UI has dedicated validation, run details, comparison, platform pack and runtime health panels."
+    "Web UI has dedicated validation, file tree, run details, comparison and topbar components for the console flow."
   );
 
   check(
