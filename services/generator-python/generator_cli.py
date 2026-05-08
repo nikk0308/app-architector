@@ -179,7 +179,7 @@ def classify_graph_node(path: str) -> str:
         return "scene"
     if lower.endswith(".prefab"):
         return "prefab"
-    if lower.endswith((".uxml", ".uss", ".asset", ".mat", ".png", ".jpg", ".jpeg", ".webp", ".svg", ".xcassets")):
+    if lower.endswith((".uxml", ".uss", ".asset", ".mat", ".png", ".jpg", ".jpeg", ".webp", ".svg", ".xcassets", ".storyboard", ".xib")):
         return "resource"
     if lower.endswith((".swift", ".dart", ".ts", ".tsx", ".js", ".jsx", ".cs", ".kt", ".java")):
         return "source"
@@ -222,7 +222,117 @@ def graph_module(path: str) -> str:
 
 def likely_manager(path: str) -> bool:
     name = Path(path).name.lower()
-    return any(token in name for token in ["manager", "coordinator", "container", "orchestrator", "controller", "service", "pipeline", "bootstrapper"])
+    return any(token in name for token in [
+        "manager",
+        "coordinator",
+        "container",
+        "orchestrator",
+        "controller",
+        "service",
+        "pipeline",
+        "bootstrapper",
+        "repository",
+        "navigator",
+        "router",
+        "store",
+        "viewmodel",
+        "presenter",
+        "system",
+        "registry",
+        "adapter",
+        "facade",
+    ])
+
+
+def graph_role(path: str) -> str:
+    lower = path.lower()
+    name = Path(path).name.lower()
+    if lower.endswith(".unity"):
+        return "scene"
+    if lower.endswith(".prefab"):
+        return "prefab"
+    if lower.endswith((".uxml", ".xib", ".storyboard")):
+        return "view-resource"
+    if lower.endswith((".uss", ".css", ".scss")):
+        return "style"
+    if lower.endswith((".json", ".yaml", ".yml", ".xml", ".plist", ".xcconfig", ".env", ".properties", ".gradle", ".arb", ".xcstrings")):
+        return "configuration"
+    if any(token in name for token in ["protocol", "interface", "contract", "port"]):
+        return "contract"
+    if any(token in name for token in ["repository", "store", "cache", "dao"]):
+        return "repository"
+    if any(token in name for token in ["service", "client", "gateway", "adapter", "api"]):
+        return "service"
+    if any(token in name for token in ["manager", "coordinator", "orchestrator", "controller", "bootstrapper", "container"]):
+        return "manager"
+    if any(token in name for token in ["viewmodel", "presenter", "state", "bloc", "controller"]):
+        return "state"
+    if any(token in name for token in ["view", "screen", "page", "widget", "component"]):
+        return "view"
+    if any(token in name for token in ["event", "model", "dto", "entity", "request", "response"]):
+        return "model"
+    if any(token in name for token in ["test", "spec", "mock", "fixture"]):
+        return "test"
+    if lower.endswith(".md"):
+        return "documentation"
+    return classify_graph_node(path)
+
+
+def path_tokens(path: str) -> set:
+    import re
+
+    normalized = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", path)
+    raw_tokens = re.split(r"[^A-Za-z0-9#]+", normalized)
+    aliases = {
+        "api": "network",
+        "networking": "network",
+        "networkclient": "network",
+        "persistence": "storage",
+        "cache": "storage",
+        "store": "storage",
+        "i18n": "localization",
+        "l10n": "localization",
+        "router": "navigation",
+        "navigator": "navigation",
+        "coordinator": "navigation",
+        "viewmodel": "state",
+        "controller": "state",
+        "prefabs": "prefab",
+        "scenes": "scene",
+    }
+    tokens = {token.lower() for token in raw_tokens if token}
+    tokens.update(aliases[token] for token in list(tokens) if token in aliases)
+    return tokens
+
+
+def path_depth(path: str) -> int:
+    return len(Path(path).parts)
+
+
+def relation_priority(role: str) -> str:
+    if role == "contract":
+        return "implements"
+    if role == "repository":
+        return "persists-to"
+    if role == "configuration":
+        return "configured-by"
+    if role in {"prefab", "view-resource"}:
+        return "binds"
+    if role == "scene":
+        return "instantiates"
+    if role == "style":
+        return "styled-by"
+    if role == "test":
+        return "covers"
+    if role == "model":
+        return "uses-model"
+    if role == "state":
+        return "drives-state"
+    if role == "view":
+        return "renders"
+    if role == "documentation":
+        return "documents"
+    return "uses"
 
 
 def build_relationship_graph(output_root: Path, payload: Dict[str, Any], diagnostics: Dict[str, Any]) -> Dict[str, Any]:
@@ -234,10 +344,12 @@ def build_relationship_graph(output_root: Path, payload: Dict[str, Any], diagnos
             "path": path,
             "kind": classify_graph_node(path),
             "module": graph_module(path),
+            "role": graph_role(path),
         }
         for path in files
     ]
     edges: List[Dict[str, str]] = []
+    node_by_path = {node["path"]: node for node in nodes}
 
     def add_edge(source: str, target: str, relation: str, reason: str) -> None:
         if source == target or source not in files or target not in files:
@@ -246,37 +358,158 @@ def build_relationship_graph(output_root: Path, payload: Dict[str, Any], diagnos
         if edge not in edges:
             edges.append(edge)
 
-    root_managers = [path for path in files if likely_manager(path) and graph_module(path) in {"app", "core", "integration"}]
+    def role(path: str) -> str:
+        return node_by_path.get(path, {}).get("role", graph_role(path))
+
+    def module(path: str) -> str:
+        return node_by_path.get(path, {}).get("module", graph_module(path))
+
+    def best_owner(candidates: List[str], target: str) -> str | None:
+        if not candidates:
+            return None
+        target_tokens = path_tokens(target)
+
+        def rank(candidate: str) -> tuple:
+            candidate_tokens = path_tokens(candidate)
+            overlap = len(target_tokens & candidate_tokens)
+            manager_bonus = 4 if likely_manager(candidate) else 0
+            module_bonus = 3 if module(candidate) == module(target) else 0
+            source_bonus = 1 if classify_graph_node(candidate) == "source" else 0
+            depth_penalty = abs(path_depth(candidate) - path_depth(target))
+            return (overlap + manager_bonus + module_bonus + source_bonus, -depth_penalty, -len(candidate))
+
+        return sorted(candidates, key=rank, reverse=True)[0]
+
+    root_managers = [
+        path for path in files
+        if likely_manager(path) and module(path) in {"app", "core", "integration", "navigation"}
+    ]
+    if not root_managers:
+        root_managers = [
+            path for path in files
+            if classify_graph_node(path) == "source" and any(token in Path(path).name.lower() for token in ["app", "main", "bootstrap", "root"])
+        ][:4]
     module_groups: Dict[str, List[str]] = {}
     for path in files:
-        module_groups.setdefault(graph_module(path), []).append(path)
+        module_groups.setdefault(module(path), []).append(path)
 
-    for module, module_files in module_groups.items():
+    for group_name, module_files in module_groups.items():
         managers = [path for path in module_files if likely_manager(path)] or module_files[:1]
         manager = managers[0]
         for path in module_files:
             if path == manager:
                 continue
-            relation = "owns" if classify_graph_node(path) in {"source", "resource", "prefab", "scene"} else "configured-by"
-            add_edge(manager, path, relation, f"{Path(manager).name} coordinates the {module} boundary.")
-            if classify_graph_node(path) in {"config", "resource"}:
-                add_edge(path, manager, "used-by", f"{Path(path).name} feeds the {module} manager or service.")
+            item_role = role(path)
+            relation = relation_priority(item_role)
+            if item_role in {"configuration", "style", "documentation"}:
+                add_edge(path, manager, relation, f"{Path(path).name} is consumed by the {group_name} boundary.")
+            else:
+                add_edge(manager, path, relation, f"{Path(manager).name} coordinates the {group_name} boundary.")
+            if classify_graph_node(path) in {"config", "resource", "prefab", "scene"}:
+                add_edge(path, manager, "used-by", f"{Path(path).name} feeds the {group_name} runtime boundary.")
         for root in root_managers[:3]:
             if root != manager:
-                add_edge(root, manager, "wires", f"{Path(root).name} wires the {module} boundary into the app composition.")
+                add_edge(root, manager, "wires", f"{Path(root).name} wires the {group_name} boundary into the app composition.")
+
+    source_files = [path for path in files if classify_graph_node(path) == "source"]
+    config_files = [path for path in files if classify_graph_node(path) == "config"]
+    resources = [path for path in files if classify_graph_node(path) in {"resource", "prefab", "scene"}]
+    documents = [path for path in files if classify_graph_node(path) == "documentation"]
+
+    managers = [path for path in source_files if likely_manager(path)]
+    contracts = [path for path in source_files if role(path) == "contract"]
+    repositories = [path for path in source_files if role(path) == "repository"]
+    services = [path for path in source_files if role(path) == "service"]
+    states = [path for path in source_files if role(path) == "state"]
+    views = [path for path in source_files if role(path) == "view"]
+    models = [path for path in source_files if role(path) == "model"]
+    tests = [path for path in source_files if role(path) == "test"]
+
+    for contract in contracts:
+        for implementer in [path for path in source_files if path != contract and path_tokens(path) & path_tokens(contract)][:6]:
+            add_edge(implementer, contract, "implements", f"{Path(implementer).name} implements or depends on the {Path(contract).name} contract.")
+
+    for service in services:
+        owner = best_owner(managers, service)
+        if owner:
+            add_edge(owner, service, "owns", f"{Path(owner).name} owns the service lifecycle.")
+        repo = best_owner(repositories, service)
+        if repo and module(repo) == module(service):
+            add_edge(service, repo, "uses-repository", f"{Path(service).name} delegates persisted state to {Path(repo).name}.")
+        for model_file in [path for path in models if path_tokens(path) & path_tokens(service)][:5]:
+            add_edge(service, model_file, "uses-model", f"{Path(service).name} exchanges data through {Path(model_file).name}.")
+        for config in [path for path in config_files if module(path) in {module(service), "app", "core"} or path_tokens(path) & path_tokens(service)][:5]:
+            add_edge(config, service, "configures", f"{Path(config).name} supplies runtime settings to {Path(service).name}.")
+
+    for repo in repositories:
+        owner = best_owner(managers + services, repo)
+        if owner:
+            add_edge(owner, repo, "persists-through", f"{Path(owner).name} uses {Path(repo).name} as a persistence boundary.")
+        for model_file in [path for path in models if module(path) == module(repo) or path_tokens(path) & path_tokens(repo)][:5]:
+            add_edge(repo, model_file, "stores-model", f"{Path(repo).name} persists {Path(model_file).name}.")
+
+    for view in views:
+        state = best_owner(states, view)
+        if state:
+            add_edge(view, state, "observes", f"{Path(view).name} observes state from {Path(state).name}.")
+        navigator = best_owner([path for path in managers if module(path) == "navigation"], view)
+        if navigator:
+            add_edge(navigator, view, "routes-to", f"{Path(navigator).name} routes to {Path(view).name}.")
+        service = best_owner(services, view)
+        if service and module(service) == module(view):
+            add_edge(view, service, "uses", f"{Path(view).name} calls the module service boundary.")
+
+    for state in states:
+        service = best_owner(services + repositories, state)
+        if service:
+            add_edge(state, service, "depends-on", f"{Path(state).name} depends on {Path(service).name} for side effects.")
+
+    for config in config_files:
+        target = best_owner(managers + services + states, config)
+        if target:
+            add_edge(config, target, "configures", f"{Path(config).name} configures {Path(target).name}.")
+
+    for test in tests:
+        target = best_owner([path for path in source_files if path != test and role(path) != "test"], test)
+        if target:
+            add_edge(test, target, "covers", f"{Path(test).name} verifies {Path(target).name}.")
 
     for scene in [path for path in files if path.lower().endswith(".unity")]:
-        for prefab in [path for path in files if path.lower().endswith(".prefab")][:8]:
+        for prefab in [path for path in files if path.lower().endswith(".prefab")][:24]:
             add_edge(scene, prefab, "instantiates", "Unity scene references generated prefabs.")
     for prefab in [path for path in files if path.lower().endswith(".prefab")]:
-        for script in [path for path in files if likely_manager(path) and path.lower().endswith(".cs")][:6]:
-            add_edge(prefab, script, "binds", "Prefab is intended to bind to a runtime manager script.")
+        matched_scripts = [
+            path for path in files
+            if path.lower().endswith(".cs") and (path_tokens(path) & path_tokens(prefab) or likely_manager(path))
+        ][:10]
+        for script in matched_scripts:
+            add_edge(prefab, script, "binds", "Prefab is intended to bind to a runtime script or manager.")
     for ui_doc in [path for path in files if path.lower().endswith(".uxml")]:
-        for style in [path for path in files if path.lower().endswith(".uss")]:
+        for style in [path for path in files if path.lower().endswith(".uss")][:8]:
             add_edge(ui_doc, style, "styled-by", "UI Toolkit document uses the generated style sheet.")
+        controller = best_owner([path for path in files if path.lower().endswith(".cs")], ui_doc)
+        if controller:
+            add_edge(controller, ui_doc, "renders", f"{Path(controller).name} controls the UI document.")
     for readme in [path for path in files if path.lower().endswith("readme.md")]:
-        for target in [path for path in files if "architecture" in path.lower() or "docs/" in path.lower()][:8]:
+        for target in [path for path in files if "architecture" in path.lower() or "docs/" in path.lower()][:16]:
             add_edge(readme, target, "documents", "README points to architecture explanation and relationship files.")
+
+    app_composers = root_managers or managers[:4] or source_files[:4]
+    for path in files:
+        connected = any(edge["from"] == path or edge["to"] == path for edge in edges)
+        if connected:
+            continue
+        owner = best_owner(app_composers + managers + services, path)
+        if owner:
+            if role(path) in {"configuration", "documentation", "style"}:
+                add_edge(path, owner, relation_priority(role(path)), f"{Path(path).name} is part of the generated app contract.")
+            else:
+                add_edge(owner, path, "composes", f"{Path(owner).name} includes {Path(path).name} in the generated architecture.")
+
+    connected_files = {edge["from"] for edge in edges} | {edge["to"] for edge in edges}
+    relation_counts: Dict[str, int] = {}
+    for edge in edges:
+        relation_counts[edge["relation"]] = relation_counts.get(edge["relation"], 0) + 1
 
     return {
         "schemaVersion": "1.0",
@@ -284,9 +517,13 @@ def build_relationship_graph(output_root: Path, payload: Dict[str, Any], diagnos
         "summary": {
             "nodes": len(nodes),
             "edges": len(edges),
+            "connectedFiles": len(connected_files),
+            "isolatedFiles": len(files) - len(connected_files),
+            "edgeCoveragePercent": round((len(connected_files) / max(1, len(files))) * 100),
             "sourceFiles": sum(1 for node in nodes if node["kind"] == "source"),
             "resourceFiles": sum(1 for node in nodes if node["kind"] in {"resource", "scene", "prefab"}),
             "modules": sorted({node["module"] for node in nodes}),
+            "relations": relation_counts,
         },
         "graph": {
             "nodes": nodes,

@@ -43,26 +43,19 @@ interface RunComparisonPanelProps {
     integrationFiles?: string;
     delta?: string;
     hint?: string;
+    legend?: string;
+    bestFiles?: string;
+    fastest?: string;
+    weakest?: string;
+    bestRelations?: string;
   };
 }
+
+const COLORS = ["#d4af37", "#4f8cff", "#22c55e", "#f97316", "#e879f9", "#14b8a6"];
 
 function formatMs(value?: number): string {
   if (!value) return "0 ms";
   return value < 1000 ? `${value} ms` : `${(value / 1000).toFixed(1)} s`;
-}
-
-function score(run: RunComparison["runs"][number]): number {
-  const metrics = run.metrics;
-  const analysis = run.analysis;
-  if (!metrics) return 0;
-  return metrics.fileCount
-    + metrics.artifactCount * 2
-    + (analysis?.representedModuleCount ?? 0) * 10
-    + (analysis?.relationshipFiles ?? 0) * 3
-    + (analysis?.integrationFiles ?? 0) * 3
-    + (analysis?.resourceFiles ?? 0) * 2
-    - metrics.warningCount * 4
-    + (metrics.zipAvailable ? 8 : 0);
 }
 
 function clamp(value: number): number {
@@ -82,12 +75,12 @@ function metricsFor(run: RunComparison["runs"][number], max: { files: number; re
   const fileCoverage = clamp(((metrics?.fileCount ?? 0) / Math.max(1, max.files)) * 100);
   const moduleCoverage = analysis?.selectedModuleCount
     ? clamp((analysis.representedModuleCount / analysis.selectedModuleCount) * 100)
-    : clamp(((metrics?.artifactCount ?? 0) / 32) * 100);
+    : clamp(((metrics?.artifactCount ?? 0) / 70) * 100);
   const docsPercent = (analysis?.docsFiles ?? 0) / Math.max(1, metrics?.fileCount ?? 1);
   const docsRatio = clamp((Math.min(0.16, docsPercent) / 0.16) * 100);
   const warningsCleanliness = clamp(100 - (metrics?.warningCount ?? 0) * 14);
   const validation = validationScore(metrics?.validationStatus);
-  const sourceDepth = clamp(((analysis?.sourceFiles ?? 0) / Math.max(1, metrics?.fileCount ?? 1) / 0.65) * 100);
+  const sourceDepth = clamp(((analysis?.sourceFiles ?? 0) / Math.max(1, metrics?.fileCount ?? 1) / 0.72) * 100);
   const relationshipCoverage = clamp(((analysis?.relationshipFiles ?? 0) / Math.max(1, max.relationships)) * 100);
   const integrationDepth = clamp(((analysis?.integrationFiles ?? 0) / Math.max(1, max.integrationFiles)) * 100);
   const resourceDepth = clamp(((analysis?.resourceFiles ?? 0) / Math.max(1, max.resources)) * 100);
@@ -96,9 +89,17 @@ function metricsFor(run: RunComparison["runs"][number], max: { files: number; re
   return { fileCoverage, moduleCoverage, docsRatio, warningsCleanliness, validation, architectureCompleteness, sourceDepth, relationshipCoverage, integrationDepth, resourceDepth, platformCore };
 }
 
-function deltaText(value: number): string {
-  if (value > 0) return `+${value}`;
-  return String(value);
+function score(run: RunComparison["runs"][number], max: { files: number; relationships: number; integrationFiles: number; resources: number; platformCore: number }): number {
+  const values = metricsFor(run, max);
+  return values.architectureCompleteness
+    + values.relationshipCoverage * 0.25
+    + values.integrationDepth * 0.2
+    + values.resourceDepth * 0.15
+    - (run.metrics?.warningCount ?? 0) * 2;
+}
+
+function runLabel(run: RunComparison["runs"][number]): string {
+  return `${run.projectName} · ${run.mode} · ${run.profileId}`;
 }
 
 export function RunComparisonPanel({ comparison, selectedCount, loading, error, labels }: RunComparisonPanelProps) {
@@ -112,7 +113,7 @@ export function RunComparisonPanel({ comparison, selectedCount, loading, error, 
     mode: "Mode",
     platform: "Platform",
     files: "Files",
-    artifacts: "Artifacts",
+    artifacts: "Plan blocks",
     warnings: "Warnings",
     time: "Time",
     currentSelection: "Current selection",
@@ -128,18 +129,14 @@ export function RunComparisonPanel({ comparison, selectedCount, loading, error, 
     integrationDepth: "Integration depth",
     resourceDepth: "Resource depth",
     platformCore: "Platform core",
-    categoryBreakdown: "Category breakdown",
-    architectureSignals: "Architecture signals",
-    evidence: "Evidence paths",
-    missingModules: "Missing modules",
-    sourceFiles: "Source",
-    configFiles: "Config",
-    docsFiles: "Docs",
-    metadataFiles: "Metadata",
-    relationshipFiles: "Relations",
+    relationshipFiles: "Relationships",
     integrationFiles: "Integration files",
-    delta: "Delta",
-    hint: "These are heuristic UI metrics for comparing starter-package completeness."
+    hint: "These are heuristic UI metrics for comparing starter-package completeness.",
+    legend: "Legend",
+    bestFiles: "Best for files and structure depth",
+    fastest: "Fastest",
+    weakest: "Weakest overall",
+    bestRelations: "Best relationship coverage"
   };
 
   if (loading) {
@@ -154,7 +151,6 @@ export function RunComparisonPanel({ comparison, selectedCount, loading, error, 
     return <div className="empty-state">{text.empty} {text.currentSelection}: {selectedCount}.</div>;
   }
 
-  const strongest = [...comparison.runs].sort((left, right) => score(right) - score(left))[0];
   const max = {
     files: Math.max(1, ...comparison.runs.map((run) => run.metrics?.fileCount ?? 0)),
     relationships: Math.max(1, ...comparison.runs.map((run) => run.analysis?.relationshipFiles ?? 0)),
@@ -163,7 +159,6 @@ export function RunComparisonPanel({ comparison, selectedCount, loading, error, 
     platformCore: Math.max(1, ...comparison.runs.map((run) => run.analysis?.platformCoreFiles ?? 0))
   };
   const maxTime = Math.max(1, ...comparison.runs.map((run) => run.metrics?.generationTimeMs ?? 0));
-  const deltaByRun = new Map(comparison.deltas.map((delta) => [delta.runId, delta]));
   const metricLabels = [
     ["fileCoverage", text.fileCoverage],
     ["moduleCoverage", text.moduleCoverage],
@@ -177,6 +172,17 @@ export function RunComparisonPanel({ comparison, selectedCount, loading, error, 
     ["validation", text.validation],
     ["architectureCompleteness", text.architectureCompleteness]
   ] as const;
+  const runsWithValues = comparison.runs.map((run, index) => ({
+    run,
+    color: COLORS[index % COLORS.length],
+    values: metricsFor(run, max),
+    score: score(run, max)
+  }));
+  const strongest = [...runsWithValues].sort((left, right) => right.score - left.score)[0]?.run;
+  const bestFiles = [...comparison.runs].sort((left, right) => (right.metrics?.fileCount ?? 0) - (left.metrics?.fileCount ?? 0))[0];
+  const fastest = [...comparison.runs].sort((left, right) => (left.metrics?.generationTimeMs ?? Number.MAX_SAFE_INTEGER) - (right.metrics?.generationTimeMs ?? Number.MAX_SAFE_INTEGER))[0];
+  const bestRelations = [...comparison.runs].sort((left, right) => (right.analysis?.relationshipFiles ?? 0) - (left.analysis?.relationshipFiles ?? 0))[0];
+  const weakest = [...runsWithValues].sort((left, right) => left.score - right.score)[0]?.run;
 
   return (
     <div className="comparison-panel redesigned-panel">
@@ -185,92 +191,71 @@ export function RunComparisonPanel({ comparison, selectedCount, loading, error, 
           <span className="kicker">{text.title}</span>
           <h2>{comparison.runs.length} {text.runs}</h2>
         </div>
-        {strongest ? <span className="status-pill">{text.strongest}: {strongest.projectName} · {strongest.profileId}</span> : null}
+        {strongest ? <span className="status-pill">{text.strongest}: {runLabel(strongest)}</span> : null}
       </div>
 
-      <div className="compare-table">
-        <div className="compare-row compare-head">
-          <span>{text.run}</span>
-          <span>{text.mode}</span>
-          <span>{text.platform}</span>
-          <span>{text.files}</span>
-          <span>{text.artifacts}</span>
-          <span>{text.relationshipFiles}</span>
-          <span>{text.integrationFiles}</span>
-          <span>{text.warnings}</span>
-          <span>{text.time}</span>
-          <span>{text.delta}</span>
-        </div>
-        {comparison.runs.map((run) => (
-          <div className={run.id === strongest?.id ? "compare-row compare-row-rich strongest-row" : "compare-row compare-row-rich"} key={run.id}>
-            <strong>{run.projectName} · {run.profileId}</strong>
-            <span>{run.mode}</span>
-            <span>{run.profileId}</span>
-            <span>{run.metrics?.fileCount ?? "-"}</span>
-            <span>{run.metrics?.artifactCount ?? "-"}</span>
-            <span>{run.analysis?.relationshipFiles ?? "-"}</span>
-            <span>{run.analysis?.integrationFiles ?? "-"}</span>
-            <span className={(run.metrics?.warningCount ?? 0) > 0 ? "warn-text" : ""}>{run.metrics?.warningCount ?? "-"}</span>
-            <span>{formatMs(run.metrics?.generationTimeMs)}</span>
-            <span>{deltaByRun.has(run.id) ? deltaText(deltaByRun.get(run.id)?.fileDelta ?? 0) : "base"}</span>
-          </div>
+      <div className="comparison-legend" aria-label={text.legend}>
+        {runsWithValues.map(({ run, color }) => (
+          <span key={run.id}><i style={{ background: color }} />{runLabel(run)}</span>
         ))}
       </div>
 
-      <div className="compare-bars">
-        {comparison.runs.map((run) => (
-          <div className="compare-bar-card" key={`${run.id}:bars`}>
-            <strong>{run.projectName} · {run.profileId}</strong>
-            <span>{text.files}</span>
-            <i style={{ width: `${((run.metrics?.fileCount ?? 0) / max.files) * 100}%` }} />
-            <span>{text.generationTime}</span>
-            <i className="info-bar" style={{ width: `${((run.metrics?.generationTimeMs ?? 0) / maxTime) * 100}%` }} />
-          </div>
+      <div className="comparison-conclusions">
+        {bestFiles ? <span className="conclusion-pill good">{text.bestFiles}: {runLabel(bestFiles)}</span> : null}
+        {bestRelations ? <span className="conclusion-pill info">{text.bestRelations}: {runLabel(bestRelations)}</span> : null}
+        {fastest ? <span className="conclusion-pill fast">{text.fastest}: {runLabel(fastest)} · {formatMs(fastest.metrics?.generationTimeMs)}</span> : null}
+        {weakest ? <span className="conclusion-pill bad">{text.weakest}: {runLabel(weakest)}</span> : null}
+      </div>
+
+      <div className="combined-comparison-chart">
+        {metricLabels.map(([key, label]) => {
+          const sorted = [...runsWithValues].sort((left, right) => right.values[key] - left.values[key]);
+          return (
+            <div className="combined-metric-row" key={key}>
+              <span>{label}</span>
+              <div className="combined-bar-track">
+                {sorted.map(({ run, color, values }, index) => (
+                  <i
+                    aria-label={`${runLabel(run)} ${label} ${values[key]}%`}
+                    className="combined-bar"
+                    key={`${key}:${run.id}`}
+                    style={{
+                      width: `${values[key]}%`,
+                      background: color,
+                      top: `${index * 4}px`,
+                      zIndex: sorted.length - index
+                    }}
+                  />
+                ))}
+              </div>
+              <b>{Math.max(...runsWithValues.map((item) => item.values[key]))}%</b>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="compare-run-summaries">
+        {runsWithValues.map(({ run, color, values }) => (
+          <article key={`${run.id}:summary`}>
+            <strong><i style={{ background: color }} />{runLabel(run)}</strong>
+            <div className="compare-mini-stats">
+              <span><small>{text.files}</small><b>{run.metrics?.fileCount ?? 0}</b></span>
+              <span><small>{text.artifacts}</small><b>{run.metrics?.artifactCount ?? 0}</b></span>
+              <span><small>{text.relationshipFiles}</small><b>{run.analysis?.relationshipFiles ?? 0}</b></span>
+              <span><small>{text.integrationFiles}</small><b>{run.analysis?.integrationFiles ?? 0}</b></span>
+              <span><small>{text.warnings}</small><b>{run.metrics?.warningCount ?? 0}</b></span>
+              <span><small>{text.time}</small><b>{formatMs(run.metrics?.generationTimeMs)}</b></span>
+            </div>
+            <div className="evaluation-row">
+              <span>{text.architectureCompleteness}</span>
+              <div className="percent-bar"><i style={{ width: `${values.architectureCompleteness}%` }} /></div>
+              <b>{values.architectureCompleteness}%</b>
+            </div>
+          </article>
         ))}
       </div>
 
       <p className="quiet-note">{text.hint}</p>
-      <div className="evaluation-grid">
-        {comparison.runs.map((run) => {
-          const values = metricsFor(run, max);
-          return (
-            <article className="evaluation-card" key={`${run.id}:evaluation`}>
-              <strong>{run.projectName} · {run.profileId}</strong>
-              <div className="compare-mini-stats">
-                <span><small>{text.sourceFiles}</small><b>{run.analysis?.sourceFiles ?? 0}</b></span>
-                <span><small>{text.configFiles}</small><b>{run.analysis?.configFiles ?? 0}</b></span>
-                <span><small>{text.docsFiles}</small><b>{run.analysis?.docsFiles ?? 0}</b></span>
-                <span><small>{text.metadataFiles}</small><b>{run.analysis?.metadataFiles ?? 0}</b></span>
-              </div>
-              {metricLabels.map(([key, label]) => (
-                <div className="evaluation-row" key={`${run.id}:${key}`}>
-                  <span>{label}</span>
-                  <div className="percent-bar"><i style={{ width: `${values[key]}%` }} /></div>
-                  <b>{values[key]}%</b>
-                </div>
-              ))}
-              <div className="compare-insights">
-                <div>
-                  <small>{text.architectureSignals}</small>
-                  <p>{run.analysis?.architectureSignals.join(" · ") || "-"}</p>
-                </div>
-                <div>
-                  <small>{text.missingModules}</small>
-                  <p>{run.analysis?.missingModules.length ? run.analysis.missingModules.join(", ") : "0"}</p>
-                </div>
-                <div>
-                  <small>{text.evidence}</small>
-                  <ul>
-                    {(run.analysis?.evidencePaths ?? []).slice(0, 5).map((path) => (
-                      <li key={`${run.id}:${path}`}>{path}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </article>
-          );
-        })}
-      </div>
     </div>
   );
 }

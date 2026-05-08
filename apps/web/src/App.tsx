@@ -44,7 +44,6 @@ type StepId =
   | "module-offline"
   | "module-quality"
   | "module-delivery"
-  | "extras"
   | "tree"
   | "runs";
 
@@ -123,7 +122,7 @@ const copy: Record<Lang, Record<string, string>> = {
     zipReady: "ZIP готовий",
     filters: "Фільтри",
     runDetails: "Деталі запуску",
-    compareSelected: "Порівняти обрані",
+    compareSelected: "Порівняти",
     latest: "Останні генерації",
     fullHistory: "Повний список",
     selectRun: "",
@@ -134,7 +133,7 @@ const copy: Record<Lang, Record<string, string>> = {
     folders: "Папки",
     docs: "Документи",
     metadata: "Метадані",
-    artifacts: "Артефакти",
+    artifacts: "Блоки плану",
     allPlatforms: "Усі платформи",
     allModes: "Усі режими",
     allStatuses: "Усі статуси",
@@ -251,7 +250,7 @@ const copy: Record<Lang, Record<string, string>> = {
     zipReady: "ZIP ready",
     filters: "Filters",
     runDetails: "Run Details",
-    compareSelected: "Compare selected",
+    compareSelected: "Compare",
     latest: "Latest generations",
     fullHistory: "Full list",
     selectRun: "",
@@ -262,7 +261,7 @@ const copy: Record<Lang, Record<string, string>> = {
     folders: "Folders",
     docs: "Docs",
     metadata: "Metadata",
-    artifacts: "Artifacts",
+    artifacts: "Plan blocks",
     allPlatforms: "All platforms",
     allModes: "All modes",
     allStatuses: "All statuses",
@@ -353,7 +352,6 @@ const steps: Array<{ id: StepId; labelKey: string }> = [
   { id: "basics", labelKey: "basics" },
   { id: "ai", labelKey: "ai" },
   { id: "architecture", labelKey: "architecture" },
-  { id: "extras", labelKey: "extras" },
   { id: "tree", labelKey: "tree" },
   { id: "runs", labelKey: "runsCompare" }
 ];
@@ -796,7 +794,16 @@ function downloadUrlForGeneration(generationId: string): string {
 
 function formatDate(value: string): string {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+  return Number.isNaN(date.getTime())
+    ? value
+    : `${date.toLocaleString("uk-UA", {
+      timeZone: "Europe/Kyiv",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
+    })} UTC+3`;
 }
 
 function stepLabel(value: number): string {
@@ -1077,6 +1084,7 @@ export default function App() {
     try {
       setDetailsLoading(true);
       setDetailsError(null);
+      setComparison(null);
       setSelectedDetails(await fetchGenerationDetails(id));
       setActiveStep("runs");
     } catch (err) {
@@ -1099,6 +1107,7 @@ export default function App() {
     try {
       setComparisonLoading(true);
       setComparisonError(null);
+      setSelectedDetails(null);
       setComparison(await compareGenerations(compareSelection));
       setActiveStep("runs");
     } catch (err) {
@@ -1214,6 +1223,10 @@ export default function App() {
           {activeStep === "platform" ? (
             <div className="step-panel">
               <div className="section-head"><div><span className="kicker">{stepLabel(1)}</span><h1>{t.platform}</h1></div></div>
+              <div className="subsection-title">
+                <h3>{language === "ua" ? "Платформа застосунку" : "Application platform"}</h3>
+                <p>{language === "ua" ? "Обери технологічний стек, під який буде побудовано стартову архітектуру." : "Choose the mobile stack that the starter architecture should target."}</p>
+              </div>
               <div className="option-grid four">
                 {platformOptions.map((option) => (
                   <OptionCard
@@ -1414,20 +1427,10 @@ export default function App() {
             </div>
           ) : null}
 
-          {activeStep === "extras" ? (
-            <div className="step-panel">
-              <div className="section-head"><div><span className="kicker">{stepLabel(6)}</span><h1>{t.extras}</h1></div></div>
-              <div className="option-grid two">
-                <OptionCard active={Boolean(form.includeExampleScreen)} title={t.exampleScreen} description={t.exampleScreenText} onClick={() => updateForm("includeExampleScreen", !form.includeExampleScreen)} />
-                <OptionCard active={activeMode !== "baseline"} title={t.advisorArtifacts} description={t.advisorArtifactsText} onClick={() => undefined} />
-              </div>
-            </div>
-          ) : null}
-
           {activeStep === "tree" ? (
             <div className="step-panel">
               <div className="section-head">
-                <div><span className="kicker">{stepLabel(7)}</span><h1>{t.tree}</h1></div>
+                <div><span className="kicker">{stepLabel(6)}</span><h1>{t.tree}</h1></div>
                 <div className="tree-actions">
                   <button className="primary-button" type="button" disabled={!requiredValid || loadingPreview || loadingZip} onClick={() => void generateTree()}>
                     {loadingPreview || loadingZip ? t.generatingTree : t.generateTree}
@@ -1519,7 +1522,7 @@ export default function App() {
           {activeStep === "runs" ? (
             <div className="step-panel">
               <div className="section-head">
-                <div><span className="kicker">{stepLabel(8)}</span><h1>{t.runsCompare}</h1></div>
+                <div><span className="kicker">{stepLabel(7)}</span><h1>{t.runsCompare}</h1></div>
                 <button className="ghost-button danger-button" type="button" disabled={historyBusy || generations.length === 0} onClick={() => void removeAllHistory()}>{t.clearHistory}</button>
               </div>
               <div className="filters-row">
@@ -1570,6 +1573,7 @@ export default function App() {
                 <span className="quiet-note">{compareSelection.length} {t.selected}</span>
                 <button className="primary-button" type="button" disabled={compareSelection.length < 2 || comparisonLoading} onClick={() => void runCompare()}>{t.compareSelected}</button>
               </div>
+              {comparison || comparisonLoading || comparisonError ? (
               <RunComparisonPanel comparison={comparison} selectedCount={compareSelection.length} loading={comparisonLoading} error={comparisonError} labels={{
                 empty: t.compareEmpty,
                 loading: t.comparing,
@@ -1607,31 +1611,45 @@ export default function App() {
                 relationshipFiles: language === "ua" ? "Зв'язки" : "Relations",
                 integrationFiles: language === "ua" ? "Інтеграції" : "Integrations",
                 delta: language === "ua" ? "Delta" : "Delta",
-                hint: t.compareHint
+                hint: t.compareHint,
+                legend: language === "ua" ? "Легенда" : "Legend",
+                bestFiles: language === "ua" ? "Найкращий за файлами та глибиною структури" : "Best for files and structure depth",
+                fastest: language === "ua" ? "Найшвидший" : "Fastest",
+                weakest: language === "ua" ? "Найслабший у цьому порівнянні" : "Weakest in this comparison",
+                bestRelations: language === "ua" ? "Найкраще покриття зв'язками" : "Best relationship coverage"
               }} />
-              <RunDetailsPanel details={selectedDetails} loading={detailsLoading} error={detailsError} labels={{
-                empty: t.selectRun,
-                loading: t.loading,
-                title: t.runDetails,
-                summary: t.summary,
-                modules: t.selectedModules,
-                metrics: t.metrics,
-                advanced: t.advanced,
-                platform: t.platform,
-                mode: t.ai,
-                provider: t.provider,
-                created: language === "ua" ? "Створено" : "Created",
-                architecture: t.architectureStyle,
-                state: t.stateManagement,
-                navigation: t.navigation,
-                zip: t.zip,
-                ready: t.completed,
-                missing: language === "ua" ? "немає" : "missing",
-                files: t.files.toLowerCase(),
-                artifacts: t.artifacts.toLowerCase(),
-                warnings: language === "ua" ? "попереджень" : "warnings",
-                validation: t.validation.toLowerCase()
-              }} />
+              ) : null}
+              {!comparison ? (
+                <RunDetailsPanel details={selectedDetails} loading={detailsLoading} error={detailsError} labels={{
+                  empty: t.selectRun,
+                  loading: t.loading,
+                  title: t.runDetails,
+                  summary: t.summary,
+                  modules: t.selectedModules,
+                  metrics: t.metrics,
+                  advanced: t.advanced,
+                  platform: t.platform,
+                  mode: t.ai,
+                  provider: t.provider,
+                  created: language === "ua" ? "Створено" : "Created",
+                  architecture: t.architectureStyle,
+                  state: t.stateManagement,
+                  navigation: t.navigation,
+                  zip: t.zip,
+                  ready: t.completed,
+                  missing: language === "ua" ? "немає" : "missing",
+                  files: t.files.toLowerCase(),
+                  artifacts: t.artifacts.toLowerCase(),
+                  warnings: language === "ua" ? "попереджень" : "warnings",
+                  validation: t.validation.toLowerCase(),
+                  advisorTitle: language === "ua" ? "Пояснення advisor" : "Advisor explanation",
+                  advisorRationale: t.advisorRationale,
+                  advisorModules: t.advisorModules,
+                  advisorMode: t.advisorMode,
+                  advisorTradeoffs: t.advisorTradeoffs,
+                  advisorChecks: t.advisorChecks
+                }} />
+              ) : null}
             </div>
           ) : null}
         </section>

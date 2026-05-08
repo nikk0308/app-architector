@@ -253,7 +253,10 @@ function analyzeRun(detail: GenerationRunDetails): RunComparisonAnalysis {
   const platformCoreFiles = filePaths.filter((path) => platformPatterns.some((pattern) => pattern.test(path))).length;
   const integrationFiles = filePaths.filter((path) => /integration|orchestrator|dependencygraph|startupsequence|contractverifier|serviceorchestrator/i.test(path)).length;
   const resourceFiles = filePaths.filter((path) => /prefabs?|resources?|assets?|ui\/|designsystem|design_system|\.unity$|\.uxml$|\.uss$/i.test(path)).length;
-  const relationshipFiles = filePaths.filter((path) => /relationship/i.test(path)).length;
+  const relationshipFiles = filePaths.filter((path) => {
+    const lower = path.toLowerCase();
+    return /relationship|manager|coordinator|orchestrator|controller|service|repository|store|cache|gateway|adapter|bridge|resolver|registry|policy|contract|protocol|interface|viewmodel|presenter|state|route|navigator|prefab|scene|config|endpoint|event|mapper|monitor|pipeline/i.test(lower);
+  }).length;
 
   return {
     sourceFiles: categoryBreakdown.source ?? 0,

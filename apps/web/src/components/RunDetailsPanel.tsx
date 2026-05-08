@@ -26,6 +26,12 @@ interface RunDetailsPanelProps {
     artifacts?: string;
     warnings?: string;
     validation?: string;
+    advisorTitle?: string;
+    advisorRationale?: string;
+    advisorModules?: string;
+    advisorMode?: string;
+    advisorTradeoffs?: string;
+    advisorChecks?: string;
   };
 }
 
@@ -37,7 +43,16 @@ function formatMs(value?: number): string {
 function formatDate(value?: string): string {
   if (!value) return "-";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+  return Number.isNaN(date.getTime())
+    ? value
+    : `${date.toLocaleString("uk-UA", {
+      timeZone: "Europe/Kyiv",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
+    })} UTC+3`;
 }
 
 export function RunDetailsPanel({ details, loading, error, labels }: RunDetailsPanelProps) {
@@ -60,9 +75,15 @@ export function RunDetailsPanel({ details, loading, error, labels }: RunDetailsP
     ready: "ready",
     missing: "missing",
     files: "files",
-    artifacts: "artifacts",
+    artifacts: "plan blocks",
     warnings: "warnings",
     validation: "validation",
+    advisorTitle: "Advisor explanation",
+    advisorRationale: "Architecture rationale",
+    advisorModules: "Module impact",
+    advisorMode: "Generation mode impact",
+    advisorTradeoffs: "Trade-offs",
+    advisorChecks: "Next checks",
     ...labels
   };
 
@@ -82,18 +103,58 @@ export function RunDetailsPanel({ details, loading, error, labels }: RunDetailsP
   const spec = details.spec;
   const modules = spec?.modules.filter((module) => module.enabled).map((module) => module.featureId) ?? [];
   const validationStatus = details.validationV2?.postMaterialization?.status ?? details.validationV2?.preMaterialization?.status ?? details.validation?.status ?? "-";
+  const mode = details.metadata.generationMode ?? "baseline";
   const provider = details.architectureSynthesis?.usedAi
     ? `${details.architectureSynthesis.provider}${details.architectureSynthesis.model ? ` · ${details.architectureSynthesis.model}` : ""}`
     : "deterministic";
   const fileCount = metrics?.fileCount ?? details.metadata.fileTree?.filter((node) => node.type === "file").length ?? "-";
-  const humanSummary = `${details.metadata.projectName} · ${details.metadata.generationMode ?? "baseline"} · ${details.metadata.profile} · ${fileCount} ${text.files} · ${text.validation} ${validationStatus}.`;
+  const humanSummary = `${details.metadata.projectName} · ${mode} · ${details.metadata.profile} · ${fileCount} ${text.files} · ${text.validation} ${validationStatus}.`;
+  const modulePreview = modules.slice(0, 8).join(", ") || "core";
+  const isUa = text.created === "Створено";
+  const advisorBlocks = [
+    {
+      title: text.advisorRationale,
+      body: details.advisor?.summary
+        ?? (isUa
+          ? `${details.metadata.profile} starter побудовано навколо ${spec?.architecture.style ?? "обраної"} архітектури, стану ${spec?.architecture.stateManagement ?? "default"} і навігації ${spec?.architecture.navigationStyle ?? "default"}.`
+          : `${details.metadata.profile} starter uses ${spec?.architecture.style ?? "selected"} architecture with ${spec?.architecture.stateManagement ?? "default"} state and ${spec?.architecture.navigationStyle ?? "default"} navigation.`)
+    },
+    {
+      title: text.advisorModules,
+      body: isUa
+        ? `Увімкнені модулі (${modulePreview}) представлені service/state/resource/integration межами, а не одиночними placeholder-файлами.`
+        : `Enabled modules (${modulePreview}) are represented as service, state, resource and integration boundaries instead of isolated placeholder files.`
+    },
+    {
+      title: text.advisorMode,
+      body: details.architectureSynthesis?.usedAi
+        ? (isUa
+          ? `${mode} використав ${provider}, щоб сформувати ArchitectureSpec; ZIP потім створив deterministic materializer з цього збереженого snapshot.`
+          : `${mode} used ${provider} to shape the ArchitectureSpec; the deterministic materializer then produced the ZIP from that stored snapshot.`)
+        : (isUa
+          ? "Baseline тримає ArchitectureSpec повністю deterministic і використовує advisor лише для пояснення."
+          : "Baseline mode keeps the ArchitectureSpec fully deterministic and uses advisor output only for explanation.")
+    },
+    {
+      title: text.advisorTradeoffs,
+      body: isUa
+        ? "Це starter-архітектура: вона робить межі, wiring і зв'язки файлів явними, але не замінює production-ready бізнес-логіку."
+        : "This starter favors explicit boundaries, visible wiring and inspectable relationships over production-complete business logic."
+    },
+    {
+      title: text.advisorChecks,
+      body: isUa
+        ? `Наступні перевірки: platform setup, реальні endpoints, warnings (${metrics?.warningCount ?? 0}) і relationship graph перед реалізацією.`
+        : `Next checks: validate platform setup, connect real endpoints, review warnings (${metrics?.warningCount ?? 0}) and inspect the relationship graph before implementation.`
+    }
+  ];
 
   return (
     <div className="run-details-panel redesigned-panel">
       <div className="section-head">
         <div>
           <span className="kicker">{text.title}</span>
-          <h2>{details.metadata.projectName}</h2>
+          <h2>{details.metadata.projectName} · {mode} · {details.metadata.profile}</h2>
         </div>
         <span className="status-pill">{details.metadata.status}</span>
       </div>
@@ -102,7 +163,7 @@ export function RunDetailsPanel({ details, loading, error, labels }: RunDetailsP
 
       <div className="detail-grid">
         <span><small>{text.platform}</small><strong>{details.metadata.profile}</strong></span>
-        <span><small>{text.mode}</small><strong>{details.metadata.generationMode ?? "baseline"}</strong></span>
+        <span><small>{text.mode}</small><strong>{mode}</strong></span>
         <span><small>{text.provider}</small><strong>{provider}</strong></span>
         <span><small>{text.created}</small><strong>{formatDate(details.metadata.createdAt)}</strong></span>
         <span><small>{text.architecture}</small><strong>{spec?.architecture.style ?? "-"}</strong></span>
@@ -114,11 +175,11 @@ export function RunDetailsPanel({ details, loading, error, labels }: RunDetailsP
       <div className="metric-bars">
         <div>
           <span>{metrics?.fileCount ?? 0} {text.files}</span>
-          <i style={{ width: `${Math.min(100, ((metrics?.fileCount ?? 0) / 80) * 100)}%` }} />
+          <i style={{ width: `${Math.min(100, ((metrics?.fileCount ?? 0) / 260) * 100)}%` }} />
         </div>
         <div>
           <span>{metrics?.artifactCount ?? 0} {text.artifacts}</span>
-          <i style={{ width: `${Math.min(100, ((metrics?.artifactCount ?? 0) / 35) * 100)}%` }} />
+          <i style={{ width: `${Math.min(100, ((metrics?.artifactCount ?? 0) / 70) * 100)}%` }} />
         </div>
         <div>
           <span>{metrics?.warningCount ?? 0} {text.warnings}</span>
@@ -139,12 +200,17 @@ export function RunDetailsPanel({ details, loading, error, labels }: RunDetailsP
         </div>
       ) : null}
 
-      {details.advisor?.summary ? (
-        <div className="advisor-summary-card">
-          <h3>Advisor</h3>
-          <p>{details.advisor.summary}</p>
+      <div className="advisor-summary-card run-advisor-card">
+        <h3>{text.advisorTitle}</h3>
+        <div className="advisor-grid">
+          {advisorBlocks.map((block) => (
+            <article key={block.title}>
+              <strong>{block.title}</strong>
+              <p>{block.body}</p>
+            </article>
+          ))}
         </div>
-      ) : null}
+      </div>
 
       <details className="advanced-details">
         <summary>{text.advanced}</summary>

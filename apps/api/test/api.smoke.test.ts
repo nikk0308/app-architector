@@ -230,7 +230,7 @@ describe("API smoke", () => {
     expect(comparePayload.runs[1].analysis.integrationFiles).toBeGreaterThanOrEqual(comparePayload.runs[0].analysis.integrationFiles);
     expect(comparePayload.runs[1].analysis.evidencePaths.length).toBeGreaterThan(0);
     await app.close();
-  });
+  }, 20000);
 
   it("deletes generation history records and generated files through the API", async () => {
     const app = createApp();

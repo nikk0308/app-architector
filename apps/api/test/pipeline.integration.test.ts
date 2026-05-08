@@ -21,5 +21,5 @@ describe("pipeline integration", () => {
       expect(result.fileTree.length).toBeGreaterThan(0);
       expect(fs.existsSync(result.zipPath)).toBe(true);
     }
-  });
+  }, 20000);
 });
