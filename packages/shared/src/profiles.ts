@@ -27,7 +27,6 @@ const allSupported = (
 
 const commonRequiredArtifactIds = [
   "common.readme",
-  "docs.platform-pack",
   "common.env",
   "common.config",
   "common.state",

@@ -7,7 +7,7 @@ describe("platform packs v2", () => {
       const profile = getProjectProfile(profileId);
 
       expect(profile.platformPack.profileId).toBe(profileId);
-      expect(profile.requiredArtifactIds).toContain("docs.platform-pack");
+      expect(profile.requiredArtifactIds).toContain("common.readme");
       expect(profile.platformPack.qualityGates.length).toBeGreaterThan(0);
       expect(profile.platformPack.setupSteps.length).toBeGreaterThan(0);
 

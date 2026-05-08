@@ -4,7 +4,6 @@ import type {
   ArchitectureSpec,
   ArtifactDefinition,
   ArtifactManifest,
-  GenerationMode,
   GenerationPlan,
   GenerationPlanItem,
   UniversalFeatureId
@@ -38,18 +37,41 @@ function architectureArtifactId(style: string): string {
   return "architecture.feature-first";
 }
 
-function modeArtifactId(mode: GenerationMode): string {
-  if (mode === "commercial") return "mode.openai";
-  if (mode === "hf-open") return "mode.qwen";
-  if (mode === "hybrid") return "mode.hybrid";
-  return "mode.baseline";
+function platformExpansionArtifactIds(profileId: ArchitectureSpec["profileId"]): string[] {
+  return [
+    `platform.${profileId}.app-core`,
+    `platform.${profileId}.ui-system`,
+    `platform.${profileId}.data-layer`,
+    `platform.${profileId}.testing-layer`,
+    `platform.${profileId}.resources`,
+    `platform.${profileId}.presentation-flow`,
+    `platform.${profileId}.domain-usecases`,
+    `platform.${profileId}.infrastructure-adapters`,
+    `platform.${profileId}.module-contracts`,
+    `platform.${profileId}.resource-catalog`,
+    `platform.${profileId}.quality-guards`,
+    `platform.${profileId}.release-workflow`,
+    `platform.${profileId}.test-fixtures`
+  ];
 }
 
-function modeTitle(mode: GenerationMode): string {
-  if (mode === "commercial") return "GPT generation mode boundary";
-  if (mode === "hf-open") return "Qwen generation mode boundary";
-  if (mode === "hybrid") return "Hybrid generation mode boundary";
-  return "Baseline generation mode boundary";
+function aiExpansionArtifactIds(mode: ArchitectureSpec["generationMode"]): string[] {
+  if (mode === "baseline") {
+    return [];
+  }
+
+  const artifacts = [
+    "app.domain-expansion",
+    "app.integration-expansion",
+    "app.testing-expansion",
+    "app.observability-expansion"
+  ];
+
+  if (mode === "hybrid") {
+    artifacts.push("app.release-hardening", "app.cross-cutting-policies");
+  }
+
+  return artifacts;
 }
 
 function pushSelectedProductArtifacts(spec: ArchitectureSpec, artifacts: ArtifactDefinition[]): void {
@@ -124,15 +146,6 @@ export function buildArtifactManifest(spec: ArchitectureSpec): ArtifactManifest 
   });
 
   pushArtifact(artifacts, {
-    id: "docs.platform-pack",
-    title: "Platform pack guide",
-    reason: "Every generation documents the selected platform baseline, support matrix and setup gates.",
-    required: true,
-    category: "metadata",
-    source: "baseline"
-  });
-
-  pushArtifact(artifacts, {
     id: "common.env",
     title: "Environment configuration",
     reason: "Environment scaffold is part of the canonical baseline output.",
@@ -168,14 +181,27 @@ export function buildArtifactManifest(spec: ArchitectureSpec): ArtifactManifest 
     source: "baseline"
   });
 
-  pushArtifact(artifacts, {
-    id: modeArtifactId(spec.generationMode),
-    title: modeTitle(spec.generationMode),
-    reason: "The selected generation mode contributes a visible boundary and metadata profile for comparison.",
-    required: true,
-    category: "profile",
-    source: spec.generationMode === "baseline" ? "baseline" : "advisor"
-  });
+  for (const artifactId of platformExpansionArtifactIds(spec.profileId)) {
+    pushArtifact(artifacts, {
+      id: artifactId,
+      title: artifactId,
+      reason: "The selected platform contributes a fuller real application structure: UI, data, resources and tests.",
+      required: true,
+      category: "profile",
+      source: "baseline"
+    });
+  }
+
+  for (const artifactId of aiExpansionArtifactIds(spec.generationMode)) {
+    pushArtifact(artifacts, {
+      id: artifactId,
+      title: artifactId,
+      reason: "AI-assisted modes add real application architecture depth, not generator metadata folders.",
+      required: false,
+      category: "feature",
+      source: "advisor"
+    });
+  }
 
   spec.modules
     .filter((module) => module.enabled && module.supported)
@@ -218,27 +244,9 @@ export function buildArtifactManifest(spec: ArchitectureSpec): ArtifactManifest 
   }
 
   pushArtifact(artifacts, {
-    id: "meta.manifest",
-    title: "Manifest metadata",
-    reason: "Every generated archive carries its own manifest for auditability.",
-    required: true,
-    category: "metadata",
-    source: "baseline"
-  });
-
-  pushArtifact(artifacts, {
-    id: "meta.validation",
-    title: "Validation report",
-    reason: "Validation output is part of the generated package contract.",
-    required: true,
-    category: "metadata",
-    source: "baseline"
-  });
-
-  pushArtifact(artifacts, {
     id: "meta.relationships",
     title: "File relationships map",
-    reason: "Generated packages include a lightweight relationship map that explains how configs, managers and modules depend on each other.",
+    reason: "Generated packages include a graph-ready relationship map that explains how source, configs, resources and modules depend on each other.",
     required: true,
     category: "metadata",
     source: "baseline"

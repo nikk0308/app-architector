@@ -52,19 +52,10 @@ export function validateArtifactManifest(spec: ArchitectureSpec, manifest: Artif
     }
   }
 
-  if (!manifest.artifacts.some((artifact) => artifact.id === "meta.manifest")) {
+  if (!manifest.artifacts.some((artifact) => artifact.id === "meta.relationships")) {
     issues.push({
-      code: "manifest.metadata.manifest-missing",
-      message: "Manifest metadata artifact is missing.",
-      level: "error",
-      path: "artifacts"
-    });
-  }
-
-  if (!manifest.artifacts.some((artifact) => artifact.id === "meta.validation")) {
-    issues.push({
-      code: "manifest.metadata.validation-missing",
-      message: "Validation report artifact is missing.",
+      code: "manifest.metadata.relationships-missing",
+      message: "Relationship graph artifact is missing.",
       level: "error",
       path: "artifacts"
     });

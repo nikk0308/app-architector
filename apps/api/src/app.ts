@@ -362,15 +362,9 @@ function withArchitectureSynthesisNode(
   rootFolderName: string,
   synthesis: ArchitectureSynthesisSummary
 ): TreeNode[] {
-  if (synthesis.mode === "baseline" && !synthesis.usedAi) {
-    return fileTree;
-  }
-
-  const path = `${rootFolderName}/.mag/architecture-synthesis.json`;
-  if (fileTree.some((node) => node.path === path)) {
-    return fileTree;
-  }
-  return [...fileTree, { path, type: "file" }];
+  void rootFolderName;
+  void synthesis;
+  return fileTree;
 }
 
 function withHybridRefinementNodes(
@@ -384,12 +378,6 @@ function withHybridRefinementNodes(
 
   const existingPaths = new Set(fileTree.map((node) => node.path));
   const additions: TreeNode[] = [];
-  const metadataPath = `${rootFolderName}/.mag/hybrid-refinement.json`;
-  if (!existingPaths.has(metadataPath)) {
-    additions.push({ path: metadataPath, type: "file" });
-    existingPaths.add(metadataPath);
-  }
-
   for (const patch of refinement.acceptedPatches) {
     const patchPath = `${rootFolderName}/${patch.path}`;
     if (!existingPaths.has(patchPath)) {
@@ -416,13 +404,13 @@ function synthesisNotes(synthesis: ArchitectureSynthesisSummary): string[] {
 
 function artifactKindForPath(filePath: string): GeneratedArtifactKind {
   const normalized = filePath.toLowerCase();
-  if (normalized.includes("/.mag/")) {
+  if (normalized.includes("/architecture/") && normalized.endsWith(".json")) {
     return "metadata";
   }
   if (normalized.includes("/docs/") || normalized.endsWith("/readme.md")) {
     return "documentation";
   }
-  if (normalized.endsWith(".json") || normalized.endsWith(".yaml") || normalized.endsWith(".yml") || normalized.endsWith(".env.example") || normalized.endsWith(".xcconfig")) {
+  if (normalized.endsWith(".json") || normalized.endsWith(".yaml") || normalized.endsWith(".yml") || normalized.endsWith(".env.example") || normalized.endsWith(".xcconfig") || normalized.endsWith(".plist") || normalized.endsWith(".uxml") || normalized.endsWith(".uss") || normalized.endsWith(".prefab") || normalized.endsWith(".unity")) {
     return "config";
   }
   if (/\.(ts|tsx|js|jsx|swift|dart|cs|arb)$/i.test(filePath)) {
@@ -432,38 +420,26 @@ function artifactKindForPath(filePath: string): GeneratedArtifactKind {
 }
 
 function artifactDescription(filePath: string): string {
-  if (filePath.endsWith(".mag/architecture-advisor.json")) {
-    return "Structured advisor report with mode, assumptions, risks and recommendations.";
-  }
-  if (filePath.endsWith(".mag/hybrid-refinement.json")) {
-    return "Hybrid refinement report with accepted patches, rejected patches and policy warnings.";
-  }
-  if (filePath.endsWith(".mag/file-relationships.json")) {
-    return "Relationship map connecting configs, managers, modules and metadata artifacts.";
-  }
-  if (filePath.includes(".mag/generation-mode-")) {
-    return "Generation mode profile explaining how Baseline, GPT, Qwen or Hybrid influenced the ArchitectureSpec.";
-  }
-  if (filePath.endsWith(".mag/platform-pack.json")) {
-    return "Typed platform pack metadata with support levels and quality gates.";
+  if (filePath.endsWith("architecture/file-relationships.graph.json")) {
+    return "Graph-ready relationship map connecting source, configs, resources, scenes, prefabs and module boundaries.";
   }
   if (filePath.endsWith("docs/architecture-decisions.md")) {
     return "Readable architecture decisions and next steps for the generated starter.";
   }
-  if (filePath.endsWith("docs/platform-pack.md")) {
-    return "Platform-specific architecture baseline, feature matrix and setup guidance.";
-  }
   if (filePath.endsWith("docs/next-steps.md")) {
     return "AI-refined next steps generated within the hybrid documentation allowlist.";
   }
-  if (filePath.endsWith(".mag/artifact-manifest.json")) {
-    return "Generated artifact manifest for auditability.";
-  }
-  if (filePath.endsWith(".mag/validation-report.json")) {
-    return "Validation output for the normalized spec and manifest.";
-  }
   if (filePath.endsWith("README.md")) {
     return "Project overview and setup notes.";
+  }
+  if (filePath.endsWith(".prefab")) {
+    return "Unity prefab resource for a generated UI, manager or composition boundary.";
+  }
+  if (filePath.endsWith(".unity")) {
+    return "Unity scene asset used to bootstrap or demonstrate the generated app.";
+  }
+  if (filePath.endsWith(".uxml") || filePath.endsWith(".uss")) {
+    return "Unity UI Toolkit resource for generated interface structure or styling.";
   }
   return `${artifactKindForPath(filePath)} artifact`;
 }

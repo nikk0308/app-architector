@@ -245,7 +245,7 @@ try {
     contains(sharedHybridDomain, "validateHybridRefinementPatches")
       && contains(sharedHybridDomain, "DEFAULT_HYBRID_REFINEMENT_POLICY")
       && contains(sharedHybridDomain, "allowRootStructureChanges: false")
-      && contains(sharedHybridDomain, "Hybrid refinement cannot modify .mag metadata contracts"),
+      && contains(sharedHybridDomain, "Hybrid refinement cannot modify architecture graph contracts"),
     "shared.hybrid-refinement-policy",
     "Hybrid refinement has an explicit allowlisted patch policy that protects metadata and root structure."
   );
@@ -264,9 +264,9 @@ try {
       && contains(sharedTypes, "PlatformPackDefinition")
       && contains(sharedProfiles, "platformPack")
       && contains(sharedProfiles, "getPlatformPack")
-      && contains(sharedManifestBuilder, "docs.platform-pack"),
+      && contains(sharedManifestBuilder, "platformExpansionArtifactIds"),
     "shared.phase11-platform-packs",
-    "Shared profile registry exposes typed platform packs, support levels and platform-pack docs artifact."
+    "Shared profile registry exposes typed platform packs, support levels and expanded platform source artifacts."
   );
 
   check(
@@ -341,10 +341,10 @@ try {
   check(
     contains(generatorRunnerSource, "hybridRefinement")
       && contains(generatorPythonSource, "write_hybrid_refinements")
-      && contains(generatorPythonSource, "hybrid-refinement.json")
-      && contains(generatorPythonSource, "hybridRefinementFiles"),
+      && contains(generatorPythonSource, "acceptedPatches")
+      && contains(generatorPythonSource, "build_relationship_graph"),
     "generator.materializes-hybrid-refinements",
-    "Python materializer writes accepted hybrid documentation patches and records hybrid metadata."
+    "Python materializer writes accepted hybrid documentation patches and records graph-ready relationships."
   );
 
   check(
@@ -429,9 +429,9 @@ try {
   const advisorPaths = advisorOutputs.map((output) => output.path).sort();
 
   check(
-    Boolean(advisorRegistry) && advisorPaths.includes(".mag/architecture-advisor.json") && advisorPaths.includes("docs/architecture-decisions.md"),
+    Boolean(advisorRegistry) && advisorPaths.includes("docs/architecture-decisions.md"),
     "registry.advisor-artifacts",
-    "Artifact registry emits durable advisor artifacts into generated archives.",
+    "Artifact registry emits durable advisor documentation into generated archives.",
     { advisorPaths }
   );
 
@@ -449,13 +449,12 @@ try {
   );
 
   check(
-    contains(smokeGeneratedZipSource, ".mag/hybrid-refinement.json")
+    contains(smokeGeneratedZipSource, "architecture/file-relationships.graph.json")
       && contains(smokeGeneratedZipSource, "docs/next-steps.md")
-      && contains(smokeGeneratedZipSource, "docs/platform-pack.md")
-      && contains(smokeGeneratedZipSource, ".mag/platform-pack.json")
-      && contains(smokeGeneratedZipSource, "hybrid-json.parseable"),
+      && contains(smokeGeneratedZipSource, "lib/core/domain/domain_model_registry.dart")
+      && contains(smokeGeneratedZipSource, "relationships-graph.parseable"),
     "smoke.hybrid-refinement-inspection",
-    "Generated ZIP smoke validates hybrid refinement and platform pack metadata/documentation output."
+    "Generated ZIP smoke validates hybrid documentation, real source expansion and graph-ready relationships."
   );
 
   check(

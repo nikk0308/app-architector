@@ -139,8 +139,8 @@ export function validateHybridRefinementPatches(
       rejected.push(reject(normalizedPatch, "Patch path must stay inside the generated project root."));
       continue;
     }
-    if (normalizedPath.startsWith(".mag/")) {
-      rejected.push(reject(normalizedPatch, "Hybrid refinement cannot modify .mag metadata contracts."));
+    if (normalizedPath.startsWith("architecture/")) {
+      rejected.push(reject(normalizedPatch, "Hybrid refinement cannot modify architecture graph contracts."));
       continue;
     }
     if (!normalizedPath.endsWith(".md")) {

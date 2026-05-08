@@ -112,7 +112,8 @@ export interface RunComparisonAnalysis {
   assetFiles: number;
   testFiles: number;
   relationshipFiles: number;
-  modeSpecificFiles: number;
+  integrationFiles: number;
+  resourceFiles: number;
   platformCoreFiles: number;
   selectedModuleCount: number;
   representedModuleCount: number;
@@ -195,7 +196,7 @@ function moduleKey(featureId: string): string {
 
 function categoryForPath(path: string): string {
   const lower = path.toLowerCase();
-  if (lower.includes("/.mag/")) return "metadata";
+  if (lower.includes("/architecture/") && lower.endsWith(".json")) return "metadata";
   if (lower.endsWith(".md")) return "documentation";
   if (/\.(test|spec)\.|\/tests?\//i.test(lower)) return "test";
   if (/\.(swift|dart|ts|tsx|js|jsx|cs|kt|java)$/i.test(lower)) return "source";
@@ -250,7 +251,8 @@ function analyzeRun(detail: GenerationRunDetails): RunComparisonAnalysis {
   ].filter((item): item is string => Boolean(item));
   const platformPatterns = platformCorePatterns(detail.metadata.profile);
   const platformCoreFiles = filePaths.filter((path) => platformPatterns.some((pattern) => pattern.test(path))).length;
-  const modeSpecificFiles = filePaths.filter((path) => /generationmode|generation_mode|mode-analysis|modeboundary|specpatch|prompttrace|decisionmatrix|riskbacklog/i.test(path)).length;
+  const integrationFiles = filePaths.filter((path) => /integration|orchestrator|dependencygraph|startupsequence|contractverifier|serviceorchestrator/i.test(path)).length;
+  const resourceFiles = filePaths.filter((path) => /prefabs?|resources?|assets?|ui\/|designsystem|design_system|\.unity$|\.uxml$|\.uss$/i.test(path)).length;
   const relationshipFiles = filePaths.filter((path) => /relationship/i.test(path)).length;
 
   return {
@@ -261,7 +263,8 @@ function analyzeRun(detail: GenerationRunDetails): RunComparisonAnalysis {
     assetFiles: (categoryBreakdown.asset ?? 0) + (categoryBreakdown.scene ?? 0) + (categoryBreakdown.prefab ?? 0),
     testFiles: categoryBreakdown.test ?? 0,
     relationshipFiles,
-    modeSpecificFiles,
+    integrationFiles,
+    resourceFiles,
     platformCoreFiles,
     selectedModuleCount: selectedModules.length,
     representedModuleCount: representedModules.length,
@@ -271,7 +274,7 @@ function analyzeRun(detail: GenerationRunDetails): RunComparisonAnalysis {
     architectureSignals,
     categoryBreakdown,
     evidencePaths: filePaths
-      .filter((path) => /generationmode|mode-analysis|product|modules|features|core|services|\.mag\/file-relationships|architecture-spec|artifact-manifest/i.test(path))
+      .filter((path) => /product|modules|features|core|services|architecture\/file-relationships|integration|design|prefab|resources/i.test(path))
       .slice(0, 10)
   };
 }

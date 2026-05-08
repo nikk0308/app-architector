@@ -162,7 +162,7 @@ export function validateGeneratedOutputStructure(input: GeneratedOutputValidatio
 export function validateRegistryTemplateDrift(input: RegistryDriftInput): ValidationV2Report {
   const issues: ValidationIssue[] = [];
   const registryIds = new Set(input.registryArtifactIds);
-  const materializerIds = new Set(input.materializerArtifactIds ?? ["meta.manifest", "meta.validation"]);
+  const materializerIds = new Set(input.materializerArtifactIds ?? ["meta.relationships"]);
   const missingTemplateIds = new Set(input.missingTemplateIds ?? []);
   let registryDrift = 0;
   let templateDrift = 0;

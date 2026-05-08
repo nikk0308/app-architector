@@ -193,80 +193,78 @@ function modeRelationshipSummary(mode: GenerationMode): string {
 
 function relationshipJson(spec: ArchitectureSpec, manifest: ArtifactManifest): string {
   const root = spec.naming.rootDirectoryName;
-  const relationships = [
+  const nodes = [
+    { id: `${root}/README.md`, path: `${root}/README.md`, kind: "documentation", module: "app" },
+    { id: `${root}/docs/architecture-decisions.md`, path: `${root}/docs/architecture-decisions.md`, kind: "documentation", module: "architecture" },
+    { id: `${root}/architecture/file-relationships.graph.json`, path: `${root}/architecture/file-relationships.graph.json`, kind: "config", module: "architecture" }
+  ];
+  const edges = [
     {
-      source: `${root}/.mag/architecture-spec.json`,
-      target: `${root}/.mag/artifact-manifest.json`,
-      relation: "drives",
-      reason: "The normalized ArchitectureSpec decides which modules, mode boundaries and platform artifacts are selected."
-    },
-    {
-      source: `${root}/.mag/artifact-manifest.json`,
-      target: `${root}/README.md`,
+      from: `${root}/README.md`,
+      to: `${root}/docs/architecture-decisions.md`,
       relation: "documents",
-      reason: "The README summarizes the generated package and the manifest-backed file plan."
+      reason: "The README links the starter app to its architecture explanation."
     },
     {
-      source: `${root}/.mag/validation-report.json`,
-      target: `${root}/.mag/artifact-manifest.json`,
-      relation: "checks",
-      reason: "Validation verifies required artifacts, unsupported combinations and manifest consistency."
-    },
-    {
-      source: `${root}/.mag/${modeMetadataFile(spec.generationMode)}`,
-      target: `${root}/.mag/architecture-spec.json`,
+      from: `${root}/architecture/file-relationships.graph.json`,
+      to: `${root}/README.md`,
       relation: "explains",
-      reason: "Mode profile records how Baseline, GPT, Qwen or Hybrid influenced the spec before materialization."
+      reason: "The relationship graph is a visualization-ready map of the generated source, config and resource files."
     }
   ];
 
   for (const store of spec.product.distributionStores) {
-    relationships.push({
-      source: `${root}/distribution/${store}.json`,
-      target: `${root}/product/distribution/StoreReleaseManager`,
-      relation: "configured-by",
-      reason: "Store JSON config feeds the release manager boundary for target-specific publishing checks."
+    edges.push({
+      from: `${root}/README.md`,
+      to: `${root}/product/distribution/StoreReleaseManager`,
+      relation: "references",
+      reason: `${store} publishing adds release checklist and store-target source boundaries without fake store JSON files.`
     });
   }
   for (const strategy of spec.product.monetization) {
-    relationships.push({
-      source: `${root}/product/monetization/${strategy}.json`,
-      target: `${root}/product/monetization/MonetizationManager`,
-      relation: "configured-by",
-      reason: "Monetization config feeds entitlement, purchase gateway and paywall coordination code."
+    edges.push({
+      from: `${root}/product/monetization/MonetizationManager`,
+      to: `${root}/product/monetization/PurchaseGateway`,
+      relation: "uses",
+      reason: `${strategy} monetization is represented by source boundaries and purchase handoff contracts.`
     });
   }
   for (const option of spec.product.offlineData) {
-    relationships.push({
-      source: `${root}/product/offline/${option}.json`,
-      target: `${root}/product/offline/OfflineDataCoordinator`,
-      relation: "configured-by",
-      reason: "Offline data config feeds cache, sync queue and repository coordination code."
+    edges.push({
+      from: `${root}/product/offline/OfflineDataCoordinator`,
+      to: `${root}/product/offline/SyncQueue`,
+      relation: "manages",
+      reason: `${option} offline data creates coordinator, queue and cache source files.`
     });
   }
   for (const option of spec.product.runtimeQuality) {
-    relationships.push({
-      source: `${root}/product/quality/${option}.json`,
-      target: `${root}/product/quality/RuntimeQualityManager`,
-      relation: "configured-by",
-      reason: "Runtime quality config feeds diagnostics, logging and feature-flag boundaries."
+    edges.push({
+      from: `${root}/product/quality/RuntimeQualityManager`,
+      to: `${root}/product/quality/DiagnosticsEvent`,
+      relation: "emits",
+      reason: `${option} quality support is represented by diagnostics and runtime guard source boundaries.`
     });
   }
   for (const option of spec.product.delivery) {
-    relationships.push({
-      source: `${root}/delivery/${option}.json`,
-      target: `${root}/product/delivery/DeliveryPipeline`,
-      relation: "configured-by",
-      reason: "Delivery config feeds release checklist, build environment and CI/CD handoff boundaries."
+    edges.push({
+      from: `${root}/product/delivery/DeliveryPipeline`,
+      to: `${root}/product/delivery/ReleaseChecklist`,
+      relation: "owns",
+      reason: `${option} delivery support is represented as release workflow source files.`
     });
   }
 
   return JSON.stringify({
-    version: "1.0",
+    schemaVersion: "1.0",
+    generatedBy: "App Architector",
     profileId: spec.profileId,
     generationMode: spec.generationMode,
-    artifactCount: manifest.summary.totalArtifacts,
-    relationships
+    summary: {
+      artifactCount: manifest.summary.totalArtifacts,
+      nodes: nodes.length,
+      edges: edges.length
+    },
+    graph: { nodes, edges }
   }, null, 2);
 }
 

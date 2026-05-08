@@ -40,7 +40,7 @@ describe("validation v2", () => {
       stage: "pre-materialization",
       rootFolderName: "demo",
       fileTree,
-      requiredPaths: ["demo/README.md", "demo/.mag/artifact-manifest.json"]
+      requiredPaths: ["demo/README.md", "demo/architecture/file-relationships.graph.json"]
     });
 
     expect(report.status).toBe("failed");

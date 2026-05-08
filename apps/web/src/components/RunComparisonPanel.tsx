@@ -28,7 +28,8 @@ interface RunComparisonPanelProps {
     architectureCompleteness?: string;
     sourceDepth?: string;
     relationshipCoverage?: string;
-    modeDepth?: string;
+    integrationDepth?: string;
+    resourceDepth?: string;
     platformCore?: string;
     categoryBreakdown?: string;
     architectureSignals?: string;
@@ -39,7 +40,7 @@ interface RunComparisonPanelProps {
     docsFiles?: string;
     metadataFiles?: string;
     relationshipFiles?: string;
-    modeFiles?: string;
+    integrationFiles?: string;
     delta?: string;
     hint?: string;
   };
@@ -58,7 +59,8 @@ function score(run: RunComparison["runs"][number]): number {
     + metrics.artifactCount * 2
     + (analysis?.representedModuleCount ?? 0) * 10
     + (analysis?.relationshipFiles ?? 0) * 3
-    + (analysis?.modeSpecificFiles ?? 0) * 2
+    + (analysis?.integrationFiles ?? 0) * 3
+    + (analysis?.resourceFiles ?? 0) * 2
     - metrics.warningCount * 4
     + (metrics.zipAvailable ? 8 : 0);
 }
@@ -74,7 +76,7 @@ function validationScore(status?: string): number {
   return 60;
 }
 
-function metricsFor(run: RunComparison["runs"][number], max: { files: number; relationships: number; modeFiles: number; platformCore: number }) {
+function metricsFor(run: RunComparison["runs"][number], max: { files: number; relationships: number; integrationFiles: number; resources: number; platformCore: number }) {
   const metrics = run.metrics;
   const analysis = run.analysis;
   const fileCoverage = clamp(((metrics?.fileCount ?? 0) / Math.max(1, max.files)) * 100);
@@ -87,10 +89,11 @@ function metricsFor(run: RunComparison["runs"][number], max: { files: number; re
   const validation = validationScore(metrics?.validationStatus);
   const sourceDepth = clamp(((analysis?.sourceFiles ?? 0) / Math.max(1, metrics?.fileCount ?? 1) / 0.65) * 100);
   const relationshipCoverage = clamp(((analysis?.relationshipFiles ?? 0) / Math.max(1, max.relationships)) * 100);
-  const modeDepth = clamp(((analysis?.modeSpecificFiles ?? 0) / Math.max(1, max.modeFiles)) * 100);
+  const integrationDepth = clamp(((analysis?.integrationFiles ?? 0) / Math.max(1, max.integrationFiles)) * 100);
+  const resourceDepth = clamp(((analysis?.resourceFiles ?? 0) / Math.max(1, max.resources)) * 100);
   const platformCore = clamp(((analysis?.platformCoreFiles ?? 0) / Math.max(1, max.platformCore)) * 100);
-  const architectureCompleteness = clamp((fileCoverage + moduleCoverage + sourceDepth + relationshipCoverage + platformCore + validation + warningsCleanliness) / 7);
-  return { fileCoverage, moduleCoverage, docsRatio, warningsCleanliness, validation, architectureCompleteness, sourceDepth, relationshipCoverage, modeDepth, platformCore };
+  const architectureCompleteness = clamp((fileCoverage + moduleCoverage + sourceDepth + relationshipCoverage + integrationDepth + resourceDepth + platformCore + validation + warningsCleanliness) / 9);
+  return { fileCoverage, moduleCoverage, docsRatio, warningsCleanliness, validation, architectureCompleteness, sourceDepth, relationshipCoverage, integrationDepth, resourceDepth, platformCore };
 }
 
 function deltaText(value: number): string {
@@ -122,7 +125,8 @@ export function RunComparisonPanel({ comparison, selectedCount, loading, error, 
     architectureCompleteness: "Architecture completeness",
     sourceDepth: "Source depth",
     relationshipCoverage: "Relationship coverage",
-    modeDepth: "Mode depth",
+    integrationDepth: "Integration depth",
+    resourceDepth: "Resource depth",
     platformCore: "Platform core",
     categoryBreakdown: "Category breakdown",
     architectureSignals: "Architecture signals",
@@ -133,7 +137,7 @@ export function RunComparisonPanel({ comparison, selectedCount, loading, error, 
     docsFiles: "Docs",
     metadataFiles: "Metadata",
     relationshipFiles: "Relations",
-    modeFiles: "Mode files",
+    integrationFiles: "Integration files",
     delta: "Delta",
     hint: "These are heuristic UI metrics for comparing starter-package completeness."
   };
@@ -154,7 +158,8 @@ export function RunComparisonPanel({ comparison, selectedCount, loading, error, 
   const max = {
     files: Math.max(1, ...comparison.runs.map((run) => run.metrics?.fileCount ?? 0)),
     relationships: Math.max(1, ...comparison.runs.map((run) => run.analysis?.relationshipFiles ?? 0)),
-    modeFiles: Math.max(1, ...comparison.runs.map((run) => run.analysis?.modeSpecificFiles ?? 0)),
+    integrationFiles: Math.max(1, ...comparison.runs.map((run) => run.analysis?.integrationFiles ?? 0)),
+    resources: Math.max(1, ...comparison.runs.map((run) => run.analysis?.resourceFiles ?? 0)),
     platformCore: Math.max(1, ...comparison.runs.map((run) => run.analysis?.platformCoreFiles ?? 0))
   };
   const maxTime = Math.max(1, ...comparison.runs.map((run) => run.metrics?.generationTimeMs ?? 0));
@@ -164,7 +169,8 @@ export function RunComparisonPanel({ comparison, selectedCount, loading, error, 
     ["moduleCoverage", text.moduleCoverage],
     ["sourceDepth", text.sourceDepth],
     ["relationshipCoverage", text.relationshipCoverage],
-    ["modeDepth", text.modeDepth],
+    ["integrationDepth", text.integrationDepth],
+    ["resourceDepth", text.resourceDepth],
     ["platformCore", text.platformCore],
     ["docsRatio", text.docsRatio],
     ["warningsCleanliness", text.warningsCleanliness],
@@ -190,7 +196,7 @@ export function RunComparisonPanel({ comparison, selectedCount, loading, error, 
           <span>{text.files}</span>
           <span>{text.artifacts}</span>
           <span>{text.relationshipFiles}</span>
-          <span>{text.modeFiles}</span>
+          <span>{text.integrationFiles}</span>
           <span>{text.warnings}</span>
           <span>{text.time}</span>
           <span>{text.delta}</span>
@@ -203,7 +209,7 @@ export function RunComparisonPanel({ comparison, selectedCount, loading, error, 
             <span>{run.metrics?.fileCount ?? "-"}</span>
             <span>{run.metrics?.artifactCount ?? "-"}</span>
             <span>{run.analysis?.relationshipFiles ?? "-"}</span>
-            <span>{run.analysis?.modeSpecificFiles ?? "-"}</span>
+            <span>{run.analysis?.integrationFiles ?? "-"}</span>
             <span className={(run.metrics?.warningCount ?? 0) > 0 ? "warn-text" : ""}>{run.metrics?.warningCount ?? "-"}</span>
             <span>{formatMs(run.metrics?.generationTimeMs)}</span>
             <span>{deltaByRun.has(run.id) ? deltaText(deltaByRun.get(run.id)?.fileDelta ?? 0) : "base"}</span>

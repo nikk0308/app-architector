@@ -171,38 +171,138 @@ def write_json(path: Path, value: Any) -> None:
     path.write_text(json_dumps(value), encoding="utf-8")
 
 
+def classify_graph_node(path: str) -> str:
+    lower = path.lower()
+    if lower.endswith(".md"):
+        return "documentation"
+    if lower.endswith(".unity"):
+        return "scene"
+    if lower.endswith(".prefab"):
+        return "prefab"
+    if lower.endswith((".uxml", ".uss", ".asset", ".mat", ".png", ".jpg", ".jpeg", ".webp", ".svg", ".xcassets")):
+        return "resource"
+    if lower.endswith((".swift", ".dart", ".ts", ".tsx", ".js", ".jsx", ".cs", ".kt", ".java")):
+        return "source"
+    if lower.endswith((".json", ".yaml", ".yml", ".xml", ".plist", ".xcconfig", ".env", ".properties", ".gradle", ".arb", ".xcstrings")):
+        return "config"
+    return "other"
+
+
+def graph_module(path: str) -> str:
+    lower = path.lower()
+    for key in [
+        "auth",
+        "analytics",
+        "localization",
+        "push",
+        "network",
+        "persistence",
+        "storage",
+        "monetization",
+        "distribution",
+        "offline",
+        "quality",
+        "delivery",
+        "navigation",
+        "design",
+        "domain",
+        "integration",
+        "observability",
+        "release",
+        "testing",
+    ]:
+        if key in lower:
+            return "networking" if key == "network" else ("storage" if key == "persistence" else key)
+    if "prefab" in lower or "ui/" in lower or "resources/" in lower:
+        return "ui"
+    if "core" in lower:
+        return "core"
+    return "app"
+
+
+def likely_manager(path: str) -> bool:
+    name = Path(path).name.lower()
+    return any(token in name for token in ["manager", "coordinator", "container", "orchestrator", "controller", "service", "pipeline", "bootstrapper"])
+
+
+def build_relationship_graph(output_root: Path, payload: Dict[str, Any], diagnostics: Dict[str, Any]) -> Dict[str, Any]:
+    tree = collect_file_tree(output_root)
+    files = [entry["path"] for entry in tree if entry.get("type") == "file"]
+    nodes = [
+        {
+            "id": path,
+            "path": path,
+            "kind": classify_graph_node(path),
+            "module": graph_module(path),
+        }
+        for path in files
+    ]
+    edges: List[Dict[str, str]] = []
+
+    def add_edge(source: str, target: str, relation: str, reason: str) -> None:
+        if source == target or source not in files or target not in files:
+            return
+        edge = {"from": source, "to": target, "relation": relation, "reason": reason}
+        if edge not in edges:
+            edges.append(edge)
+
+    root_managers = [path for path in files if likely_manager(path) and graph_module(path) in {"app", "core", "integration"}]
+    module_groups: Dict[str, List[str]] = {}
+    for path in files:
+        module_groups.setdefault(graph_module(path), []).append(path)
+
+    for module, module_files in module_groups.items():
+        managers = [path for path in module_files if likely_manager(path)] or module_files[:1]
+        manager = managers[0]
+        for path in module_files:
+            if path == manager:
+                continue
+            relation = "owns" if classify_graph_node(path) in {"source", "resource", "prefab", "scene"} else "configured-by"
+            add_edge(manager, path, relation, f"{Path(manager).name} coordinates the {module} boundary.")
+            if classify_graph_node(path) in {"config", "resource"}:
+                add_edge(path, manager, "used-by", f"{Path(path).name} feeds the {module} manager or service.")
+        for root in root_managers[:3]:
+            if root != manager:
+                add_edge(root, manager, "wires", f"{Path(root).name} wires the {module} boundary into the app composition.")
+
+    for scene in [path for path in files if path.lower().endswith(".unity")]:
+        for prefab in [path for path in files if path.lower().endswith(".prefab")][:8]:
+            add_edge(scene, prefab, "instantiates", "Unity scene references generated prefabs.")
+    for prefab in [path for path in files if path.lower().endswith(".prefab")]:
+        for script in [path for path in files if likely_manager(path) and path.lower().endswith(".cs")][:6]:
+            add_edge(prefab, script, "binds", "Prefab is intended to bind to a runtime manager script.")
+    for ui_doc in [path for path in files if path.lower().endswith(".uxml")]:
+        for style in [path for path in files if path.lower().endswith(".uss")]:
+            add_edge(ui_doc, style, "styled-by", "UI Toolkit document uses the generated style sheet.")
+    for readme in [path for path in files if path.lower().endswith("readme.md")]:
+        for target in [path for path in files if "architecture" in path.lower() or "docs/" in path.lower()][:8]:
+            add_edge(readme, target, "documents", "README points to architecture explanation and relationship files.")
+
+    return {
+        "schemaVersion": "1.0",
+        "generatedBy": "App Architector",
+        "summary": {
+            "nodes": len(nodes),
+            "edges": len(edges),
+            "sourceFiles": sum(1 for node in nodes if node["kind"] == "source"),
+            "resourceFiles": sum(1 for node in nodes if node["kind"] in {"resource", "scene", "prefab"}),
+            "modules": sorted({node["module"] for node in nodes}),
+        },
+        "graph": {
+            "nodes": nodes,
+            "edges": edges,
+        },
+        "diagnostics": {
+            "missingArtifacts": diagnostics.get("missingArtifacts", []),
+            "skippedOutputs": diagnostics.get("skippedOutputs", []),
+        },
+    }
+
+
 def write_metadata_files(output_root: Path, payload: Dict[str, Any], diagnostics: Dict[str, Any]) -> None:
-    metadata_root = output_root / ".mag"
-    metadata_root.mkdir(parents=True, exist_ok=True)
-    template_context = payload.get("templateContext", {})
-    write_json(metadata_root / "normalized-profile.json", payload.get("profile", {}))
-    write_json(metadata_root / "architecture-spec.json", payload.get("spec", {}))
-    write_json(metadata_root / "artifact-manifest.json", payload.get("manifest", {}))
-    write_json(metadata_root / "validation-report.json", payload.get("validation", {}))
-    platform_pack_raw = template_context.get("platform_pack_json") if isinstance(template_context, dict) else None
-    if isinstance(platform_pack_raw, str) and platform_pack_raw.strip():
-        try:
-            write_json(metadata_root / "platform-pack.json", json.loads(platform_pack_raw))
-        except json.JSONDecodeError:
-            write_json(metadata_root / "platform-pack.json", {"raw": platform_pack_raw})
-    if payload.get("architectureSynthesis") is not None:
-        write_json(metadata_root / "architecture-synthesis.json", payload.get("architectureSynthesis", {}))
-    write_json(metadata_root / "generation-plan.json", payload.get("generationPlan", payload.get("generation_plan", payload.get("plan", {}))))
-    write_json(metadata_root / "legacy-plan.json", payload.get("plan", {}))
-    write_json(metadata_root / "template-context.json", payload.get("templateContext", {}))
-    if payload.get("advisorReport") is not None:
-        write_json(metadata_root / "architecture-advisor.json", payload.get("advisorReport", {}))
-    if payload.get("hybridRefinement") is not None:
-        write_json(metadata_root / "hybrid-refinement.json", payload.get("hybridRefinement", {}))
-    write_json(metadata_root / "generation-input.json", {
-        "generationId": payload.get("generationId"),
-        "outputDir": payload.get("outputDir"),
-        "zipPath": payload.get("zipPath"),
-        "profileId": payload.get("profile", {}).get("profile") if isinstance(payload.get("profile"), dict) else None,
-        "artifactCount": len(payload.get("manifest", {}).get("artifacts", [])) if isinstance(payload.get("manifest"), dict) else 0,
-    })
-    write_json(metadata_root / "file-tree.json", collect_file_tree(output_root))
-    write_json(metadata_root / "generation-diagnostics.json", diagnostics)
+    architecture_root = output_root / "architecture"
+    architecture_root.mkdir(parents=True, exist_ok=True)
+    write_json(architecture_root / "file-relationships.graph.json", build_relationship_graph(output_root, payload, diagnostics))
 
 
 def write_profile_specific_stub(output_root: Path, profile: str, context: Dict[str, Any]) -> List[str]:

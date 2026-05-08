@@ -27,7 +27,7 @@ function inputFixture() {
   const fileTree: TreeNode[] = [
     { path: `${manifest.rootFolderName}/README.md`, type: "file" },
     { path: `${manifest.rootFolderName}/docs/architecture-decisions.md`, type: "file" },
-    { path: `${manifest.rootFolderName}/.mag/artifact-manifest.json`, type: "file" }
+    { path: `${manifest.rootFolderName}/architecture/file-relationships.graph.json`, type: "file" }
   ];
 
   return {
@@ -87,7 +87,7 @@ describe("hybrid refinement", () => {
               rationale: "Adds a safe documentation note."
             },
             {
-              path: ".mag/architecture-spec.json",
+              path: "architecture/file-relationships.graph.json",
               kind: "documentation",
               operation: "replace-file",
               content: "{}",
@@ -110,7 +110,7 @@ describe("hybrid refinement", () => {
     expect(result.acceptedPatches).toHaveLength(1);
     expect(result.acceptedPatches[0]?.path).toBe("README.md");
     expect(result.rejectedPatches.map((item) => item.patch.path)).toEqual([
-      ".mag/architecture-spec.json",
+      "architecture/file-relationships.graph.json",
       "ios/HybridDemo/Sources/App/HybridDemoApp.swift"
     ]);
     expect(result.warnings).toContain("Provider suggested unsafe patches.");

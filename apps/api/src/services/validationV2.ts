@@ -81,9 +81,7 @@ export function requiredGeneratedPaths(input: {
   const root = input.rootFolderName;
   const required = new Set([
     `${root}/README.md`,
-    `${root}/.mag/artifact-manifest.json`,
-    `${root}/.mag/platform-pack.json`,
-    `${root}/.mag/validation-report.json`
+    `${root}/architecture/file-relationships.graph.json`
   ]);
 
   if (input.manifest.artifacts.some((artifact) => artifact.id === "docs.platform-pack")) {
@@ -91,16 +89,10 @@ export function requiredGeneratedPaths(input: {
   }
 
   if (input.manifest.artifacts.some((artifact) => artifact.id === "meta.advisor")) {
-    required.add(`${root}/.mag/architecture-advisor.json`);
     required.add(`${root}/docs/architecture-decisions.md`);
   }
 
-  if (input.architectureSynthesis && (input.architectureSynthesis.mode !== "baseline" || input.architectureSynthesis.usedAi)) {
-    required.add(`${root}/.mag/architecture-synthesis.json`);
-  }
-
   if (input.hybridRefinement) {
-    required.add(`${root}/.mag/hybrid-refinement.json`);
     for (const patch of input.hybridRefinement.acceptedPatches) {
       required.add(`${root}/${patch.path}`);
     }

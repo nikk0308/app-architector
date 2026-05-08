@@ -16,7 +16,7 @@ function badgeFor(path: string): string {
   const ext = extension(path);
   const lower = path.toLowerCase();
   const name = lower.split("/").pop() ?? lower;
-  if (lower.includes("/.mag/")) return "{}";
+  if (lower.includes("/architecture/") && lower.endsWith(".json")) return "{}";
   if (ext === "json") return "{}";
   if (ext === "xcstrings") return "XCS";
   if (ext === "arb") return "ARB";

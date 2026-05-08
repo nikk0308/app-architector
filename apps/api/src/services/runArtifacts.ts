@@ -5,8 +5,8 @@ import type { GeneratedArtifactSummary, RunArtifactRecord } from "@mag/shared";
 
 const REQUIRED_OUTPUT_SUFFIXES = [
   "README.md",
-  ".mag/artifact-manifest.json",
-  ".mag/validation-report.json"
+  "docs/architecture-decisions.md",
+  "architecture/file-relationships.graph.json"
 ] as const;
 
 function stripRoot(pathValue: string, rootFolderName: string): string {

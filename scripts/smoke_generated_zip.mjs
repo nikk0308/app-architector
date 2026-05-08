@@ -22,17 +22,13 @@ const pythonCandidates = [
 let pythonBin = pythonCandidates[0];
 
 const requiredRelativePaths = [
-  ".mag/architecture-advisor.json",
-  ".mag/architecture-synthesis.json",
-  ".mag/file-relationships.json",
-  ".mag/generation-mode-hybrid.json",
-  ".mag/hybrid-refinement.json",
-  ".mag/platform-pack.json",
-  "lib/generation_mode/hybrid_mode_boundary.dart",
+  "architecture/file-relationships.graph.json",
+  "lib/core/domain/domain_model_registry.dart",
+  "lib/core/integration/service_orchestrator.dart",
+  "lib/designsystem/tokens/color_tokens.dart",
   "lib/product/monetization/monetization_manager.dart",
   "lib/product/offline/offline_data_coordinator.dart",
   "docs/next-steps.md",
-  "docs/platform-pack.md",
   "docs/architecture-decisions.md"
 ];
 
@@ -152,22 +148,14 @@ function payload() {
           category: "metadata",
           source: "advisor"
         },
-        {
-          id: "docs.platform-pack",
-          title: "Platform pack guide",
-          reason: "Platform pack smoke test",
-          required: true,
-          category: "metadata",
-          source: "baseline"
-        },
-        {
-          id: "mode.hybrid",
-          title: "Hybrid generation mode boundary",
-          reason: "Mode boundary smoke test",
-          required: true,
-          category: "profile",
-          source: "advisor"
-        },
+        { id: "platform.flutter.app-core", title: "Flutter app core", reason: "Platform app core smoke test", required: true, category: "profile", source: "baseline" },
+        { id: "platform.flutter.ui-system", title: "Flutter UI system", reason: "Platform UI smoke test", required: true, category: "profile", source: "baseline" },
+        { id: "platform.flutter.data-layer", title: "Flutter data layer", reason: "Platform data smoke test", required: true, category: "profile", source: "baseline" },
+        { id: "platform.flutter.testing-layer", title: "Flutter testing layer", reason: "Platform testing smoke test", required: true, category: "profile", source: "baseline" },
+        { id: "platform.flutter.resources", title: "Flutter resources", reason: "Platform resources smoke test", required: true, category: "profile", source: "baseline" },
+        { id: "app.domain-expansion", title: "AI domain expansion", reason: "AI modes add real application source depth", required: false, category: "feature", source: "advisor" },
+        { id: "app.integration-expansion", title: "AI integration expansion", reason: "AI modes add integration source depth", required: false, category: "feature", source: "advisor" },
+        { id: "app.testing-expansion", title: "AI testing expansion", reason: "AI modes add testing source depth", required: false, category: "feature", source: "advisor" },
         {
           id: "meta.relationships",
           title: "File relationships map",
@@ -331,19 +319,11 @@ function run() {
   });
   const hasRequired = (relativePath) => requiredArtifacts.find((item) => item.path === relativePath)?.present ?? false;
 
-  const advisorPath = path.join(outputRoot, ".mag", "architecture-advisor.json");
-  const synthesisPath = path.join(outputRoot, ".mag", "architecture-synthesis.json");
-  const hybridPath = path.join(outputRoot, ".mag", "hybrid-refinement.json");
-  const platformPackPath = path.join(outputRoot, ".mag", "platform-pack.json");
+  const relationshipsPath = path.join(outputRoot, "architecture", "file-relationships.graph.json");
   const hybridDocPath = path.join(outputRoot, "docs", "next-steps.md");
-  const platformPackDocPath = path.join(outputRoot, "docs", "platform-pack.md");
   const decisionsPath = path.join(outputRoot, "docs", "architecture-decisions.md");
-  const advisor = fs.existsSync(advisorPath) ? JSON.parse(fs.readFileSync(advisorPath, "utf8")) : null;
-  const synthesis = fs.existsSync(synthesisPath) ? JSON.parse(fs.readFileSync(synthesisPath, "utf8")) : null;
-  const hybrid = fs.existsSync(hybridPath) ? JSON.parse(fs.readFileSync(hybridPath, "utf8")) : null;
-  const platformPack = fs.existsSync(platformPackPath) ? JSON.parse(fs.readFileSync(platformPackPath, "utf8")) : null;
+  const relationships = fs.existsSync(relationshipsPath) ? JSON.parse(fs.readFileSync(relationshipsPath, "utf8")) : null;
   const hybridDocText = fs.existsSync(hybridDocPath) ? fs.readFileSync(hybridDocPath, "utf8") : "";
-  const platformPackDocText = fs.existsSync(platformPackDocPath) ? fs.readFileSync(platformPackDocPath, "utf8") : "";
   const markdownText = fs.existsSync(decisionsPath) ? fs.readFileSync(decisionsPath, "utf8") : "";
   const duplicateZipEntries = zipEntries.filter((entry, index, list) => list.indexOf(entry) !== index);
   const invalidZipEntries = zipEntries.filter((entry) => entry.startsWith("/") || entry.split("/").includes(".."));
@@ -354,24 +334,16 @@ function run() {
     { id: "zip.not-empty", status: fs.existsSync(zipPath) && fs.statSync(zipPath).size > 0 ? "passed" : "failed", message: "Generated ZIP is not empty." },
     { id: "zip.no-duplicate-entries", status: duplicateZipEntries.length === 0 ? "passed" : "failed", message: "Generated ZIP has no duplicate entries." },
     { id: "zip.safe-relative-entries", status: invalidZipEntries.length === 0 ? "passed" : "failed", message: "Generated ZIP entries are safe relative paths." },
-    { id: "advisor-json.present", status: hasRequired(".mag/architecture-advisor.json") ? "passed" : "failed", message: ".mag/architecture-advisor.json exists in output and ZIP." },
-    { id: "synthesis-json.present", status: hasRequired(".mag/architecture-synthesis.json") ? "passed" : "failed", message: ".mag/architecture-synthesis.json exists in output and ZIP." },
-    { id: "relationships-json.present", status: hasRequired(".mag/file-relationships.json") ? "passed" : "failed", message: ".mag/file-relationships.json exists in output and ZIP." },
-    { id: "mode-json.present", status: hasRequired(".mag/generation-mode-hybrid.json") ? "passed" : "failed", message: ".mag/generation-mode-hybrid.json exists in output and ZIP." },
-    { id: "mode-boundary.present", status: hasRequired("lib/generation_mode/hybrid_mode_boundary.dart") ? "passed" : "failed", message: "Mode-specific source boundary exists in output and ZIP." },
+    { id: "relationships-graph.present", status: hasRequired("architecture/file-relationships.graph.json") ? "passed" : "failed", message: "Graph-ready relationship file exists in output and ZIP." },
+    { id: "domain-expansion.present", status: hasRequired("lib/core/domain/domain_model_registry.dart") ? "passed" : "failed", message: "AI modes add real domain source files." },
+    { id: "integration-expansion.present", status: hasRequired("lib/core/integration/service_orchestrator.dart") ? "passed" : "failed", message: "AI modes add real integration source files." },
+    { id: "ui-system.present", status: hasRequired("lib/designsystem/tokens/color_tokens.dart") ? "passed" : "failed", message: "Platform UI/design files exist." },
     { id: "monetization-manager.present", status: hasRequired("lib/product/monetization/monetization_manager.dart") ? "passed" : "failed", message: "Monetization module generates a manager script." },
     { id: "offline-coordinator.present", status: hasRequired("lib/product/offline/offline_data_coordinator.dart") ? "passed" : "failed", message: "Offline/data module generates a coordinator script." },
-    { id: "hybrid-json.present", status: hasRequired(".mag/hybrid-refinement.json") ? "passed" : "failed", message: ".mag/hybrid-refinement.json exists in output and ZIP." },
-    { id: "platform-pack-json.present", status: hasRequired(".mag/platform-pack.json") ? "passed" : "failed", message: ".mag/platform-pack.json exists in output and ZIP." },
     { id: "hybrid-doc.present", status: hasRequired("docs/next-steps.md") ? "passed" : "failed", message: "docs/next-steps.md exists in output and ZIP." },
-    { id: "platform-pack-doc.present", status: hasRequired("docs/platform-pack.md") ? "passed" : "failed", message: "docs/platform-pack.md exists in output and ZIP." },
     { id: "decisions-md.present", status: hasRequired("docs/architecture-decisions.md") ? "passed" : "failed", message: "docs/architecture-decisions.md exists in output and ZIP." },
-    { id: "advisor-json.parseable", status: advisor && advisor.schemaVersion === "1.0" ? "passed" : "failed", message: "Advisor JSON is parseable and carries schemaVersion." },
-    { id: "synthesis-json.parseable", status: synthesis && synthesis.mode === "hybrid" ? "passed" : "failed", message: "Architecture synthesis JSON is parseable and carries mode metadata." },
-    { id: "hybrid-json.parseable", status: hybrid && hybrid.status === "applied" && hybrid.acceptedPatches?.length === 1 ? "passed" : "failed", message: "Hybrid refinement JSON is parseable and carries accepted patches." },
-    { id: "platform-pack-json.parseable", status: platformPack && platformPack.profileId === "flutter" ? "passed" : "failed", message: "Platform pack JSON is parseable and carries profile metadata." },
+    { id: "relationships-graph.parseable", status: relationships && relationships.schemaVersion === "1.0" && relationships.graph?.edges?.length > 10 ? "passed" : "failed", message: "Relationship graph is parseable and contains real edges." },
     { id: "hybrid-doc.meaningful", status: hybridDocText.length > 80 && hybridDocText.includes("Next Steps") ? "passed" : "failed", message: "Hybrid markdown patch has meaningful content." },
-    { id: "platform-pack-doc.meaningful", status: platformPackDocText.length > 80 && platformPackDocText.includes("Feature Support Matrix") ? "passed" : "failed", message: "Platform pack guide has meaningful content." },
     { id: "decisions-md.meaningful", status: markdownText.length > 80 && markdownText.includes("Architecture Decisions") ? "passed" : "failed", message: "Advisor markdown has meaningful content." }
   ];
   const failed = checks.filter((item) => item.status === "failed");
@@ -386,8 +358,7 @@ function run() {
     zipEntries,
     duplicateZipEntries,
     invalidZipEntries,
-    advisorSummary: advisor?.summary,
-    hybridStatus: hybrid?.status,
+    relationshipEdges: relationships?.graph?.edges?.length ?? 0,
     checks,
     generator: {
       status: generator.status,

@@ -160,7 +160,7 @@ function buildPrompt(input: HybridRefinementInput): string {
     "Return only JSON matching the schema. Do not write files directly.",
     "You may only propose Markdown documentation patches for allowlisted paths.",
     "Do not include secrets, tokens, credentials or environment values.",
-    "Do not change profile, platform, required file tree, .mag metadata, manifest or source code.",
+    "Do not change profile, platform, required file tree, architecture graph contracts, manifest or source code.",
     "",
     "Allowed paths:",
     JSON.stringify(DEFAULT_HYBRID_REFINEMENT_POLICY.allowedPathPrefixes, null, 2),

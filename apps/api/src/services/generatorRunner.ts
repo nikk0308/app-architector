@@ -71,11 +71,11 @@ class GeneratorRunner {
     fs.mkdirSync(path.dirname(input.zipPath), { recursive: true });
 
     const logFilePath = path.join(input.outputDir, "generator.log");
-    const diagnosticsPath = path.join(input.outputDir, input.manifest.rootFolderName, ".mag", "generation-diagnostics.json");
+    const diagnosticsPath = path.join(input.outputDir, "generation-diagnostics.json");
     const generatorScriptPath = path.resolve(repoRoot, "services", "generator-python", "generator_cli.py");
     const templateContext = buildTemplateVariables(input.profile, input.spec, input.manifest, input.advisorReport);
 
-    safeWriteJson(path.join(input.outputDir, ".mag", "api-payload-preview.json"), {
+    safeWriteJson(path.join(input.outputDir, "api-payload-preview.json"), {
       generationId: input.generationId,
       profile: input.profile,
       spec: input.spec,

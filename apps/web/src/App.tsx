@@ -1593,7 +1593,8 @@ export default function App() {
                 architectureCompleteness: language === "ua" ? "Архітектурна повнота" : "Architecture completeness",
                 sourceDepth: language === "ua" ? "Глибина коду" : "Source depth",
                 relationshipCoverage: language === "ua" ? "Зв'язки файлів" : "File relationships",
-                modeDepth: language === "ua" ? "Видимість режиму" : "Mode depth",
+                integrationDepth: language === "ua" ? "Глибина інтеграції" : "Integration depth",
+                resourceDepth: language === "ua" ? "UI та ресурси" : "UI and resources",
                 platformCore: language === "ua" ? "Ядро платформи" : "Platform core",
                 categoryBreakdown: language === "ua" ? "Категорії" : "Categories",
                 architectureSignals: language === "ua" ? "Архітектурні сигнали" : "Architecture signals",
@@ -1604,7 +1605,7 @@ export default function App() {
                 docsFiles: language === "ua" ? "Docs" : "Docs",
                 metadataFiles: language === "ua" ? "Metadata" : "Metadata",
                 relationshipFiles: language === "ua" ? "Зв'язки" : "Relations",
-                modeFiles: language === "ua" ? "Режим" : "Mode files",
+                integrationFiles: language === "ua" ? "Інтеграції" : "Integrations",
                 delta: language === "ua" ? "Delta" : "Delta",
                 hint: t.compareHint
               }} />

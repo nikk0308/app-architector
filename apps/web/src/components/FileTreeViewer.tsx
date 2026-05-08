@@ -95,9 +95,8 @@ function nodeCategory(path: string, type: "file" | "directory", artifact?: Gener
   if (lower.endsWith(".prefab")) return "prefab";
   if (/\.(png|jpg|jpeg|webp|svg|asset|mat|fbx|wav|mp3|ogg|controller|anim|asmdef|meta|shader|hlsl|cginc)$/i.test(lower)) return "resource";
   if (ext === "xcstrings" || ext === "arb" || lower.includes("/i18n/") || lower.includes("/l10n/") || lower.includes("localization")) return "localization";
-  if (lower.endsWith(".mag/file-relationships.json") || lower.includes("/.mag/relationships/")) return "relationship";
-  if (lower.includes("/.mag/mode-analysis/")) return "metadata";
-  if (lower.includes("/.mag/")) return "metadata";
+  if (lower.endsWith("architecture/file-relationships.graph.json") || lower.includes("/architecture/relationships/")) return "relationship";
+  if (lower.includes("/architecture/") && lower.endsWith(".json")) return "metadata";
   if (lower.includes("/test/") || lower.includes("/tests/") || /\.(test|spec)\.(ts|tsx|js|jsx|dart)$/i.test(lower)) return "test";
   if (lower.includes("/delivery/") || lower.includes("/ci/") || lower.includes("/.github/")) return "pipeline";
   if (lower.includes("/product/") || lower.includes("/distribution/") || lower.includes("/monetization/") || lower.includes("/offline/") || lower.includes("/quality/")) return ext === "json" ? "product-config" : "source";
@@ -142,22 +141,14 @@ function localizedKnownDescription(path: string, type: "file" | "directory", lan
     if (lower.includes("/services")) return ua ? "Сервісна межа для інфраструктурних відповідальностей." : "Service boundary for infrastructure concerns.";
     if (lower.includes("/navigation")) return ua ? "Шар навігації та маршрутизації." : "Navigation and routing layer.";
     if (lower.includes("/config")) return ua ? "Конфігурація середовища і runtime-параметрів." : "Environment and runtime configuration.";
-    if (lower.includes("/.mag")) return ua ? "Метадані генератора і audit-артефакти." : "Generator metadata and audit artifacts.";
-    if (lower.includes("/generationmode") || lower.includes("/generation_mode")) return ua ? "Видима межа обраного режиму генерації." : "Visible boundary for the selected generation mode.";
+    if (lower.includes("/architecture")) return ua ? "Архітектурні допоміжні файли, які можна візуалізувати або використовувати для аналізу структури." : "Architecture support files that can be visualized or used to inspect the structure.";
     return ua ? "Згенерована папка архітектурного пакета." : "Generated architecture package folder.";
   }
 
   if (lower.endsWith("readme.md")) return ua ? "Огляд проєкту, setup-нотатки і підсумок архітектури." : "Project overview, setup notes and generated architecture summary.";
-  if (lower.endsWith(".mag/architecture-spec.json")) return ua ? "Структурований ArchitectureSpec, який визначає профіль, модулі та архітектурні рішення." : "Structured ArchitectureSpec that defines profile, modules and architecture decisions.";
-  if (lower.endsWith(".mag/architecture-advisor.json")) return ua ? "Advisor-звіт із rationale, ризиками, припущеннями і рекомендаціями." : "Advisor report with rationale, risks, assumptions and recommendations.";
-  if (lower.endsWith(".mag/artifact-manifest.json")) return ua ? "Manifest артефактів: пояснює, які файли включено і чому." : "Artifact manifest: explains which files were included and why.";
-  if (lower.endsWith(".mag/validation-report.json")) return ua ? "Звіт перевірки нормалізованого spec і manifest перед матеріалізацією ZIP." : "Validation report for the normalized spec and manifest before ZIP materialization.";
-  if (lower.endsWith(".mag/file-relationships.json") || lower.includes("/.mag/relationships/")) return ua ? "Карта зв’язків між конфігами, менеджерами, модулями і metadata-файлами." : "Relationship map between configs, managers, modules and metadata files.";
-  if (lower.includes("/.mag/mode-analysis/")) return ua ? "Додатковий audit-файл режиму генерації для порівняння Baseline / GPT / Qwen / Hybrid." : "Additional generation-mode audit file for Baseline / GPT / Qwen / Hybrid comparison.";
-  if (lower.includes(".mag/generation-mode-")) return ua ? "Профіль режиму генерації: Baseline, GPT, Qwen або Hybrid та його вплив на spec." : "Generation mode profile: Baseline, GPT, Qwen or Hybrid and its influence on the spec.";
+  if (lower.endsWith("architecture/file-relationships.graph.json")) return ua ? "Граф зв’язків між source, config, ресурсами, сценами, префабами і модулями. Формат придатний для майбутньої візуалізації." : "Graph-ready relationship map between source, config, resources, scenes, prefabs and modules.";
   if (lower.endsWith(".unity")) return ua ? "Unity scene: стартова або bootstrap-сцена для запуску застосунку." : "Unity scene: startup or bootstrap scene for app launch.";
   if (lower.endsWith(".prefab")) return ua ? "Unity prefab resource, який збирає runtime-об’єкт або composition root." : "Unity prefab resource that composes a runtime object or composition root.";
-  if (lower.includes("generationmode") || lower.includes("generation_mode") || lower.includes("modeboundary") || lower.includes("specpatch") || lower.includes("prompttrace") || lower.includes("decisionmatrix") || lower.includes("riskbacklog")) return ua ? "Source boundary, який робить відмінність режиму генерації видимою у дереві." : "Source boundary that makes the generation mode difference visible in the tree.";
   if (lower.includes("monetization")) return ua ? "Межа монетизації: config, manager, entitlement або purchase gateway." : "Monetization boundary: config, manager, entitlement or purchase gateway.";
   if (lower.includes("distribution")) return ua ? "Публікаційна межа: store target, release channel або release manager." : "Publishing boundary: store target, release channel or release manager.";
   if (lower.includes("offline")) return ua ? "Offline/data межа: cache, sync queue або repository coordination." : "Offline/data boundary: cache, sync queue or repository coordination.";
@@ -191,18 +182,8 @@ function relationshipsFor(path: string, type: "file" | "directory", labels: File
     }
     return rows;
   }
-  if (lower.endsWith(".mag/architecture-spec.json")) {
-    rows.push({ label: labels.usedBy, values: ["artifact-manifest.json", "generation-mode-profile.json", "file-relationships.json"] });
-  }
-  if (lower.endsWith(".mag/artifact-manifest.json")) {
-    rows.push({ label: labels.usedBy, values: [ua ? "Deterministic materializer" : "Deterministic materializer", "validation-report.json"] });
-  }
-  if (lower.endsWith(".mag/file-relationships.json")) {
-    rows.push({ label: labels.uses, values: ["ArchitectureSpec", ua ? "обрані product modules" : "selected product modules"] });
-  }
-  if (lower.includes("/generationmode/") || lower.includes("/generation_mode/") || lower.includes("/mode-analysis/")) {
-    if (lower.endsWith(".json")) rows.push({ label: labels.usedBy, values: ["ArchitectureSpec", "Run comparison", "advisor summary"] });
-    if (!lower.endsWith(".json")) rows.push({ label: labels.uses, values: ["generation-mode profile", "artifact manifest", "provider status"] });
+  if (lower.endsWith("architecture/file-relationships.graph.json")) {
+    rows.push({ label: labels.uses, values: [ua ? "усе згенероване дерево файлів" : "the generated file tree", ua ? "source/config/resource boundaries" : "source/config/resource boundaries"] });
   }
   if (lower.includes("/product/") || lower.includes("/distribution/") || lower.includes("/delivery/") || lower.includes("/features/") || lower.includes("/modules/")) {
     if (lower.endsWith(".json")) rows.push({ label: labels.usedBy, values: [ua ? "Manager script у відповідній product-папці" : "Manager script in the matching product folder"] });
@@ -318,7 +299,7 @@ export function FileTreeViewer({ nodes, artifacts, language, labels }: FileTreeV
   const fileCount = nodes.filter((node) => node.type === "file").length;
   const folderCount = nodes.filter((node) => node.type === "directory").length;
   const docsCount = nodes.filter((node) => node.path.toLowerCase().endsWith(".md")).length;
-  const metadataCount = nodes.filter((node) => node.path.includes("/.mag/") && node.type === "file").length;
+  const metadataCount = nodes.filter((node) => node.path.includes("/architecture/") && node.type === "file").length;
 
   async function copyTree(): Promise<void> {
     await navigator.clipboard?.writeText(treeText(tree, allFolders));

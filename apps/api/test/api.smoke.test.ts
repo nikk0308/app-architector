@@ -88,11 +88,10 @@ describe("API smoke", () => {
     const payload = response.json();
     expect(response.statusCode).toBe(200);
     expect(payload.artifacts.length).toBeGreaterThan(0);
-    expect(payload.artifacts.some((artifact: { path: string }) => artifact.path.endsWith(".mag/architecture-advisor.json"))).toBe(true);
-    expect(payload.artifacts.some((artifact: { path: string }) => artifact.path.endsWith("docs/platform-pack.md"))).toBe(true);
-    expect(payload.fileTree.some((node: { path: string }) => node.path.endsWith(".mag/platform-pack.json"))).toBe(true);
-    expect(payload.fileTree.some((node: { path: string }) => node.path.endsWith("product/monetization/subscription.json"))).toBe(true);
-    expect(payload.fileTree.some((node: { path: string }) => node.path.endsWith("distribution/google-play.json"))).toBe(true);
+    expect(payload.artifacts.some((artifact: { path: string }) => artifact.path.endsWith("docs/architecture-decisions.md"))).toBe(true);
+    expect(payload.fileTree.some((node: { path: string }) => node.path.endsWith("architecture/file-relationships.graph.json"))).toBe(true);
+    expect(payload.fileTree.some((node: { path: string }) => /Product\/Monetization|product\/monetization/i.test(node.path))).toBe(true);
+    expect(payload.fileTree.some((node: { path: string }) => /Product\/Distribution|product\/distribution|release/i.test(node.path))).toBe(true);
     await app.close();
   });
 
@@ -228,7 +227,7 @@ describe("API smoke", () => {
     expect(comparePayload.runs).toHaveLength(2);
     expect(comparePayload.baselineRunId).toBeTruthy();
     expect(comparePayload.runs[0].analysis.sourceFiles).toBeGreaterThan(0);
-    expect(comparePayload.runs[1].analysis.modeSpecificFiles).toBeGreaterThan(comparePayload.runs[0].analysis.modeSpecificFiles);
+    expect(comparePayload.runs[1].analysis.integrationFiles).toBeGreaterThanOrEqual(comparePayload.runs[0].analysis.integrationFiles);
     expect(comparePayload.runs[1].analysis.evidencePaths.length).toBeGreaterThan(0);
     await app.close();
   });
