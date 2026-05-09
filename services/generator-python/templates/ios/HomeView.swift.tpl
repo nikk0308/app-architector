@@ -4,9 +4,12 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 16) {
-                Text("${display_name}")
+                Text("home.title")
                     .font(.title)
-                Text("Generated iOS architecture scaffold")
+                Text("home.subtitle")
+                    .foregroundStyle(.secondary)
+                Text("home.generatedScreen")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
             .padding()

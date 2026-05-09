@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import type { GeneratedArtifactSummary, TreeNode } from "@mag/shared";
+import type { FileRelationshipGraph, GeneratedArtifactSummary, TreeNode } from "@mag/shared";
 import { FileIcon } from "./FileIcon";
 
 type ExplorerNode = {
@@ -19,6 +19,7 @@ type Relationship = {
 interface FileTreeViewerProps {
   nodes: TreeNode[];
   artifacts?: GeneratedArtifactSummary[];
+  relationshipGraph?: FileRelationshipGraph;
   language: "ua" | "en";
   labels: {
     title: string;
@@ -166,10 +167,24 @@ function localizedKnownDescription(path: string, type: "file" | "directory", lan
   return undefined;
 }
 
+function meaningfulArtifactDescription(value?: string): string | undefined {
+  if (!value) return undefined;
+  const normalized = value.trim().toLowerCase();
+  const weak = new Set([
+    "source artifact",
+    "config artifact",
+    "metadata artifact",
+    "documentation artifact",
+    "other artifact",
+    "generated architecture package file"
+  ]);
+  return weak.has(normalized) || /^.* artifact$/.test(normalized) ? undefined : value;
+}
+
 function inferDescription(path: string, type: "file" | "directory", language: "ua" | "en", artifact?: GeneratedArtifactSummary): string {
   return localizedKnownDescription(path, type, language)
-    ?? artifact?.description
-    ?? (language === "ua" ? "Згенерований файл архітектурного пакета." : "Generated architecture package file.");
+    ?? meaningfulArtifactDescription(artifact?.description)
+    ?? (language === "ua" ? "???????????? ???? ?????????????? ??????." : "Generated architecture package file.");
 }
 
 function relationshipsFor(path: string, type: "file" | "directory", labels: FileTreeViewerProps["labels"], language: "ua" | "en"): Relationship[] {
@@ -193,6 +208,44 @@ function relationshipsFor(path: string, type: "file" | "directory", labels: File
   if (lower.endsWith(".prefab")) rows.push({ label: labels.usedBy, values: ["AppManager", "BootSceneController"] });
   if (lower.endsWith(".unity")) rows.push({ label: labels.uses, values: ["BootSceneController", "AppRoot.prefab"] });
   return rows;
+}
+
+function filename(value: string): string {
+  return fileName(value).replace(/\/$/, "");
+}
+
+function relationshipLabel(relation: string, labels: FileTreeViewerProps["labels"]): string {
+  if (relation === "used-by") return labels.usedBy;
+  if (relation === "manages" || relation === "owns") return labels.manages;
+  if (["configures", "documents", "renders", "routes-to", "observes", "drives-state", "persists-through", "uses-repository", "uses-model", "stores-model", "implements", "adapts", "bridges", "resolves", "registers", "tracks", "validates", "covers", "instantiates", "binds", "styled-by", "exports", "belongs-to-module", "belongs-to-platform", "belongs-to-feature", "wires", "composes"].includes(relation)) {
+    return relation;
+  }
+  return labels.uses;
+}
+
+function graphRelationshipsFor(path: string, graph: FileRelationshipGraph | undefined, labels: FileTreeViewerProps["labels"], language: "ua" | "en"): Relationship[] {
+  const clean = cleanPath(path);
+  const edges = graph?.graph?.edges ?? [];
+  if (edges.length === 0) {
+    return [];
+  }
+  const grouped = new Map<string, string[]>();
+  for (const edge of edges) {
+    if (cleanPath(edge.from) === clean) {
+      const label = relationshipLabel(edge.relation, labels);
+      grouped.set(label, [...(grouped.get(label) ?? []), filename(edge.to)]);
+    }
+    if (cleanPath(edge.to) === clean) {
+      const label = edge.relation === "used-by" ? labels.uses : labels.usedBy;
+      grouped.set(label, [...(grouped.get(label) ?? []), filename(edge.from)]);
+    }
+  }
+  return Array.from(grouped.entries()).map(([label, values]) => {
+    const unique = Array.from(new Set(values));
+    const visible = unique.slice(0, 12);
+    const hidden = unique.length - visible.length;
+    return { label, values: hidden > 0 ? [...visible, language === "ua" ? `+ ще ${hidden}` : `+ ${hidden} more`] : visible };
+  });
 }
 
 function ensureDirectory(map: Map<string, ExplorerNode>, path: string): ExplorerNode {
@@ -283,7 +336,7 @@ function treeText(nodes: ExplorerNode[], expanded: Set<string>): string {
   return flattenVisible(nodes, expanded).map((node) => `${"  ".repeat(node.depth)}${node.type === "directory" ? "/" : "-"} ${node.name}`).join("\n");
 }
 
-export function FileTreeViewer({ nodes, artifacts, language, labels }: FileTreeViewerProps) {
+export function FileTreeViewer({ nodes, artifacts, relationshipGraph, language, labels }: FileTreeViewerProps) {
   const tree = useMemo(() => buildTree(nodes), [nodes]);
   const allFolders = useMemo(() => new Set(nodes.filter((node) => node.type === "directory").map((node) => cleanPath(node.path))), [nodes]);
   const [expanded, setExpanded] = useState<Set<string>>(allFolders);
@@ -325,7 +378,8 @@ export function FileTreeViewer({ nodes, artifacts, language, labels }: FileTreeV
   const selectedArtifact = artifactFor(selected.path, artifacts);
   const selectedCategory = nodeCategory(selected.path, selected.type, selectedArtifact);
   const stats = selected.type === "directory" ? folderStats(selected) : null;
-  const relationships = relationshipsFor(selected.path, selected.type, labels, language);
+  const relationships = graphRelationshipsFor(selected.path, relationshipGraph, labels, language);
+  const visibleRelationships = relationships.length > 0 ? relationships : relationshipsFor(selected.path, selected.type, labels, language);
 
   return (
     <section className="console-card tree-console explorer-card">
@@ -396,10 +450,10 @@ export function FileTreeViewer({ nodes, artifacts, language, labels }: FileTreeV
             <code>{selected.path}</code>
           </label>
           <p>{inferDescription(selected.path, selected.type, language, selectedArtifact)}</p>
-          {relationships.length > 0 ? (
+          {visibleRelationships.length > 0 ? (
             <div className="relationship-panel">
               <strong>{labels.relationships}</strong>
-              {relationships.map((relationship) => (
+              {visibleRelationships.map((relationship) => (
                 <span key={`${relationship.label}-${relationship.values.join(":")}`}>
                   <small>{relationship.label}</small>
                   <ul>

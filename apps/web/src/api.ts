@@ -9,6 +9,7 @@ import type {
   GenerationMetadata,
   GenerationPlan,
   GenerationRunDetails,
+  FileRelationshipGraph,
   HybridRefinementReport,
   NormalizedProfile,
   QuestionnaireAnswers,
@@ -64,6 +65,7 @@ export interface PreviewResponse {
   advisorSummary?: GenerationAdvisorSummary;
   advisor?: ArchitectureAdvisorReport;
   hybridRefinement?: HybridRefinementReport;
+  relationshipGraph?: FileRelationshipGraph;
 }
 
 export interface ArchitecturePreviewResponse extends PreviewResponse {

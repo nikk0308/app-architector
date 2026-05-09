@@ -167,7 +167,7 @@ const copy: Record<Lang, Record<string, string>> = {
     offlineData: "Offline / Data",
     runtimeQuality: "Runtime quality",
     delivery: "Delivery / Team",
-    selected: "обрано"
+    selected: "Обрано"
     ,
     step: "Step",
     publishTarget: "Ціль публікації",
@@ -215,7 +215,74 @@ const copy: Record<Lang, Record<string, string>> = {
     advisorMode: "Роль режиму генерації",
     advisorTradeoffs: "Компроміси",
     advisorChecks: "Наступні перевірки",
-    compareHint: "Метрики нижче є евристичними: вони допомагають порівняти повноту стартових пакетів, але не є абсолютною оцінкою якості."
+    compareHint: "Метрики нижче є евристичними: вони допомагають порівняти повноту стартових пакетів, але не є абсолютною оцінкою якості.",
+    warnings: "????????????",
+    time: "???",
+    currentSelection: "??????",
+    generationTime: "??? ?????????",
+    fileCoverage: "???????? ???????",
+    moduleCoverage: "???????? ????????",
+    docsRatio: "?????? ????????????",
+    warningsCleanliness: "??????? ???????????",
+    architectureCompleteness: "???????????? ???????",
+    sourceDepth: "??????? ????",
+    relationshipCoverage: "??????? ??????",
+    relationshipEdges: "???????",
+    integrationDepth: "??????? ??????????",
+    resourceDepth: "UI ?? ???????",
+    platformCore: "???? ?????????",
+    categoryBreakdown: "?????????",
+    architectureSignals: "???????????? ???????",
+    evidence: "???????? ?????",
+    missingModules: "?? ???????",
+    sourceFiles: "???",
+    configFiles: "???????",
+    docsFiles: "Docs",
+    metadataFiles: "Metadata",
+    relationshipFiles: "???????",
+    integrationFiles: "??????????",
+    delta: "Delta",
+    legend: "???????",
+    bestOverall: "????????? ???????",
+    bestFiles: "????????? ?? ??????? ?? ???????? ?????????",
+    fastest: "??????????",
+    weakest: "?????????? ? ????? ??????????",
+    bestRelations: "???????? ???????? ?????????",
+    run: "??????",
+    runs: "???????",
+    created: "????????",
+    mode: "?????",
+    state: "State",
+    ready: "???????",
+    missing: "?????????",
+    planBlocks: "?????? ?????",
+    advisorExplanation: "????????? advisor-?",
+    advancedMetadata: "????????? metadata",
+    selectRunToInspect: "????? ??????, ??? ??????????? ??????.",
+    loadingRunDetails: "???????????? ?????? ???????...",
+    preMaterialization: "?? materialization",
+    postMaterialization: "????? materialization",
+    notAvailable: "??????????",
+    runtime: "Runtime",
+    healthReady: "??????",
+    healthWarning: "????????????",
+    healthFailed: "???????",
+    theme: "????",
+    language: "????",
+    strengths: "?????? ???????",
+    needsAttention: "???????? ?????",
+    structure: "?????????",
+    quality: "??????",
+    validationLabel: "?????????",
+    documentationLabel: "????????????",
+    speed: "?????????",
+    architectureHealthComparison: "?????????? ????????????? ???????",
+    previewFailed: "?? ??????? ??????????? preview",
+    runDetailsFailed: "?? ??????? ??????????? ?????? ???????",
+    compareFailed: "?? ??????? ????????? ???????",
+    deleteFailed: "?? ??????? ???????? ??????",
+    clearHistoryFailed: "?? ??????? ???????? ???????",
+    comparisonLimit: "??? ?????????? ????? ?????? ??? 2 ?? 4 ????????."
   },
   en: {
     lab: "AI-assisted architecture lab",
@@ -295,7 +362,7 @@ const copy: Record<Lang, Record<string, string>> = {
     offlineData: "Offline / Data",
     runtimeQuality: "Runtime quality",
     delivery: "Delivery / Team",
-    selected: "selected"
+    selected: "Selected"
     ,
     step: "Step",
     publishTarget: "Publishing target",
@@ -343,7 +410,74 @@ const copy: Record<Lang, Record<string, string>> = {
     advisorMode: "Generation mode impact",
     advisorTradeoffs: "Trade-offs",
     advisorChecks: "Next technical checks",
-    compareHint: "These metrics are heuristics for comparing starter-package completeness; they are not absolute quality scores."
+    compareHint: "These metrics are heuristics for comparing starter-package completeness; they are not absolute quality scores.",
+    warnings: "Warnings",
+    time: "Time",
+    currentSelection: "Current selection",
+    generationTime: "Generation time",
+    fileCoverage: "File coverage",
+    moduleCoverage: "Module coverage",
+    docsRatio: "Docs ratio",
+    warningsCleanliness: "Warnings cleanliness",
+    architectureCompleteness: "Architecture completeness",
+    sourceDepth: "Source depth",
+    relationshipCoverage: "File relationships",
+    relationshipEdges: "Relations",
+    integrationDepth: "Integration depth",
+    resourceDepth: "UI and resources",
+    platformCore: "Platform core",
+    categoryBreakdown: "Categories",
+    architectureSignals: "Architecture signals",
+    evidence: "Evidence paths",
+    missingModules: "Missing modules",
+    sourceFiles: "Source",
+    configFiles: "Config",
+    docsFiles: "Docs",
+    metadataFiles: "Metadata",
+    relationshipFiles: "Relations",
+    integrationFiles: "Integrations",
+    delta: "Delta",
+    legend: "Legend",
+    bestOverall: "Best overall",
+    bestFiles: "Best for files and structure depth",
+    fastest: "Fastest",
+    weakest: "Weakest in this comparison",
+    bestRelations: "Best relationship coverage",
+    run: "Run",
+    runs: "runs",
+    created: "Created",
+    mode: "Mode",
+    state: "State",
+    ready: "ready",
+    missing: "missing",
+    planBlocks: "plan blocks",
+    advisorExplanation: "Advisor explanation",
+    advancedMetadata: "Advanced metadata",
+    selectRunToInspect: "Select a run to inspect it.",
+    loadingRunDetails: "Loading run details...",
+    preMaterialization: "Pre-materialization",
+    postMaterialization: "Post-materialization",
+    notAvailable: "not available",
+    runtime: "Runtime",
+    healthReady: "ready",
+    healthWarning: "warning",
+    healthFailed: "failed",
+    theme: "Theme",
+    language: "Language",
+    strengths: "Strengths",
+    needsAttention: "Needs attention",
+    structure: "Structure",
+    quality: "Quality",
+    validationLabel: "Validation",
+    documentationLabel: "Documentation",
+    speed: "Speed",
+    architectureHealthComparison: "Architecture Health Comparison",
+    previewFailed: "Preview failed",
+    runDetailsFailed: "Run details failed",
+    compareFailed: "Compare failed",
+    deleteFailed: "Delete failed",
+    clearHistoryFailed: "Clear history failed",
+    comparisonLimit: "Select 2 to 4 runs for comparison."
   }
 };
 
@@ -1073,7 +1207,7 @@ export default function App() {
       await refreshHistory();
       setActiveStep("tree");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Preview failed");
+      setError(err instanceof Error ? err.message : t.previewFailed);
     } finally {
       setLoadingPreview(false);
       setLoadingZip(false);
@@ -1088,7 +1222,7 @@ export default function App() {
       setSelectedDetails(await fetchGenerationDetails(id));
       setActiveStep("runs");
     } catch (err) {
-      setDetailsError(err instanceof Error ? err.message : "Run details failed");
+      setDetailsError(err instanceof Error ? err.message : t.runDetailsFailed);
     } finally {
       setDetailsLoading(false);
     }
@@ -1096,11 +1230,21 @@ export default function App() {
 
   function toggleCompare(id: string) {
     setComparison(null);
-    setCompareSelection((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current.slice(-4), id]);
+    setCompareSelection((current) => {
+      if (current.includes(id)) {
+        return current.filter((item) => item !== id);
+      }
+      if (current.length >= 4) {
+        setComparisonError(t.comparisonLimit);
+        return current;
+      }
+      setComparisonError(null);
+      return [...current, id];
+    });
   }
 
   async function runCompare() {
-    if (compareSelection.length < 2) {
+    if (compareSelection.length < 2 || compareSelection.length > 4) {
       setComparisonError(t.compareEmpty);
       return;
     }
@@ -1111,7 +1255,7 @@ export default function App() {
       setComparison(await compareGenerations(compareSelection));
       setActiveStep("runs");
     } catch (err) {
-      setComparisonError(err instanceof Error ? err.message : "Compare failed");
+      setComparisonError(err instanceof Error ? err.message : t.compareFailed);
     } finally {
       setComparisonLoading(false);
     }
@@ -1127,7 +1271,7 @@ export default function App() {
       setComparison(null);
       await refreshHistory();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Delete failed");
+      setError(err instanceof Error ? err.message : t.deleteFailed);
     } finally {
       setHistoryBusy(false);
     }
@@ -1143,7 +1287,7 @@ export default function App() {
       setComparison(null);
       setSelectedDetails(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Clear history failed");
+      setError(err instanceof Error ? err.message : t.clearHistoryFailed);
     } finally {
       setHistoryBusy(false);
     }
@@ -1167,7 +1311,13 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <TopBar theme={theme} language={language} onThemeChange={setTheme} onLanguageChange={setLanguage} />
+      <TopBar
+        theme={theme}
+        language={language}
+        onThemeChange={setTheme}
+        onLanguageChange={setLanguage}
+        labels={{ subtitle: t.lab, theme: t.theme, language: t.language }}
+      />
 
       <main className="console-layout">
         <aside className="flow-sidebar">
@@ -1224,8 +1374,8 @@ export default function App() {
             <div className="step-panel">
               <div className="section-head"><div><span className="kicker">{stepLabel(1)}</span><h1>{t.platform}</h1></div></div>
               <div className="subsection-title">
-                <h3>{language === "ua" ? "Платформа застосунку" : "Application platform"}</h3>
-                <p>{language === "ua" ? "Обери технологічний стек, під який буде побудовано стартову архітектуру." : "Choose the mobile stack that the starter architecture should target."}</p>
+                <h3>{t.platform}</h3>
+                <p>{t.publishTargetHelp}</p>
               </div>
               <div className="option-grid four">
                 {platformOptions.map((option) => (
@@ -1447,6 +1597,7 @@ export default function App() {
                   <FileTreeViewer
                     nodes={shown.fileTree}
                     artifacts={shownArtifacts}
+                    relationshipGraph={(shown as ArchitecturePreviewResponse | GenerationResponse).relationshipGraph ?? selectedDetails?.relationshipGraph}
                     language={language}
                     labels={{
                       title: t.tree,
@@ -1553,15 +1704,19 @@ export default function App() {
                 <div className="history-grid">
                   {filteredGenerations.slice(0, 12).map((item) => (
                     <article className={compareSelection.includes(item.id) ? "history-card selected" : "history-card"} key={item.id}>
-                      <div>
-                        <strong>{item.projectName} · {item.generationMode ?? "baseline"} · {item.profile} · {item.fileTree?.filter((node) => node.type === "file").length ?? "-"} {t.files.toLowerCase()}</strong>
+                      <div className="history-main">
+                        <strong>{item.projectName}</strong>
+                        <span className="history-pills">
+                          <i>{item.generationMode ?? "baseline"}</i>
+                          <i>{item.profile}</i>
+                        </span>
                         <small>{formatDate(item.createdAt)}</small>
                       </div>
                       <div className="history-actions">
-                        <button className="ghost-button" type="button" onClick={() => void loadDetails(item.id)}>{t.details}</button>
-                        <button className="ghost-button" type="button" onClick={() => toggleCompare(item.id)}>{compareSelection.includes(item.id) ? t.selected : t.compareSelected}</button>
-                        <button className="ghost-button danger-button" type="button" disabled={historyBusy} onClick={() => void removeHistoryItem(item.id)}>{t.delete}</button>
-                        <a href={downloadUrlForGeneration(item.id)}>{t.zip}</a>
+                        <button className="history-action detail-action" type="button" onClick={() => void loadDetails(item.id)}><span>i</span>{t.details}</button>
+                        <button className="history-action compare-action" type="button" onClick={() => toggleCompare(item.id)} disabled={!compareSelection.includes(item.id) && compareSelection.length >= 4}><span>{compareSelection.includes(item.id) ? "✓" : "≋"}</span>{compareSelection.includes(item.id) ? t.selected : t.compareSelected}</button>
+                        <button className="history-action delete-action" type="button" disabled={historyBusy} onClick={() => void removeHistoryItem(item.id)}><span>×</span>{t.delete}</button>
+                        <a className="history-action zip-action" href={downloadUrlForGeneration(item.id)}><span>↓</span>{t.zip}</a>
                       </div>
                     </article>
                   ))}
@@ -1570,84 +1725,93 @@ export default function App() {
                 <div className="empty-state">{t.noHistory}</div>
               )}
               <div className="runs-compare-actions">
-                <span className="quiet-note">{compareSelection.length} {t.selected}</span>
-                <button className="primary-button" type="button" disabled={compareSelection.length < 2 || comparisonLoading} onClick={() => void runCompare()}>{t.compareSelected}</button>
+                <span className="quiet-note">{t.currentSelection}: {compareSelection.length}/4</span>
+                <button className="primary-button" type="button" disabled={compareSelection.length < 2 || compareSelection.length > 4 || comparisonLoading} onClick={() => void runCompare()}>{t.compareSelected}</button>
               </div>
               {comparison || comparisonLoading || comparisonError ? (
               <RunComparisonPanel comparison={comparison} selectedCount={compareSelection.length} loading={comparisonLoading} error={comparisonError} labels={{
                 empty: t.compareEmpty,
                 loading: t.comparing,
-                title: t.runsCompare,
+                title: t.architectureHealthComparison,
                 strongest: t.mostComplete,
-                runs: language === "ua" ? "запуски" : "runs",
-                run: language === "ua" ? "Запуск" : "Run",
-                mode: t.ai,
+                runs: t.runs,
+                run: t.run,
+                mode: t.mode,
                 platform: t.platform,
                 files: t.files,
                 artifacts: t.artifacts,
-                warnings: language === "ua" ? "Попередження" : "Warnings",
-                time: language === "ua" ? "Час" : "Time",
-                currentSelection: language === "ua" ? "Обрано" : "Current selection",
-                generationTime: language === "ua" ? "Час генерації" : "Generation time",
-                fileCoverage: language === "ua" ? "Покриття файлами" : "File coverage",
-                moduleCoverage: language === "ua" ? "Покриття модулями" : "Module coverage",
-                docsRatio: language === "ua" ? "Баланс документації" : "Docs ratio",
-                warningsCleanliness: language === "ua" ? "Чистота попереджень" : "Warnings cleanliness",
+                warnings: t.warnings,
+                time: t.time,
+                currentSelection: t.currentSelection,
+                generationTime: t.generationTime,
+                fileCoverage: t.fileCoverage,
+                moduleCoverage: t.moduleCoverage,
+                docsRatio: t.docsRatio,
+                warningsCleanliness: t.warningsCleanliness,
                 validation: t.validation,
-                architectureCompleteness: language === "ua" ? "Архітектурна повнота" : "Architecture completeness",
-                sourceDepth: language === "ua" ? "Глибина коду" : "Source depth",
-                relationshipCoverage: language === "ua" ? "Зв'язки файлів" : "File relationships",
-                integrationDepth: language === "ua" ? "Глибина інтеграції" : "Integration depth",
-                resourceDepth: language === "ua" ? "UI та ресурси" : "UI and resources",
-                platformCore: language === "ua" ? "Ядро платформи" : "Platform core",
-                categoryBreakdown: language === "ua" ? "Категорії" : "Categories",
-                architectureSignals: language === "ua" ? "Архітектурні сигнали" : "Architecture signals",
-                evidence: language === "ua" ? "Доказові файли" : "Evidence paths",
-                missingModules: language === "ua" ? "Не покрито" : "Missing modules",
-                sourceFiles: language === "ua" ? "Код" : "Source",
-                configFiles: language === "ua" ? "Конфіги" : "Config",
-                docsFiles: language === "ua" ? "Docs" : "Docs",
-                metadataFiles: language === "ua" ? "Metadata" : "Metadata",
-                relationshipFiles: language === "ua" ? "Зв'язки" : "Relations",
-                integrationFiles: language === "ua" ? "Інтеграції" : "Integrations",
-                delta: language === "ua" ? "Delta" : "Delta",
+                architectureCompleteness: t.architectureCompleteness,
+                sourceDepth: t.sourceDepth,
+                relationshipCoverage: t.relationshipCoverage,
+                relationshipEdges: t.relationshipEdges,
+                integrationDepth: t.integrationDepth,
+                resourceDepth: t.resourceDepth,
+                platformCore: t.platformCore,
+                categoryBreakdown: t.categoryBreakdown,
+                architectureSignals: t.architectureSignals,
+                evidence: t.evidence,
+                missingModules: t.missingModules,
+                sourceFiles: t.sourceFiles,
+                configFiles: t.configFiles,
+                docsFiles: t.docsFiles,
+                metadataFiles: t.metadataFiles,
+                relationshipFiles: t.relationshipFiles,
+                integrationFiles: t.integrationFiles,
+                delta: t.delta,
                 hint: t.compareHint,
-                legend: language === "ua" ? "Легенда" : "Legend",
-                bestFiles: language === "ua" ? "Найкращий за файлами та глибиною структури" : "Best for files and structure depth",
-                fastest: language === "ua" ? "Найшвидший" : "Fastest",
-                weakest: language === "ua" ? "Найслабший у цьому порівнянні" : "Weakest in this comparison",
-                bestRelations: language === "ua" ? "Найкраще покриття зв'язками" : "Best relationship coverage"
+                legend: t.legend,
+                bestOverall: t.bestOverall,
+                bestFiles: t.bestFiles,
+                fastest: t.fastest,
+                weakest: t.weakest,
+                bestRelations: t.bestRelations,
+                strengths: t.strengths,
+                needsAttention: t.needsAttention,
+                structure: t.structure,
+                quality: t.quality,
+                documentation: t.documentationLabel,
+                speed: t.speed
               }} />
               ) : null}
               {!comparison ? (
-                <RunDetailsPanel details={selectedDetails} loading={detailsLoading} error={detailsError} labels={{
+                <RunDetailsPanel details={selectedDetails} loading={detailsLoading} error={detailsError} language={language} labels={{
                   empty: t.selectRun,
-                  loading: t.loading,
+                  loading: t.loadingRunDetails,
                   title: t.runDetails,
                   summary: t.summary,
                   modules: t.selectedModules,
                   metrics: t.metrics,
-                  advanced: t.advanced,
+                  advanced: t.advancedMetadata,
                   platform: t.platform,
-                  mode: t.ai,
+                  mode: t.mode,
                   provider: t.provider,
-                  created: language === "ua" ? "Створено" : "Created",
+                  created: t.created,
                   architecture: t.architectureStyle,
-                  state: t.stateManagement,
+                  state: t.state,
                   navigation: t.navigation,
                   zip: t.zip,
-                  ready: t.completed,
-                  missing: language === "ua" ? "немає" : "missing",
+                  ready: t.ready,
+                  missing: t.missing,
                   files: t.files.toLowerCase(),
-                  artifacts: t.artifacts.toLowerCase(),
-                  warnings: language === "ua" ? "попереджень" : "warnings",
+                  artifacts: t.planBlocks,
+                  warnings: t.warnings.toLowerCase(),
                   validation: t.validation.toLowerCase(),
-                  advisorTitle: language === "ua" ? "Пояснення advisor" : "Advisor explanation",
+                  advisorTitle: t.advisorExplanation,
                   advisorRationale: t.advisorRationale,
                   advisorModules: t.advisorModules,
                   advisorMode: t.advisorMode,
                   advisorTradeoffs: t.advisorTradeoffs,
-                  advisorChecks: t.advisorChecks
+                  advisorChecks: t.advisorChecks,
+                  relationshipEdges: t.relationshipEdges
                 }} />
               ) : null}
             </div>

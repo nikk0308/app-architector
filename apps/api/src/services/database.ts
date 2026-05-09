@@ -9,6 +9,7 @@ import {
   type ArtifactManifest,
   type GenerationMetadata,
   type GenerationRunDetails,
+  type FileRelationshipGraph,
   type HybridRefinementReport,
   type QuestionnaireAnswerSet,
   type RunArtifactRecord,
@@ -217,6 +218,21 @@ function parseValidation(value: unknown): ValidationReport | undefined {
   return parsed as ValidationReport;
 }
 
+function readRelationshipGraph(metadata: GenerationMetadata, manifest?: ArtifactManifest): FileRelationshipGraph | undefined {
+  if (!metadata.outputDir || !manifest?.rootFolderName) {
+    return undefined;
+  }
+  const graphPath = path.join(metadata.outputDir, manifest.rootFolderName, "architecture", "file-relationships.graph.json");
+  if (!fs.existsSync(graphPath)) {
+    return undefined;
+  }
+  try {
+    return JSON.parse(fs.readFileSync(graphPath, "utf8")) as FileRelationshipGraph;
+  } catch {
+    return undefined;
+  }
+}
+
 function mapRow(row: Record<string, unknown>): GenerationMetadata {
   return {
     id: String(row.id),
@@ -264,18 +280,20 @@ function artifactsByRunId(id: string): RunArtifactRecord[] {
 }
 
 function buildDetails(metadata: GenerationMetadata): GenerationRunDetails {
+  const manifest = parseJson<ArtifactManifest>(metadata.manifestJson);
   return {
     metadata,
     input: parseJson<QuestionnaireAnswerSet>(metadata.answersJson),
     spec: parseJson<ArchitectureSpec>(metadata.specJson),
-    manifest: parseJson<ArtifactManifest>(metadata.manifestJson),
+    manifest,
     validation: parseValidation(metadata.validationJson),
     validationV2: parseJson<{ preMaterialization?: ValidationV2Report; postMaterialization?: ValidationV2Report }>(metadata.validationV2Json) as GenerationRunDetails["validationV2"],
     architectureSynthesis: parseJson<ArchitectureSynthesisSummary>(metadata.architectureSynthesisJson),
     advisor: parseJson<ArchitectureAdvisorReport>(metadata.advisorJson),
     hybridRefinement: parseJson<HybridRefinementReport>(metadata.hybridRefinementJson),
     metrics: parseJson<RunMetrics>(metadata.metricsJson),
-    artifacts: artifactsByRunId(metadata.id)
+    artifacts: artifactsByRunId(metadata.id),
+    relationshipGraph: readRelationshipGraph(metadata, manifest)
   };
 }
 

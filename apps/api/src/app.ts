@@ -15,6 +15,7 @@ import {
   type GeneratedArtifactKind,
   type GeneratedArtifactSummary,
   type GenerationAdvisorSummary,
+  type FileRelationshipGraph,
   type ArchitectureAdvisorReport,
   type ArchitectureSpec,
   type HybridRefinementReport,
@@ -161,6 +162,18 @@ function parseSnapshotJson<T>(value: string | undefined, fallback: T): T {
   }
 }
 
+function readRelationshipGraphFromOutput(outputDir: string, rootFolderName: string): FileRelationshipGraph | undefined {
+  const graphPath = path.join(outputDir, rootFolderName, "architecture", "file-relationships.graph.json");
+  if (!fs.existsSync(graphPath)) {
+    return undefined;
+  }
+  try {
+    return JSON.parse(fs.readFileSync(graphPath, "utf8")) as FileRelationshipGraph;
+  } catch {
+    return undefined;
+  }
+}
+
 function saveArchitecturePreviewSnapshot(answers: QuestionnaireAnswers, preview: PreviewPayload): string {
   const previewId = crypto.randomUUID();
   generationRepository.savePreview({
@@ -289,6 +302,9 @@ async function materializePreview(input: {
       artifacts: generatedArtifacts
     })
     : [];
+  const relationshipGraph = generationResult.success
+    ? readRelationshipGraphFromOutput(directories.outputDir, preview.manifest.rootFolderName)
+    : undefined;
 
   const metadata: GenerationMetadata = {
     id: directories.generationId,
@@ -342,6 +358,7 @@ async function materializePreview(input: {
       artifacts: generatedArtifacts,
       runArtifacts,
       runMetrics,
+      relationshipGraph,
       validationV2,
       advisorSummary: preview.advisorSummary,
       advisor: preview.advisor,
@@ -420,8 +437,22 @@ function artifactKindForPath(filePath: string): GeneratedArtifactKind {
 }
 
 function artifactDescription(filePath: string): string {
+  const normalized = filePath.toLowerCase();
+  const name = path.basename(filePath);
   if (filePath.endsWith("architecture/file-relationships.graph.json")) {
     return "Graph-ready relationship map connecting source, configs, resources, scenes, prefabs and module boundaries.";
+  }
+  if (filePath.endsWith("architecture/artifact-manifest.json")) {
+    return "Manifest of generated files and architecture blocks used to audit the ZIP output.";
+  }
+  if (filePath.endsWith("architecture/architecture-advisor.json")) {
+    return "Advisor report with architecture rationale, warnings, assumptions and next implementation checks.";
+  }
+  if (filePath.endsWith("architecture/architecture-spec.json")) {
+    return "Structured ArchitectureSpec snapshot that the deterministic materializer used for this ZIP.";
+  }
+  if (filePath.endsWith("architecture/validation-report.json")) {
+    return "Validation report for required files, manifest consistency and generated ZIP integrity.";
   }
   if (filePath.endsWith("docs/architecture-decisions.md")) {
     return "Readable architecture decisions and next steps for the generated starter.";
@@ -441,7 +472,64 @@ function artifactDescription(filePath: string): string {
   if (filePath.endsWith(".uxml") || filePath.endsWith(".uss")) {
     return "Unity UI Toolkit resource for generated interface structure or styling.";
   }
-  return `${artifactKindForPath(filePath)} artifact`;
+  if (normalized.includes("appmanager")) {
+    return "Central app manager that coordinates lifecycle, state, navigation and service wiring.";
+  }
+  if (normalized.includes("coordinator") || normalized.includes("navigator") || normalized.includes("router") || normalized.includes("route")) {
+    return "Navigation boundary that connects app entry, screens and feature flows.";
+  }
+  if (normalized.includes("auth")) {
+    return "Authentication boundary for session state, token handling, repositories or auth screens.";
+  }
+  if (normalized.includes("analytics") || normalized.includes("event")) {
+    return "Analytics boundary that keeps event tracking typed and consistent across the app.";
+  }
+  if (normalized.includes("localization") || normalized.includes("i18n") || normalized.includes("l10n") || normalized.endsWith(".arb") || normalized.endsWith(".xcstrings")) {
+    return "Localization resource or access layer used by screens and runtime text helpers.";
+  }
+  if (normalized.includes("push") || normalized.includes("notification")) {
+    return "Push notification boundary for provider setup, runtime permissions or notification routing.";
+  }
+  if (normalized.includes("network") || normalized.includes("api") || normalized.includes("endpoint")) {
+    return "Networking boundary for API clients, endpoints, request errors or transport adapters.";
+  }
+  if (normalized.includes("persistence") || normalized.includes("storage") || normalized.includes("cache") || normalized.includes("repository")) {
+    return "Persistence boundary for local data, cache models, repositories or storage services.";
+  }
+  if (normalized.includes("monetization") || normalized.includes("paywall") || normalized.includes("purchase") || normalized.includes("subscription")) {
+    return "Monetization boundary for paywall, entitlement, purchase gateway or receipt validation logic.";
+  }
+  if (normalized.includes("distribution") || normalized.includes("release") || normalized.includes("store")) {
+    return "Distribution boundary for release targets, store handoff and publication checklist code.";
+  }
+  if (normalized.includes("offline") || normalized.includes("sync") || normalized.includes("migration")) {
+    return "Offline/data boundary for sync queues, cache snapshots, migrations or offline repositories.";
+  }
+  if (normalized.includes("quality") || normalized.includes("logging") || normalized.includes("diagnostic") || normalized.includes("crash") || normalized.includes("featureflag")) {
+    return "Runtime quality boundary for logging, diagnostics, crash reporting or feature flags.";
+  }
+  if (normalized.includes("delivery") || normalized.includes("pipeline") || normalized.includes("checklist")) {
+    return "Delivery boundary for CI/CD handoff, release checks and team workflow scaffolding.";
+  }
+  if (normalized.includes("viewmodel") || normalized.includes("state") || normalized.includes("store")) {
+    return "State boundary that keeps screen state and side effects separated from UI rendering.";
+  }
+  if (normalized.includes("screen") || normalized.includes("view") || normalized.includes("page") || normalized.includes("widget")) {
+    return "UI screen or view file that demonstrates how generated modules connect to the app surface.";
+  }
+  if (normalized.includes("config") || normalized.includes("env") || normalized.endsWith(".xcconfig") || normalized.endsWith(".env.example")) {
+    return "Environment/configuration file used to keep runtime settings outside feature code.";
+  }
+  if (normalized.endsWith(".md")) {
+    return "Documentation file that explains setup, architecture choices or implementation follow-up work.";
+  }
+  if (/\.(swift|dart|ts|tsx|js|jsx|cs)$/i.test(filePath)) {
+    return `${name} implements a generated source-code boundary in the starter architecture.`;
+  }
+  if (/\.(json|yaml|yml|plist|xml|txt)$/i.test(filePath)) {
+    return `${name} stores structured configuration or resource data consumed by generated code.`;
+  }
+  return "Generated architecture package file with a role inferred from its path and platform.";
 }
 
 function buildGeneratedArtifacts(fileTree: TreeNode[]): GeneratedArtifactSummary[] {
@@ -566,7 +654,7 @@ export function createApp(): FastifyInstance {
       .split(",")
       .map((item) => item.trim())
       .filter(Boolean)
-      .slice(0, 6);
+      .slice(0, 4);
 
     return generationRepository.compare(ids);
   });

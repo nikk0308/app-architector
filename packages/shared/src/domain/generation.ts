@@ -88,6 +88,42 @@ export interface GenerationRunDetails {
   hybridRefinement?: HybridRefinementReport;
   metrics?: RunMetrics;
   artifacts: RunArtifactRecord[];
+  relationshipGraph?: FileRelationshipGraph;
+}
+
+export interface FileRelationshipNode {
+  id: string;
+  path: string;
+  kind: string;
+  module?: string;
+  role?: string;
+}
+
+export interface FileRelationshipEdge {
+  from: string;
+  to: string;
+  relation: string;
+  reason?: string;
+}
+
+export interface FileRelationshipGraph {
+  schemaVersion?: string;
+  generatedBy?: string;
+  summary?: {
+    nodes?: number;
+    edges?: number;
+    connectedFiles?: number;
+    isolatedFiles?: number;
+    edgeCoveragePercent?: number;
+    relationshipDensity?: number;
+    averageEdgesPerFile?: number;
+    relations?: Record<string, number>;
+    [key: string]: unknown;
+  };
+  graph?: {
+    nodes?: FileRelationshipNode[];
+    edges?: FileRelationshipEdge[];
+  };
 }
 
 export interface RunComparisonItem {
@@ -112,6 +148,11 @@ export interface RunComparisonAnalysis {
   assetFiles: number;
   testFiles: number;
   relationshipFiles: number;
+  relationshipEdgeCount?: number;
+  connectedFileCount?: number;
+  isolatedFileCount?: number;
+  relationshipDensity?: number;
+  relationshipCoveragePercent?: number;
   integrationFiles: number;
   resourceFiles: number;
   platformCoreFiles: number;
@@ -218,6 +259,12 @@ function analyzeRun(detail: GenerationRunDetails): RunComparisonAnalysis {
   const artifacts = detail.artifacts ?? [];
   const paths = artifacts.map((artifact) => artifact.path);
   const filePaths = paths.filter((path) => !path.endsWith("/"));
+  const graphSummary = detail.relationshipGraph?.summary;
+  const graphEdges = detail.relationshipGraph?.graph?.edges ?? [];
+  const graphConnected = graphSummary?.connectedFiles;
+  const graphIsolated = graphSummary?.isolatedFiles;
+  const graphCoverage = graphSummary?.edgeCoveragePercent;
+  const graphDensity = graphSummary?.relationshipDensity;
   const categoryBreakdown: Record<string, number> = {};
   for (const path of filePaths) {
     const category = categoryForPath(path);
@@ -257,6 +304,10 @@ function analyzeRun(detail: GenerationRunDetails): RunComparisonAnalysis {
     const lower = path.toLowerCase();
     return /relationship|manager|coordinator|orchestrator|controller|service|repository|store|cache|gateway|adapter|bridge|resolver|registry|policy|contract|protocol|interface|viewmodel|presenter|state|route|navigator|prefab|scene|config|endpoint|event|mapper|monitor|pipeline/i.test(lower);
   }).length;
+  const connectedFromGraph = typeof graphConnected === "number" ? graphConnected : undefined;
+  const relationshipCoveragePercent = typeof graphCoverage === "number"
+    ? graphCoverage
+    : Math.round((relationshipFiles / Math.max(1, filePaths.length)) * 100);
 
   return {
     sourceFiles: categoryBreakdown.source ?? 0,
@@ -265,7 +316,12 @@ function analyzeRun(detail: GenerationRunDetails): RunComparisonAnalysis {
     metadataFiles: categoryBreakdown.metadata ?? 0,
     assetFiles: (categoryBreakdown.asset ?? 0) + (categoryBreakdown.scene ?? 0) + (categoryBreakdown.prefab ?? 0),
     testFiles: categoryBreakdown.test ?? 0,
-    relationshipFiles,
+    relationshipFiles: connectedFromGraph ?? relationshipFiles,
+    relationshipEdgeCount: typeof graphSummary?.edges === "number" ? graphSummary.edges : graphEdges.length || undefined,
+    connectedFileCount: connectedFromGraph,
+    isolatedFileCount: typeof graphIsolated === "number" ? graphIsolated : undefined,
+    relationshipDensity: typeof graphDensity === "number" ? graphDensity : undefined,
+    relationshipCoveragePercent,
     integrationFiles,
     resourceFiles,
     platformCoreFiles,
