@@ -60,18 +60,33 @@ function aiExpansionArtifactIds(mode: ArchitectureSpec["generationMode"]): strin
     return [];
   }
 
-  const artifacts = [
+  if (mode === "commercial") {
+    return [
+      "app.integration-expansion",
+      "app.testing-expansion",
+      "app.observability-expansion",
+      "app.release-hardening",
+      "app.cross-cutting-policies"
+    ];
+  }
+
+  if (mode === "hf-open") {
+    return [
+      "app.domain-expansion",
+      "app.integration-expansion",
+      "app.testing-expansion",
+      "app.observability-expansion"
+    ];
+  }
+
+  return [
     "app.domain-expansion",
     "app.integration-expansion",
     "app.testing-expansion",
-    "app.observability-expansion"
+    "app.observability-expansion",
+    "app.release-hardening",
+    "app.cross-cutting-policies"
   ];
-
-  if (mode === "hybrid") {
-    artifacts.push("app.release-hardening", "app.cross-cutting-policies");
-  }
-
-  return artifacts;
 }
 
 function pushSelectedProductArtifacts(spec: ArchitectureSpec, artifacts: ArtifactDefinition[]): void {

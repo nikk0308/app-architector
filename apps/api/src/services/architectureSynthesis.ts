@@ -44,6 +44,88 @@ export interface ArchitectureSynthesisResult {
   metadata: ArchitectureSynthesisSummary;
 }
 
+
+const PROFILE_ALLOWED_OPTIONS: Record<QuestionnaireAnswers["profile"], {
+  architectureStyle: string[];
+  stateManagement: string[];
+  navigationStyle: string[];
+  distributionStores: string[];
+}> = {
+  ios: {
+    architectureStyle: ["feature-first", "mvvm", "coordinator", "layered"],
+    stateManagement: ["native"],
+    navigationStyle: ["coordinator", "stack"],
+    distributionStores: ["apple-app-store"]
+  },
+  flutter: {
+    architectureStyle: ["feature-first", "mvvm", "layered"],
+    stateManagement: ["riverpod", "native"],
+    navigationStyle: ["router", "stack"],
+    distributionStores: ["apple-app-store", "google-play", "samsung-galaxy-store", "amazon-appstore"]
+  },
+  "react-native": {
+    architectureStyle: ["feature-first", "layered", "mvvm"],
+    stateManagement: ["zustand", "redux-toolkit", "native"],
+    navigationStyle: ["stack", "router"],
+    distributionStores: ["apple-app-store", "google-play", "samsung-galaxy-store", "amazon-appstore"]
+  },
+  unity: {
+    architectureStyle: ["feature-first", "coordinator", "layered"],
+    stateManagement: ["scriptable-object", "native"],
+    navigationStyle: ["scene-flow"],
+    distributionStores: ["apple-app-store", "google-play", "samsung-galaxy-store", "amazon-appstore"]
+  }
+};
+
+const PRODUCT_ALLOWED_OPTIONS = {
+  monetization: ["ads", "paid-app", "subscription", "in-app-purchases"],
+  offlineData: ["offline-cache", "sync-queue", "data-migrations", "secure-storage"],
+  runtimeQuality: ["logging", "crash-reporting", "feature-flags", "settings-screen", "diagnostics-screen"],
+  delivery: ["ci-cd", "release-checklist", "design-system", "test-plan", "env-secrets"]
+} as const;
+
+function unique<T extends string>(values: readonly T[]): T[] {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function withPreferredItems<T extends string>(current: readonly T[] | undefined, preferred: readonly T[], max = 4): T[] {
+  return unique([...(current ?? []), ...preferred]).slice(0, max);
+}
+
+function modeInstruction(mode: GenerationMode, baseline: ArchitectureSpec): string {
+  const platformHints = PROFILE_ALLOWED_OPTIONS[baseline.profileId];
+  const allowed = {
+    architectureStyle: platformHints.architectureStyle,
+    stateManagement: platformHints.stateManagement,
+    navigationStyle: platformHints.navigationStyle,
+    distributionStores: platformHints.distributionStores,
+    ...PRODUCT_ALLOWED_OPTIONS
+  };
+
+  if (mode === "commercial") {
+    return [
+      "Commercial / GPT mode must produce a production-oriented commercial architecture, not the same selection as the open-model mode.",
+      "Bias the spec toward release readiness, app-store delivery, telemetry, monetization boundaries, operational diagnostics and environment separation.",
+      "Prefer environmentMode=multi, analytics=true, networking=true, persistence=true, localization=true, and push=true when platform-appropriate.",
+      "Prefer monetization values subscription and in-app-purchases; runtimeQuality values logging, crash-reporting, feature-flags, diagnostics-screen; delivery values ci-cd, release-checklist, env-secrets, test-plan.",
+      `Allowed normalized option values: ${JSON.stringify(allowed)}.`
+    ].join(" ");
+  }
+
+  if (mode === "hf-open") {
+    return [
+      "HF-open / Qwen mode must produce an open-model engineering architecture, not the same selection as the commercial GPT mode.",
+      "Bias the spec toward code structure, domain boundaries, local-first data, integration seams, documentation, testing and maintainable generated source.",
+      "Prefer networking=true, persistence=true, localization=true, analytics=true, and push=false unless the user explicitly requested push.",
+      "Prefer offlineData values offline-cache, sync-queue, data-migrations, secure-storage; runtimeQuality values logging, settings-screen, diagnostics-screen; delivery values design-system, test-plan, ci-cd.",
+      "Avoid adding monetization values unless they are already requested by the user or clearly needed by the domain.",
+      `Allowed normalized option values: ${JSON.stringify(allowed)}.`
+    ].join(" ");
+  }
+
+  return `Use the selected generation mode ${mode} while keeping profile-safe option values: ${JSON.stringify(allowed)}.`;
+}
+
 const stringFields = ["architectureStyle", "stateManagement", "navigationStyle"] as const;
 const featureFields = ["hasAuth", "hasAnalytics", "hasLocalization", "hasPush", "hasNetworking", "hasPersistence"] as const;
 
@@ -93,7 +175,7 @@ function extractJson(text: string): RawArchitecturePatch | null {
   }
 }
 
-function architecturePatchSchema(): Record<string, unknown> {
+function architecturePatchSchema(baseline: ArchitectureSpec): Record<string, unknown> {
   const stringArray = {
     type: "array",
     items: { type: "string" },
@@ -117,9 +199,9 @@ function architecturePatchSchema(): Record<string, unknown> {
       "product"
     ],
     properties: {
-      architectureStyle: { type: "string" },
-      stateManagement: { type: "string" },
-      navigationStyle: { type: "string" },
+      architectureStyle: { type: "string", enum: PROFILE_ALLOWED_OPTIONS[baseline.profileId].architectureStyle },
+      stateManagement: { type: "string", enum: PROFILE_ALLOWED_OPTIONS[baseline.profileId].stateManagement },
+      navigationStyle: { type: "string", enum: PROFILE_ALLOWED_OPTIONS[baseline.profileId].navigationStyle },
       environmentMode: { type: "string", enum: ["single", "multi"] },
       features: {
         type: "object",
@@ -144,11 +226,11 @@ function architecturePatchSchema(): Record<string, unknown> {
         additionalProperties: false,
         required: ["distributionStores", "monetization", "offlineData", "runtimeQuality", "delivery"],
         properties: {
-          distributionStores: stringArray,
-          monetization: stringArray,
-          offlineData: stringArray,
-          runtimeQuality: stringArray,
-          delivery: stringArray
+          distributionStores: { ...stringArray, items: { type: "string", enum: PROFILE_ALLOWED_OPTIONS[baseline.profileId].distributionStores } },
+          monetization: { ...stringArray, items: { type: "string", enum: [...PRODUCT_ALLOWED_OPTIONS.monetization] } },
+          offlineData: { ...stringArray, items: { type: "string", enum: [...PRODUCT_ALLOWED_OPTIONS.offlineData] } },
+          runtimeQuality: { ...stringArray, items: { type: "string", enum: [...PRODUCT_ALLOWED_OPTIONS.runtimeQuality] } },
+          delivery: { ...stringArray, items: { type: "string", enum: [...PRODUCT_ALLOWED_OPTIONS.delivery] } }
         }
       }
     }
@@ -171,6 +253,9 @@ function buildPrompt(answers: QuestionnaireAnswers, baseline: ArchitectureSpec, 
     "Generation mode:",
     mode,
     "",
+    "Mode-specific objective:",
+    modeInstruction(mode, baseline),
+    "",
     "User answers:",
     JSON.stringify(answers, null, 2),
     "",
@@ -191,8 +276,8 @@ function buildPrompt(answers: QuestionnaireAnswers, baseline: ArchitectureSpec, 
       warnings: baseline.dependencyPlan.warnings
     }, null, 2),
     "",
-    "Choose architectureStyle/stateManagement/navigationStyle/features for the starter architecture.",
-    "Prefer practical, platform-appropriate defaults and do not enable unsupported or excessive modules without a clear reason.",
+    "Choose architectureStyle/stateManagement/navigationStyle/features/product arrays so this mode creates a visibly different generated package while staying platform-safe.",
+    "Do not simply echo the baseline values. Respect explicit user context, but make the mode-specific architecture tradeoff visible in files, modules, metrics and advisor notes.",
     "",
     "Required JSON shape:",
     JSON.stringify({
@@ -305,6 +390,43 @@ function normalizePatch(
   };
 }
 
+function applyModeSignature(
+  answers: QuestionnaireAnswers,
+  mode: GenerationMode
+): QuestionnaireAnswers {
+  const next: QuestionnaireAnswers = { ...answers };
+
+  if (mode === "commercial") {
+    next.environmentMode = "multi";
+    next.hasAnalytics = true;
+    next.hasNetworking = true;
+    next.hasPersistence = true;
+    next.hasLocalization = true;
+    next.hasPush = true;
+    next.includeExampleScreen = true;
+    next.distributionStores = withPreferredItems(next.distributionStores, ["apple-app-store"], 2) as QuestionnaireAnswers["distributionStores"];
+    next.monetization = withPreferredItems(next.monetization, ["subscription", "in-app-purchases"], 3) as QuestionnaireAnswers["monetization"];
+    next.offlineData = withPreferredItems(next.offlineData, ["secure-storage", "sync-queue"], 3) as QuestionnaireAnswers["offlineData"];
+    next.runtimeQuality = withPreferredItems(next.runtimeQuality, ["logging", "crash-reporting", "feature-flags", "diagnostics-screen"], 4) as QuestionnaireAnswers["runtimeQuality"];
+    next.delivery = withPreferredItems(next.delivery, ["ci-cd", "release-checklist", "env-secrets", "test-plan"], 4) as QuestionnaireAnswers["delivery"];
+  }
+
+  if (mode === "hf-open") {
+    next.hasAnalytics = true;
+    next.hasNetworking = true;
+    next.hasPersistence = true;
+    next.hasLocalization = true;
+    next.hasPush = Boolean(answers.hasPush);
+    next.includeExampleScreen = true;
+    next.monetization = unique(next.monetization ?? []).filter((item) => item !== "subscription" && item !== "in-app-purchases") as QuestionnaireAnswers["monetization"];
+    next.offlineData = withPreferredItems(next.offlineData, ["offline-cache", "sync-queue", "data-migrations", "secure-storage"], 4) as QuestionnaireAnswers["offlineData"];
+    next.runtimeQuality = withPreferredItems(next.runtimeQuality, ["logging", "settings-screen", "diagnostics-screen"], 4) as QuestionnaireAnswers["runtimeQuality"];
+    next.delivery = withPreferredItems(next.delivery, ["design-system", "test-plan", "ci-cd"], 4) as QuestionnaireAnswers["delivery"];
+  }
+
+  return next;
+}
+
 function applyExplanation(spec: ArchitectureSpec, metadata: ArchitectureSynthesisSummary, explanation?: string): ArchitectureSpec {
   const warningText = metadata.warnings.length > 0
     ? ` Warnings: ${metadata.warnings.join(" ")}`
@@ -360,14 +482,14 @@ export async function synthesizeArchitectureSpec(
   const providerResult = options.providerResult ?? (provider === "openai"
     ? await runOpenAIJson({
       prompt,
-      schema: architecturePatchSchema(),
+      schema: architecturePatchSchema(baseline),
       schemaName: "architecture_spec_patch",
       systemPrompt: "You generate controlled JSON patches for a mobile ArchitectureSpec. Return only valid JSON.",
       maxOutputTokens: Math.max(env.LLM_MAX_NEW_TOKENS, 900)
     })
     : await runHuggingFaceJson({
       prompt,
-      schema: architecturePatchSchema(),
+      schema: architecturePatchSchema(baseline),
       schemaName: "architecture_spec_patch",
       systemPrompt: "You generate controlled JSON patches for a mobile ArchitectureSpec. Return only valid JSON matching the requested schema.",
       maxOutputTokens: Math.max(env.LLM_MAX_NEW_TOKENS, 900)
@@ -406,8 +528,9 @@ export async function synthesizeArchitectureSpec(
 
   const warnings: string[] = [];
   const normalized = normalizePatch(answers, baseline, parsed, warnings);
+  const modeShapedAnswers = applyModeSignature(normalized.answers, mode);
   const spec = buildArchitectureSpec({
-    ...normalized.answers,
+    ...modeShapedAnswers,
     generationMode: mode,
     includeLLMNotes: true
   });
