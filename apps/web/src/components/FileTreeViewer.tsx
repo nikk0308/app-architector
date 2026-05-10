@@ -449,6 +449,8 @@ export function FileTreeViewer({ nodes, artifacts, relationshipGraph, language, 
   const stats = selected.type === "directory" ? folderStats(selected) : null;
   const relationships = graphRelationshipsFor(selected.path, relationshipGraph, labels);
   const visibleRelationships = relationships.length > 0 ? relationships : relationshipsFor(selected.path, selected.type, labels, language);
+  const relationshipItemCount = visibleRelationships.reduce((sum, relationship) => sum + relationship.values.length, 0);
+  const relationshipDensityClass = relationshipItemCount <= 8 ? "compact" : "scrollable";
 
   return (
     <section className="console-card tree-console explorer-card">
@@ -544,7 +546,7 @@ export function FileTreeViewer({ nodes, artifacts, relationshipGraph, language, 
                   </button>
                 </div>
               </div>
-              <div className="relationship-columns">
+              <div className={`relationship-columns ${visibleRelationships.length > 1 ? "multi" : "single"} ${relationshipDensityClass}`}>
                 {visibleRelationships.map((relationship) => {
                   const values = sortedRelationshipValues(relationship.values, relationshipSort);
                   return (
