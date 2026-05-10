@@ -46,6 +46,7 @@ export const env = {
   OPENAI_MODEL: process.env.OPENAI_MODEL ?? "gpt-5.4-mini",
   ENABLE_LLM_ENRICHMENT: process.env.ENABLE_LLM_ENRICHMENT === "true",
   LLM_ENABLED: process.env.LLM_ENABLED === "true" || process.env.ENABLE_LLM_ENRICHMENT === "true",
+  STRICT_AI_MODE_FAILURES: process.env.STRICT_AI_MODE_FAILURES === "true",
   HF_TOKEN: process.env.HF_TOKEN ?? process.env.HUGGINGFACE_API_TOKEN ?? "",
   HF_MODEL: process.env.HF_MODEL ?? "Qwen/Qwen2.5-Coder-32B-Instruct",
   HF_ENDPOINT: process.env.HF_ENDPOINT ?? "",

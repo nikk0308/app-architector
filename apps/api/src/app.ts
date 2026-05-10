@@ -113,7 +113,19 @@ class AiExecutionError extends Error {
   }
 }
 
+function shouldEnforceAiExecution(): boolean {
+  // CI/smoke tests intentionally run without real LLM credentials, so they must keep
+  // exercising the deterministic contract. In deployed/dev environments, enable
+  // STRICT_AI_MODE_FAILURES=true together with LLM_ENABLED=true to fail loudly when
+  // GPT/Qwen/Hybrid was requested but the provider did not actually run.
+  return env.LLM_ENABLED && env.STRICT_AI_MODE_FAILURES;
+}
+
 function assertRequiredAiExecution(preview: PreviewPayload): void {
+  if (!shouldEnforceAiExecution()) {
+    return;
+  }
+
   const mode = preview.profile.generationMode;
   if (mode === "commercial" || mode === "hf-open") {
     const synthesis = preview.architectureSynthesis;
