@@ -846,6 +846,8 @@ textarea {
 .relationship-panel {
   display: grid;
   gap: 12px;
+  max-height: 420px;
+  overflow: auto;
   padding: 13px;
   border: 1px solid rgba(212, 175, 55, 0.25);
   border-radius: 14px;

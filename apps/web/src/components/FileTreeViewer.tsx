@@ -214,38 +214,67 @@ function filename(value: string): string {
   return fileName(value).replace(/\/$/, "");
 }
 
-function relationshipLabel(relation: string, labels: FileTreeViewerProps["labels"]): string {
-  if (relation === "used-by") return labels.usedBy;
-  if (relation === "manages" || relation === "owns") return labels.manages;
-  if (["configures", "documents", "renders", "routes-to", "observes", "drives-state", "persists-through", "uses-repository", "uses-model", "stores-model", "implements", "adapts", "bridges", "resolves", "registers", "tracks", "validates", "covers", "instantiates", "binds", "styled-by", "exports", "belongs-to-module", "belongs-to-platform", "belongs-to-feature", "wires", "composes"].includes(relation)) {
-    return relation;
+function graphPathVariants(value: string): string[] {
+  const clean = cleanPath(value).replace(/^\/+/, "");
+  const parts = clean.split("/").filter(Boolean);
+  const variants = new Set<string>([clean]);
+
+  // The UI tree stores paths with the generated root folder, while the generated
+  // relationship graph stores paths relative to that root. Keep both variants so
+  // selected files can match graph edges in both preview and completed-run views.
+  if (parts.length > 1) {
+    variants.add(parts.slice(1).join("/"));
   }
-  return labels.uses;
+
+  return Array.from(variants).filter(Boolean);
 }
 
-function graphRelationshipsFor(path: string, graph: FileRelationshipGraph | undefined, labels: FileTreeViewerProps["labels"], language: "ua" | "en"): Relationship[] {
-  const clean = cleanPath(path);
+function pathsMatch(left: string, right: string): boolean {
+  const leftVariants = graphPathVariants(left);
+  const rightVariants = graphPathVariants(right);
+  return leftVariants.some((leftValue) => rightVariants.some((rightValue) => leftValue === rightValue));
+}
+
+function compactRelationPath(value: string): string {
+  const clean = cleanPath(value).replace(/^\/+/, "");
+  const parts = clean.split("/").filter(Boolean);
+  const withoutRoot = parts.length > 2 ? parts.slice(1) : parts;
+  const tail = withoutRoot.slice(-2);
+  return tail.length > 0 ? tail.join("/") : filename(value);
+}
+
+function relationName(value: string): string {
+  return value.replace(/-/g, " ");
+}
+
+function relationshipValue(value: string, relation: string): string {
+  return `${compactRelationPath(value)} (${relationName(relation)})`;
+}
+
+function graphRelationshipsFor(path: string, graph: FileRelationshipGraph | undefined, labels: FileTreeViewerProps["labels"]): Relationship[] {
   const edges = graph?.graph?.edges ?? [];
   if (edges.length === 0) {
     return [];
   }
+
   const grouped = new Map<string, string[]>();
+  const add = (label: string, value: string) => {
+    grouped.set(label, [...(grouped.get(label) ?? []), value]);
+  };
+
   for (const edge of edges) {
-    if (cleanPath(edge.from) === clean) {
-      const label = relationshipLabel(edge.relation, labels);
-      grouped.set(label, [...(grouped.get(label) ?? []), filename(edge.to)]);
+    if (pathsMatch(edge.from, path)) {
+      add(edge.relation === "used-by" ? labels.usedBy : labels.uses, relationshipValue(edge.to, edge.relation));
     }
-    if (cleanPath(edge.to) === clean) {
-      const label = edge.relation === "used-by" ? labels.uses : labels.usedBy;
-      grouped.set(label, [...(grouped.get(label) ?? []), filename(edge.from)]);
+    if (pathsMatch(edge.to, path)) {
+      add(edge.relation === "used-by" ? labels.uses : labels.usedBy, relationshipValue(edge.from, edge.relation));
     }
   }
-  return Array.from(grouped.entries()).map(([label, values]) => {
-    const unique = Array.from(new Set(values));
-    const visible = unique.slice(0, 12);
-    const hidden = unique.length - visible.length;
-    return { label, values: hidden > 0 ? [...visible, language === "ua" ? `+ ще ${hidden}` : `+ ${hidden} more`] : visible };
-  });
+
+  return Array.from(grouped.entries()).map(([label, values]) => ({
+    label,
+    values: Array.from(new Set(values)).sort((left, right) => left.localeCompare(right))
+  }));
 }
 
 function ensureDirectory(map: Map<string, ExplorerNode>, path: string): ExplorerNode {
@@ -378,7 +407,7 @@ export function FileTreeViewer({ nodes, artifacts, relationshipGraph, language, 
   const selectedArtifact = artifactFor(selected.path, artifacts);
   const selectedCategory = nodeCategory(selected.path, selected.type, selectedArtifact);
   const stats = selected.type === "directory" ? folderStats(selected) : null;
-  const relationships = graphRelationshipsFor(selected.path, relationshipGraph, labels, language);
+  const relationships = graphRelationshipsFor(selected.path, relationshipGraph, labels);
   const visibleRelationships = relationships.length > 0 ? relationships : relationshipsFor(selected.path, selected.type, labels, language);
 
   return (
