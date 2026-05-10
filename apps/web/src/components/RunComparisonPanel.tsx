@@ -107,6 +107,14 @@ function formatMs(value?: number): string {
   return value < 1000 ? `${value} ms` : `${(value / 1000).toFixed(1)} s`;
 }
 
+function generationModeLabel(mode?: string): string {
+  if (mode === "commercial") return "GPT";
+  if (mode === "hf-open") return "Qwen";
+  if (mode === "hybrid") return "Hybrid";
+  if (mode === "baseline") return "Baseline";
+  return mode ?? "Baseline";
+}
+
 function validationScore(status?: string): number {
   if (status === "passed") return 100;
   if (status === "passed_with_warnings") return 72;
@@ -114,17 +122,10 @@ function validationScore(status?: string): number {
   return 60;
 }
 
-function displayRunMode(mode?: string): string {
-  if (mode === "commercial") return "GPT";
-  if (mode === "hf-open") return "Qwen";
-  if (mode === "hybrid") return "Hybrid";
-  return "Baseline";
-}
-
 function RunCategoryPills({ run }: { run: RunComparison["runs"][number] }) {
   return (
     <span className="history-pills">
-      <i>{displayRunMode(run.mode)}</i>
+      <i>{generationModeLabel(run.mode)}</i>
       <i>{run.profileId}</i>
     </span>
   );
