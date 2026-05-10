@@ -215,7 +215,6 @@ const copy: Record<Lang, Record<string, string>> = {
     advisorMode: "Роль режиму генерації",
     advisorTradeoffs: "Компроміси",
     advisorChecks: "Наступні перевірки",
-    compareHint: "Метрики нижче є евристичними: вони допомагають порівняти повноту стартових пакетів, але не є абсолютною оцінкою якості.",
     warnings: "????????????",
     time: "???",
     currentSelection: "??????",
@@ -410,7 +409,6 @@ const copy: Record<Lang, Record<string, string>> = {
     advisorMode: "Generation mode impact",
     advisorTradeoffs: "Trade-offs",
     advisorChecks: "Next technical checks",
-    compareHint: "These metrics are heuristics for comparing starter-package completeness; they are not absolute quality scores.",
     warnings: "Warnings",
     time: "Time",
     currentSelection: "Current selection",
@@ -937,7 +935,7 @@ function formatDate(value: string): string {
       day: "2-digit",
       hour: "2-digit",
       minute: "2-digit"
-    })} UTC+3`;
+    })} UTC`;
 }
 
 function stepLabel(value: number): string {
@@ -1767,7 +1765,6 @@ export default function App() {
                 relationshipFiles: t.relationshipFiles,
                 integrationFiles: t.integrationFiles,
                 delta: t.delta,
-                hint: t.compareHint,
                 legend: t.legend,
                 bestOverall: t.bestOverall,
                 bestFiles: t.bestFiles,

@@ -498,8 +498,7 @@ textarea {
 .primary-button,
 .secondary-button,
 .ghost-button,
-.primary-link,
-.history-actions a {
+.primary-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -535,8 +534,7 @@ textarea {
 }
 
 .secondary-button,
-.ghost-button,
-.history-actions a {
+.ghost-button {
   border: 1px solid var(--line);
   background: var(--card-2);
   color: var(--text);
@@ -958,7 +956,8 @@ textarea {
 }
 
 .advisor-grid article {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 7px;
   padding: 12px;
   border: 1px solid var(--line);
@@ -1145,15 +1144,13 @@ textarea {
 
 .history-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 35%);
+  grid-template-columns: minmax(0, 1fr) minmax(250px, 35%);
   align-items: stretch;
   gap: 20px;
-  padding: 18px;
-  border-color: rgba(79, 140, 255, 0.26);
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01)),
-    var(--card-2);
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.2);
+  padding: 12px;
+  border-color: #4f8cff42;
+  background: linear-gradient(135deg, #ffffff09, #ffffff03), var(--card-2);
+  box-shadow: 0 18px 48px #0003;
 }
 
 .history-card.selected {
@@ -1172,14 +1169,14 @@ textarea {
 
 .history-main strong {
   color: var(--text);
-  font-size: clamp(1.28rem, 1.8vw, 2.2rem);
+  font-size: clamp(1rem, 1.4vw, 1.7rem);
   line-height: 1.05;
   overflow-wrap: anywhere;
 }
 
 .history-main small {
   color: var(--muted);
-  font-size: clamp(1rem, 1.1vw, 1.35rem);
+  font-size: clamp(0.81rem, 0.9vw, 1.1rem);
 }
 
 .history-pills {
@@ -1191,22 +1188,21 @@ textarea {
 
 .history-pills i {
   display: inline-flex;
-  padding: 5px 12px;
+  padding: 3px 8px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
+  background: #ffffff0f;
   color: var(--muted);
   font-style: normal;
-  font-size: clamp(0.94rem, 1vw, 1.2rem);
+  font-size: clamp(.75rem, 0.8vw, 0.96rem);
 }
 
 .history-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  padding: 14px;
-  border: 1px solid var(--line);
+  gap: 4px;
+  padding: 0px;
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.035);
+  background: #ffffff00;
 }
 
 .history-action {
@@ -1214,13 +1210,12 @@ textarea {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  min-height: 64px;
-  padding: 12px;
+  padding: 4px;
   border: 1px solid var(--line);
   border-radius: 9px;
   color: #fff;
-  font-size: clamp(1rem, 1.1vw, 1.45rem);
-  font-weight: 950;
+  font-size: clamp(0.81rem, 0.9vw, 1.1rem);
+  font-weight: 800;
   text-align: center;
   text-decoration: none;
   cursor: pointer;
@@ -1236,10 +1231,22 @@ textarea {
   font-size: 0.95em;
 }
 
-.detail-action { background: linear-gradient(135deg, rgba(30, 91, 168, 0.9), rgba(23, 64, 122, 0.82)); border-color: rgba(79, 140, 255, 0.5); }
-.compare-action { background: linear-gradient(135deg, rgba(16, 118, 96, 0.9), rgba(16, 94, 86, 0.82)); border-color: rgba(45, 212, 191, 0.42); }
-.delete-action { background: linear-gradient(135deg, rgba(151, 38, 62, 0.9), rgba(92, 30, 48, 0.85)); border-color: rgba(248, 113, 113, 0.42); }
-.zip-action { background: linear-gradient(135deg, rgba(99, 53, 166, 0.9), rgba(62, 36, 118, 0.85)); border-color: rgba(168, 85, 247, 0.46); }
+.detail-action {
+  background: linear-gradient(135deg, #319faee6, #245771d1);
+  border-color: #4fe0ff80;
+}
+.compare-action {
+  background: linear-gradient(135deg, #6d9b38e6, #45612dd1);
+  border-color: #4c8f466b;
+}
+.delete-action {
+  background: linear-gradient(135deg, #af3637e6, #4e141ad9);
+  border-color: #f871716b;
+}
+.zip-action {
+  background: linear-gradient(135deg, #7740c8e6, #3e2476d9);
+  border-color: #a855f775;
+}
 
 .run-details-panel,
 .comparison-panel {
@@ -1726,9 +1733,14 @@ pre {
 .health-highlight.weak { color: #f87171; border-color: rgba(239, 68, 68, 0.45); }
 
 .health-card-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  display: flex;
   gap: 14px;
+  flex-direction: row;
+}
+
+.health-card-grid > .architecture-health-card {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .architecture-health-card {
@@ -1769,6 +1781,17 @@ pre {
   margin: 4px 0 0;
   color: var(--muted);
   font-size: 0.78rem;
+}
+
+.run-categories-head-info {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.run-categories-head-info .history-pills {
+  gap: 6px;
 }
 
 .health-card-main {
@@ -1849,7 +1872,7 @@ pre {
 
 .health-stat-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -1895,50 +1918,6 @@ pre {
   padding-left: 16px;
   color: var(--muted);
   font-size: 0.78rem;
-}
-
-.percent-comparison-card {
-  display: grid;
-  gap: 10px;
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.026);
-}
-
-.stacked-metric-row {
-  display: grid;
-  grid-template-columns: minmax(180px, 0.9fr) minmax(0, 2.5fr) 48px;
-  gap: 12px;
-  align-items: center;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--card-2);
-}
-
-.stacked-metric-row > span {
-  color: var(--muted);
-  font-size: 0.82rem;
-  font-weight: 900;
-}
-
-.stacked-track {
-  position: relative;
-  height: 34px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.055);
-}
-
-.stacked-track i {
-  position: absolute;
-  left: 0;
-  height: 14px;
-  min-width: 3px;
-  border-radius: 999px;
-  opacity: 0.84;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
 }
 
 @media (max-width: 1240px) {
@@ -2022,10 +2001,12 @@ pre {
   .history-actions,
   .health-card-main,
   .health-notes-grid,
-  .health-highlights,
-  .health-card-grid,
-  .stacked-metric-row {
+  .health-highlights {
     grid-template-columns: 1fr;
+  }
+
+  .health-card-grid {
+    flex-direction: column;
   }
 
   .tree-row {

@@ -53,7 +53,7 @@ function formatDate(value?: string, language: "ua" | "en" = "en"): string {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit"
-  })} UTC+3`;
+  })} UTC`;
 }
 
 export function RunDetailsPanel({ details, loading, error, language = "en", labels }: RunDetailsPanelProps) {

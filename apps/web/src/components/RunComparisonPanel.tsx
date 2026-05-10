@@ -39,7 +39,6 @@ interface ComparisonLabels {
   platformCore: string;
   relationshipFiles: string;
   integrationFiles: string;
-  hint: string;
   legend: string;
   bestOverall: string;
   bestFiles: string;
@@ -85,7 +84,6 @@ const DEFAULT_LABELS: ComparisonLabels = {
   platformCore: "Platform core",
   relationshipFiles: "Relations",
   integrationFiles: "Integrations",
-  hint: "Metrics are heuristic UI evaluation signals based on generated artifacts and validation output.",
   legend: "Legend",
   bestOverall: "Best overall",
   bestFiles: "Best for files and structure depth",
@@ -116,8 +114,13 @@ function validationScore(status?: string): number {
   return 60;
 }
 
-function runLabel(run: RunComparison["runs"][number]): string {
-  return `${run.projectName} · ${run.mode} · ${run.profileId}`;
+function RunCategoryPills({ run }: { run: RunComparison["runs"][number] }) {
+  return (
+    <span className="history-pills">
+      <i>{run.mode}</i>
+      <i>{run.profileId}</i>
+    </span>
+  );
 }
 
 function runMetrics(run: RunComparison["runs"][number], max: {
@@ -253,19 +256,6 @@ export function RunComparisonPanel({ comparison, selectedCount, loading, error, 
   const weakest = sortedByScore[sortedByScore.length - 1];
   const fastest = [...cards].sort((left, right) => (left.run.metrics?.generationTimeMs ?? Number.MAX_SAFE_INTEGER) - (right.run.metrics?.generationTimeMs ?? Number.MAX_SAFE_INTEGER))[0];
 
-  const metrics = [
-    ["fileCoverage", text.fileCoverage],
-    ["moduleCoverage", text.moduleCoverage],
-    ["sourceDepth", text.sourceDepth],
-    ["relationshipCoverage", text.relationshipCoverage],
-    ["integrationDepth", text.integrationDepth],
-    ["resourceDepth", text.resourceDepth],
-    ["platformCore", text.platformCore],
-    ["docsRatio", text.docsRatio],
-    ["warningsCleanliness", text.warningsCleanliness],
-    ["validation", text.validation],
-    ["architectureCompleteness", text.architectureCompleteness]
-  ] as const;
 
   return (
     <div className="comparison-panel redesigned-panel health-comparison-panel">
@@ -278,21 +268,21 @@ export function RunComparisonPanel({ comparison, selectedCount, loading, error, 
         {best ? (
           <article className="health-highlight best">
             <Icon type="trophy" />
-            <span><small>{text.bestOverall}</small><strong>{runLabel(best.run)}</strong></span>
+            <span className="run-categories-head-info"><small>{text.bestOverall}</small><strong>{best.run.projectName}</strong><RunCategoryPills run={best.run} /></span>
             <b>{best.values.architectureCompleteness}%</b>
           </article>
         ) : null}
         {fastest ? (
           <article className="health-highlight fast">
             <Icon type="bolt" />
-            <span><small>{text.fastest}</small><strong>{runLabel(fastest.run)}</strong></span>
+            <span className="run-categories-head-info"><small>{text.fastest}</small><strong>{fastest.run.projectName}</strong><RunCategoryPills run={fastest.run} /></span>
             <b>{formatMs(fastest.run.metrics?.generationTimeMs)}</b>
           </article>
         ) : null}
         {weakest ? (
           <article className="health-highlight weak">
             <Icon type="warning" />
-            <span><small>{text.weakest}</small><strong>{runLabel(weakest.run)}</strong></span>
+            <span className="run-categories-head-info"><small>{text.weakest}</small><strong>{weakest.run.projectName}</strong><RunCategoryPills run={weakest.run} /></span>
             <b>{weakest.values.architectureCompleteness}%</b>
           </article>
         ) : null}
@@ -306,9 +296,9 @@ export function RunComparisonPanel({ comparison, selectedCount, loading, error, 
             <article className="architecture-health-card" key={run.id} style={{ "--run-color": color, "--score": `${values.architectureCompleteness}%` } as CSSProperties}>
               <div className="health-card-head">
                 <span className="run-color-dot" />
-                <div>
-                  <h3>{runLabel(run)}</h3>
-                  <p>{text.architectureCompleteness}</p>
+                <div className="run-categories-head-info">
+                  <h3>{run.projectName}</h3>
+                  <RunCategoryPills run={run} />
                 </div>
               </div>
               <div className="health-card-main">
@@ -365,34 +355,6 @@ export function RunComparisonPanel({ comparison, selectedCount, loading, error, 
         })}
       </div>
 
-      <section className="percent-comparison-card">
-        <div className="comparison-legend" aria-label={text.legend}>
-          {cards.map(({ run, color }) => (
-            <span key={run.id}><i style={{ background: color }} />{runLabel(run)}</span>
-          ))}
-        </div>
-        {metrics.map(([key, label]) => (
-          <div className="stacked-metric-row" key={key}>
-            <span>{label}</span>
-            <div className="stacked-track">
-              {cards.map(({ run, color, values }, index) => (
-                <i
-                  key={`${key}:${run.id}`}
-                  style={{
-                    width: `${values[key]}%`,
-                    background: color,
-                    top: `${index * 5}px`,
-                    zIndex: cards.length - index
-                  }}
-                />
-              ))}
-            </div>
-            <b>{Math.max(...cards.map((item) => item.values[key]))}%</b>
-          </div>
-        ))}
-      </section>
-
-      <p className="quiet-note">{text.hint}</p>
     </div>
   );
 }
