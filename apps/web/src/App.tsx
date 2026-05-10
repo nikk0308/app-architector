@@ -117,7 +117,7 @@ const copy: Record<Lang, Record<string, string>> = {
     selectedModules: "Обрані модулі",
     validation: "Перевірка",
     architectureExplanation: "Пояснення архітектури",
-    modeReady: "program code",
+    modeReady: "програмний код",
     noPreview: "Спочатку згенеруй структурне дерево.",
     zipReady: "ZIP готовий",
     filters: "Фільтри",
@@ -215,73 +215,73 @@ const copy: Record<Lang, Record<string, string>> = {
     advisorMode: "Роль режиму генерації",
     advisorTradeoffs: "Компроміси",
     advisorChecks: "Наступні перевірки",
-    warnings: "????????????",
-    time: "???",
-    currentSelection: "??????",
-    generationTime: "??? ?????????",
-    fileCoverage: "???????? ???????",
-    moduleCoverage: "???????? ????????",
-    docsRatio: "?????? ????????????",
-    warningsCleanliness: "??????? ???????????",
-    architectureCompleteness: "???????????? ???????",
-    sourceDepth: "??????? ????",
-    relationshipCoverage: "??????? ??????",
-    relationshipEdges: "???????",
-    integrationDepth: "??????? ??????????",
-    resourceDepth: "UI ?? ???????",
-    platformCore: "???? ?????????",
-    categoryBreakdown: "?????????",
-    architectureSignals: "???????????? ???????",
-    evidence: "???????? ?????",
-    missingModules: "?? ???????",
-    sourceFiles: "???",
-    configFiles: "???????",
+    warnings: "Попередження",
+    time: "Час",
+    currentSelection: "Обрано",
+    generationTime: "Час генерації",
+    fileCoverage: "Покриття файлами",
+    moduleCoverage: "Покриття модулями",
+    docsRatio: "Баланс документації",
+    warningsCleanliness: "Чистота попереджень",
+    architectureCompleteness: "Архітектурна повнота",
+    sourceDepth: "Глибина коду",
+    relationshipCoverage: "Зв'язки файлів",
+    relationshipEdges: "Зв'язки",
+    integrationDepth: "Глибина інтеграції",
+    resourceDepth: "UI та ресурси",
+    platformCore: "Ядро платформи",
+    categoryBreakdown: "Категорії",
+    architectureSignals: "Архітектурні сигнали",
+    evidence: "Доказові файли",
+    missingModules: "Не покрито",
+    sourceFiles: "Код",
+    configFiles: "Конфіги",
     docsFiles: "Docs",
     metadataFiles: "Metadata",
-    relationshipFiles: "???????",
-    integrationFiles: "??????????",
+    relationshipFiles: "Зв'язки",
+    integrationFiles: "Інтеграції",
     delta: "Delta",
-    legend: "???????",
-    bestOverall: "????????? ???????",
-    bestFiles: "????????? ?? ??????? ?? ???????? ?????????",
-    fastest: "??????????",
-    weakest: "?????????? ? ????? ??????????",
-    bestRelations: "???????? ???????? ?????????",
-    run: "??????",
-    runs: "???????",
-    created: "????????",
-    mode: "?????",
+    legend: "Легенда",
+    bestOverall: "Найкращий загалом",
+    bestFiles: "Найкращий за файлами та глибиною структури",
+    fastest: "Найшвидший",
+    weakest: "Найслабший у цьому порівнянні",
+    bestRelations: "Найкраще покриття зв'язками",
+    run: "Запуск",
+    runs: "запуски",
+    created: "Створено",
+    mode: "Режим",
     state: "State",
-    ready: "???????",
-    missing: "?????????",
-    planBlocks: "?????? ?????",
-    advisorExplanation: "????????? advisor-?",
-    advancedMetadata: "????????? metadata",
-    selectRunToInspect: "????? ??????, ??? ??????????? ??????.",
-    loadingRunDetails: "???????????? ?????? ???????...",
-    preMaterialization: "?? materialization",
-    postMaterialization: "????? materialization",
-    notAvailable: "??????????",
+    ready: "готовий",
+    missing: "відсутній",
+    planBlocks: "блоків плану",
+    advisorExplanation: "Пояснення advisor-а",
+    advancedMetadata: "Розширені metadata",
+    selectRunToInspect: "Обери запуск, щоб переглянути деталі.",
+    loadingRunDetails: "Завантажуємо деталі запуску...",
+    preMaterialization: "До materialization",
+    postMaterialization: "Після materialization",
+    notAvailable: "недоступно",
     runtime: "Runtime",
-    healthReady: "??????",
-    healthWarning: "????????????",
-    healthFailed: "???????",
-    theme: "????",
-    language: "????",
-    strengths: "?????? ???????",
-    needsAttention: "???????? ?????",
-    structure: "?????????",
-    quality: "??????",
-    validationLabel: "?????????",
-    documentationLabel: "????????????",
-    speed: "?????????",
-    architectureHealthComparison: "?????????? ????????????? ???????",
-    previewFailed: "?? ??????? ??????????? preview",
-    runDetailsFailed: "?? ??????? ??????????? ?????? ???????",
-    compareFailed: "?? ??????? ????????? ???????",
-    deleteFailed: "?? ??????? ???????? ??????",
-    clearHistoryFailed: "?? ??????? ???????? ???????",
-    comparisonLimit: "??? ?????????? ????? ?????? ??? 2 ?? 4 ????????."
+    healthReady: "готово",
+    healthWarning: "попередження",
+    healthFailed: "помилка",
+    theme: "Тема",
+    language: "Мова",
+    strengths: "Сильні сторони",
+    needsAttention: "Потребує уваги",
+    structure: "Структура",
+    quality: "Якість",
+    validationLabel: "Перевірка",
+    documentationLabel: "Документація",
+    speed: "Швидкість",
+    architectureHealthComparison: "Порівняння архітектурної повноти",
+    previewFailed: "Не вдалося згенерувати preview",
+    runDetailsFailed: "Не вдалося завантажити деталі запуску",
+    compareFailed: "Не вдалося порівняти запуски",
+    deleteFailed: "Не вдалося видалити запуск",
+    clearHistoryFailed: "Не вдалося очистити історію",
+    comparisonLimit: "Для порівняння обери від 2 до 4 запусків."
   },
   en: {
     lab: "AI-assisted architecture lab",
@@ -947,11 +947,12 @@ function compactModelName(model?: string): string {
   return model.split("/").pop() ?? model;
 }
 
-function providerLabel(mode: GenerationMode, providers: AIProviderStatusSummary[]): string {
-  if (mode === "baseline") return "program code";
+function providerLabel(mode: GenerationMode, providers: AIProviderStatusSummary[], language: Lang): string {
+  const codeLabel = language === "ua" ? "програмний код" : "program code";
+  if (mode === "baseline") return codeLabel;
   if (mode === "hybrid") {
     const provider = providerForMode("hybrid", providers);
-    return `program code${provider?.model ? ` + ${compactModelName(provider.model)}` : ""}`;
+    return `${codeLabel}${provider?.model ? ` + ${compactModelName(provider.model)}` : ""}`;
   }
   const provider = providerForMode(mode, providers);
   return compactModelName(provider?.model) || (mode === "hf-open" ? "Qwen2.5-Coder-32B-Instruct" : "gpt-5.4-mini");
@@ -1095,7 +1096,6 @@ export default function App() {
   const [comparisonError, setComparisonError] = useState<string | null>(null);
   const [historyPlatform, setHistoryPlatform] = useState<string>("all");
   const [historyMode, setHistoryMode] = useState<string>("all");
-  const [historyStatus, setHistoryStatus] = useState<string>("all");
 
   const t = copy[language];
   const currentFingerprint = useMemo(() => formFingerprint(form), [form]);
@@ -1294,8 +1294,7 @@ export default function App() {
   const filteredGenerations = generations.filter((item) => {
     const platformOk = historyPlatform === "all" || item.profile === historyPlatform;
     const modeOk = historyMode === "all" || (item.generationMode ?? "baseline") === historyMode;
-    const statusOk = historyStatus === "all" || item.status === historyStatus;
-    return platformOk && modeOk && statusOk;
+    return platformOk && modeOk;
   });
 
   const stepState = (id: StepId): string => {
@@ -1430,7 +1429,7 @@ export default function App() {
                     title={text(option.title, language)}
                     badge={option.badge}
                     description={text(option.description, language)}
-                    meta={providerLabel(option.id, providers)}
+                    meta={providerLabel(option.id, providers, language)}
                     onClick={() => updateMode(option.id)}
                   />
                 ))}
@@ -1686,16 +1685,6 @@ export default function App() {
                   value={historyMode}
                   options={[{ value: "all", label: t.allModes }, ...optionSelectItems(modeOptions, language)]}
                   onChange={setHistoryMode}
-                />
-                <CustomSelect
-                  ariaLabel={t.validation}
-                  value={historyStatus}
-                  options={[
-                    { value: "all", label: t.allStatuses },
-                    { value: "completed", label: t.completed },
-                    { value: "failed", label: t.failed }
-                  ]}
-                  onChange={setHistoryStatus}
                 />
               </div>
               {filteredGenerations.length > 0 ? (

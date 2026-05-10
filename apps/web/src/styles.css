@@ -1137,7 +1137,7 @@ textarea {
 
 .history-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 14px;
   margin-bottom: 12px;
 }
@@ -1795,10 +1795,10 @@ pre {
 }
 
 .health-card-main {
-  display: grid;
-  grid-template-columns: 150px minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 18px;
-  align-items: start;
+  align-items: center;
 }
 
 .score-donut {
@@ -1929,10 +1929,6 @@ pre {
   .health-highlights,
   .health-card-grid {
     grid-template-columns: 1fr;
-  }
-
-  .health-card-main {
-    grid-template-columns: 130px minmax(0, 1fr);
   }
 
   .flow-sidebar {

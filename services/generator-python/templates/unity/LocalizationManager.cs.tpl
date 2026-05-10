@@ -13,6 +13,7 @@ namespace ${project_pascal}.Managers
             ["home.title"] = "${app_display_name}",
             ["home.subtitle"] = "Generated architecture scaffold",
             ["home.generatedScreen"] = "Generated home screen",
+            ["launch.title"] = "Launching ${app_display_name}…",
             ["common.loading"] = "Loading…",
             ["common.ready"] = "Ready",
             ["common.error"] = "Something went wrong"
@@ -24,6 +25,7 @@ namespace ${project_pascal}.Managers
             ["home.title"] = "${app_display_name}",
             ["home.subtitle"] = "Згенерований архітектурний scaffold",
             ["home.generatedScreen"] = "Згенерований стартовий екран",
+            ["launch.title"] = "Запуск ${app_display_name}…",
             ["common.loading"] = "Завантаження…",
             ["common.ready"] = "Готово",
             ["common.error"] = "Щось пішло не так"

@@ -184,7 +184,7 @@ function meaningfulArtifactDescription(value?: string): string | undefined {
 function inferDescription(path: string, type: "file" | "directory", language: "ua" | "en", artifact?: GeneratedArtifactSummary): string {
   return localizedKnownDescription(path, type, language)
     ?? meaningfulArtifactDescription(artifact?.description)
-    ?? (language === "ua" ? "???????????? ???? ?????????????? ??????." : "Generated architecture package file.");
+    ?? (language === "ua" ? "Згенерований файл архітектурного пакета." : "Generated architecture package file.");
 }
 
 function relationshipsFor(path: string, type: "file" | "directory", labels: FileTreeViewerProps["labels"], language: "ua" | "en"): Relationship[] {
