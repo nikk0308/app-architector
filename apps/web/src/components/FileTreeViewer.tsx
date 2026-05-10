@@ -11,9 +11,16 @@ type ExplorerNode = {
   children: ExplorerNode[];
 };
 
-type Relationship = {
-  label: string;
-  values: string[];
+type RelationshipItem = {
+  path: string;
+  name: string;
+  relation: string;
+  reason?: string;
+};
+
+type RelationshipGroups = {
+  uses: RelationshipItem[];
+  usedBy: RelationshipItem[];
 };
 
 interface FileTreeViewerProps {
@@ -187,94 +194,132 @@ function inferDescription(path: string, type: "file" | "directory", language: "u
     ?? (language === "ua" ? "Згенерований файл архітектурного пакета." : "Generated architecture package file.");
 }
 
-function relationshipsFor(path: string, type: "file" | "directory", labels: FileTreeViewerProps["labels"], language: "ua" | "en"): Relationship[] {
+function fallbackRelationshipItem(value: string, relation = "inferred"): RelationshipItem {
+  return {
+    path: value,
+    name: filename(value),
+    relation
+  };
+}
+
+function emptyRelationshipGroups(): RelationshipGroups {
+  return { uses: [], usedBy: [] };
+}
+
+function relationshipsFor(path: string, type: "file" | "directory", labels: FileTreeViewerProps["labels"], language: "ua" | "en"): RelationshipGroups {
   const lower = path.toLowerCase();
   const ua = language === "ua";
-  const rows: Relationship[] = [];
+  const groups = emptyRelationshipGroups();
+
   if (type === "directory") {
     if (lower.includes("/product/")) {
-      rows.push({ label: labels.manages, values: [ua ? "Конфіги JSON, manager scripts і contracts усередині цієї product-межі." : "JSON configs, manager scripts and contracts inside this product boundary."] });
+      groups.uses.push(fallbackRelationshipItem(ua ? "JSON configs" : "JSON configs", "manages"));
+      groups.uses.push(fallbackRelationshipItem(ua ? "manager scripts" : "manager scripts", "manages"));
+      groups.uses.push(fallbackRelationshipItem(ua ? "module contracts" : "module contracts", "manages"));
     }
-    return rows;
+    return groups;
   }
+
   if (lower.endsWith("architecture/file-relationships.graph.json")) {
-    rows.push({ label: labels.uses, values: [ua ? "усе згенероване дерево файлів" : "the generated file tree", ua ? "source/config/resource boundaries" : "source/config/resource boundaries"] });
+    groups.uses.push(fallbackRelationshipItem(ua ? "усе згенероване дерево файлів" : "the generated file tree", "documents"));
+    groups.uses.push(fallbackRelationshipItem("source/config/resource boundaries", "documents"));
   }
   if (lower.includes("/product/") || lower.includes("/distribution/") || lower.includes("/delivery/") || lower.includes("/features/") || lower.includes("/modules/")) {
-    if (lower.endsWith(".json")) rows.push({ label: labels.usedBy, values: [ua ? "Manager script у відповідній product-папці" : "Manager script in the matching product folder"] });
-    if (lower.includes("manager") || lower.includes("coordinator") || lower.includes("pipeline")) rows.push({ label: labels.manages, values: ["Config JSON", "contract/state files", "platform handoff"] });
-    if (lower.includes("state") || lower.includes("gateway") || lower.includes("target") || lower.includes("queue") || lower.includes("repository") || lower.includes("checklist") || lower.includes("environment") || lower.includes("policy") || lower.includes("mapper") || lower.includes("registry") || lower.includes("adapter")) rows.push({ label: labels.usedBy, values: [ua ? "Manager або coordinator цієї межі" : "Manager or coordinator for this boundary"] });
+    if (lower.endsWith(".json")) groups.usedBy.push(fallbackRelationshipItem(ua ? "Manager script у відповідній product-папці" : "Manager script in the matching product folder", "configures"));
+    if (lower.includes("manager") || lower.includes("coordinator") || lower.includes("pipeline")) {
+      groups.uses.push(fallbackRelationshipItem("Config JSON", "manages"));
+      groups.uses.push(fallbackRelationshipItem("contract/state files", "manages"));
+      groups.uses.push(fallbackRelationshipItem("platform handoff", "manages"));
+    }
+    if (lower.includes("state") || lower.includes("gateway") || lower.includes("target") || lower.includes("queue") || lower.includes("repository") || lower.includes("checklist") || lower.includes("environment") || lower.includes("policy") || lower.includes("mapper") || lower.includes("registry") || lower.includes("adapter")) groups.usedBy.push(fallbackRelationshipItem(ua ? "Manager або coordinator цієї межі" : "Manager or coordinator for this boundary", "used-by"));
   }
-  if (lower.endsWith(".prefab")) rows.push({ label: labels.usedBy, values: ["AppManager", "BootSceneController"] });
-  if (lower.endsWith(".unity")) rows.push({ label: labels.uses, values: ["BootSceneController", "AppRoot.prefab"] });
-  return rows;
+  if (lower.endsWith(".prefab")) {
+    groups.usedBy.push(fallbackRelationshipItem("AppManager", "binds"));
+    groups.usedBy.push(fallbackRelationshipItem("BootSceneController", "instantiates"));
+  }
+  if (lower.endsWith(".unity")) {
+    groups.uses.push(fallbackRelationshipItem("BootSceneController", "instantiates"));
+    groups.uses.push(fallbackRelationshipItem("AppRoot.prefab", "instantiates"));
+  }
+  return groups;
 }
 
 function filename(value: string): string {
   return fileName(value).replace(/\/$/, "");
 }
 
-function graphPathVariants(value: string): string[] {
-  const clean = cleanPath(value).replace(/^\/+/, "");
-  const parts = clean.split("/").filter(Boolean);
-  const variants = new Set<string>([clean]);
+function relationIcon(relation: string): string {
+  const normalized = relation.toLowerCase();
+  if (["uses", "uses-model", "uses-repository", "renders", "routes-to", "persists-through"].includes(normalized)) return "↗";
+  if (["used-by"].includes(normalized)) return "↙";
+  if (["manages", "owns", "wires", "composes", "registers", "resolves"].includes(normalized)) return "◇";
+  if (["configures", "binds", "styled-by"].includes(normalized)) return "⚙";
+  if (["documents", "exports"].includes(normalized)) return "◷";
+  if (["validates", "covers", "tracks", "observes"].includes(normalized)) return "✓";
+  if (["implements", "adapts", "bridges"].includes(normalized)) return "⟷";
+  if (["instantiates"].includes(normalized)) return "＋";
+  if (normalized.startsWith("belongs-to")) return "◆";
+  return "•";
+}
 
-  // The UI tree stores paths with the generated root folder, while the generated
-  // relationship graph stores paths relative to that root. Keep both variants so
-  // selected files can match graph edges in both preview and completed-run views.
-  if (parts.length > 1) {
-    variants.add(parts.slice(1).join("/"));
-  }
+function normalizePathForMatch(value: string): string {
+  return cleanPath(value).replace(/^\/+/, "").toLowerCase();
+}
 
-  return Array.from(variants).filter(Boolean);
+function stripRootSegment(value: string): string {
+  const parts = normalizePathForMatch(value).split("/").filter(Boolean);
+  return parts.length > 1 ? parts.slice(1).join("/") : parts.join("/");
 }
 
 function pathsMatch(left: string, right: string): boolean {
-  const leftVariants = graphPathVariants(left);
-  const rightVariants = graphPathVariants(right);
-  return leftVariants.some((leftValue) => rightVariants.some((rightValue) => leftValue === rightValue));
+  const a = normalizePathForMatch(left);
+  const b = normalizePathForMatch(right);
+  if (a === b) return true;
+  const ar = stripRootSegment(a);
+  const br = stripRootSegment(b);
+  return ar === b || br === a || ar === br || a.endsWith(`/${b}`) || b.endsWith(`/${a}`) || ar.endsWith(`/${br}`) || br.endsWith(`/${ar}`);
 }
 
-function compactRelationPath(value: string): string {
-  const clean = cleanPath(value).replace(/^\/+/, "");
-  const parts = clean.split("/").filter(Boolean);
-  const withoutRoot = parts.length > 2 ? parts.slice(1) : parts;
-  const tail = withoutRoot.slice(-2);
-  return tail.length > 0 ? tail.join("/") : filename(value);
-}
-
-function relationName(value: string): string {
-  return value.replace(/-/g, " ");
-}
-
-function relationshipValue(value: string, relation: string): string {
-  return `${compactRelationPath(value)} (${relationName(relation)})`;
-}
-
-function graphRelationshipsFor(path: string, graph: FileRelationshipGraph | undefined, labels: FileTreeViewerProps["labels"]): Relationship[] {
-  const edges = graph?.graph?.edges ?? [];
-  if (edges.length === 0) {
-    return [];
+function dedupeRelationshipItems(items: RelationshipItem[]): RelationshipItem[] {
+  const seen = new Set<string>();
+  const result: RelationshipItem[] = [];
+  for (const item of items) {
+    const key = `${normalizePathForMatch(item.path)}::${item.relation}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(item);
   }
+  return result.sort((left, right) => left.name.localeCompare(right.name) || left.relation.localeCompare(right.relation));
+}
 
-  const grouped = new Map<string, string[]>();
-  const add = (label: string, value: string) => {
-    grouped.set(label, [...(grouped.get(label) ?? []), value]);
-  };
-
+function graphRelationshipsFor(path: string, graph: FileRelationshipGraph | undefined): RelationshipGroups {
+  const edges = graph?.graph?.edges ?? [];
+  const groups = emptyRelationshipGroups();
+  if (edges.length === 0) {
+    return groups;
+  }
   for (const edge of edges) {
     if (pathsMatch(edge.from, path)) {
-      add(edge.relation === "used-by" ? labels.usedBy : labels.uses, relationshipValue(edge.to, edge.relation));
+      groups.uses.push({
+        path: edge.to,
+        name: filename(edge.to),
+        relation: edge.relation,
+        reason: edge.reason
+      });
     }
     if (pathsMatch(edge.to, path)) {
-      add(edge.relation === "used-by" ? labels.uses : labels.usedBy, relationshipValue(edge.from, edge.relation));
+      groups.usedBy.push({
+        path: edge.from,
+        name: filename(edge.from),
+        relation: edge.relation === "used-by" ? "uses" : edge.relation,
+        reason: edge.reason
+      });
     }
   }
-
-  return Array.from(grouped.entries()).map(([label, values]) => ({
-    label,
-    values: Array.from(new Set(values)).sort((left, right) => left.localeCompare(right))
-  }));
+  return {
+    uses: dedupeRelationshipItems(groups.uses),
+    usedBy: dedupeRelationshipItems(groups.usedBy)
+  };
 }
 
 function ensureDirectory(map: Map<string, ExplorerNode>, path: string): ExplorerNode {
@@ -407,8 +452,10 @@ export function FileTreeViewer({ nodes, artifacts, relationshipGraph, language, 
   const selectedArtifact = artifactFor(selected.path, artifacts);
   const selectedCategory = nodeCategory(selected.path, selected.type, selectedArtifact);
   const stats = selected.type === "directory" ? folderStats(selected) : null;
-  const relationships = graphRelationshipsFor(selected.path, relationshipGraph, labels);
-  const visibleRelationships = relationships.length > 0 ? relationships : relationshipsFor(selected.path, selected.type, labels, language);
+  const graphRelationships = graphRelationshipsFor(selected.path, relationshipGraph);
+  const fallbackRelationships = relationshipsFor(selected.path, selected.type, labels, language);
+  const visibleRelationships = graphRelationships.uses.length + graphRelationships.usedBy.length > 0 ? graphRelationships : fallbackRelationships;
+  const relationshipTotal = visibleRelationships.uses.length + visibleRelationships.usedBy.length;
 
   return (
     <section className="console-card tree-console explorer-card">
@@ -479,19 +526,55 @@ export function FileTreeViewer({ nodes, artifacts, relationshipGraph, language, 
             <code>{selected.path}</code>
           </label>
           <p>{inferDescription(selected.path, selected.type, language, selectedArtifact)}</p>
-          {visibleRelationships.length > 0 ? (
-            <div className="relationship-panel">
+          {relationshipTotal > 0 ? (
+            <div className="relationship-panel relationship-panel-split">
               <strong>{labels.relationships}</strong>
-              {visibleRelationships.map((relationship) => (
-                <span key={`${relationship.label}-${relationship.values.join(":")}`}>
-                  <small>{relationship.label}</small>
-                  <ul>
-                    {relationship.values.map((value) => (
-                      <li key={value}>{value}</li>
-                    ))}
-                  </ul>
-                </span>
-              ))}
+              <div className="relationship-columns">
+                <section className="relationship-column uses-column">
+                  <header>
+                    <span className="relationship-direction-icon">↗</span>
+                    <small>{labels.uses}</small>
+                    <b>{visibleRelationships.uses.length}</b>
+                  </header>
+                  {visibleRelationships.uses.length > 0 ? (
+                    <ul>
+                      {visibleRelationships.uses.map((item, index) => (
+                        <li key={`${item.path}-${item.relation}-${index}`} title={item.reason ?? item.path}>
+                          <span className="relationship-icon" aria-hidden="true">{relationIcon(item.relation)}</span>
+                          <span className="relationship-item-text">
+                            <b>{item.name}</b>
+                            <small>{item.relation}</small>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="relationship-empty">—</p>
+                  )}
+                </section>
+                <section className="relationship-column usedby-column">
+                  <header>
+                    <span className="relationship-direction-icon">↙</span>
+                    <small>{labels.usedBy}</small>
+                    <b>{visibleRelationships.usedBy.length}</b>
+                  </header>
+                  {visibleRelationships.usedBy.length > 0 ? (
+                    <ul>
+                      {visibleRelationships.usedBy.map((item, index) => (
+                        <li key={`${item.path}-${item.relation}-${index}`} title={item.reason ?? item.path}>
+                          <span className="relationship-icon" aria-hidden="true">{relationIcon(item.relation)}</span>
+                          <span className="relationship-item-text">
+                            <b>{item.name}</b>
+                            <small>{item.relation}</small>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="relationship-empty">—</p>
+                  )}
+                </section>
+              </div>
             </div>
           ) : null}
           {stats ? (

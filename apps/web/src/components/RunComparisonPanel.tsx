@@ -114,10 +114,17 @@ function validationScore(status?: string): number {
   return 60;
 }
 
+function displayRunMode(mode?: string): string {
+  if (mode === "commercial") return "GPT";
+  if (mode === "hf-open") return "Qwen";
+  if (mode === "hybrid") return "Hybrid";
+  return "Baseline";
+}
+
 function RunCategoryPills({ run }: { run: RunComparison["runs"][number] }) {
   return (
     <span className="history-pills">
-      <i>{run.mode}</i>
+      <i>{displayRunMode(run.mode)}</i>
       <i>{run.profileId}</i>
     </span>
   );

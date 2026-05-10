@@ -42,6 +42,13 @@ function formatMs(value?: number): string {
   return value < 1000 ? `${value} ms` : `${(value / 1000).toFixed(1)} s`;
 }
 
+function displayRunMode(mode?: string): string {
+  if (mode === "commercial") return "GPT";
+  if (mode === "hf-open") return "Qwen";
+  if (mode === "hybrid") return "Hybrid";
+  return "Baseline";
+}
+
 function formatDate(value?: string, language: "ua" | "en" = "en"): string {
   if (!value) return "-";
   const date = new Date(value);
@@ -98,7 +105,7 @@ export function RunDetailsPanel({ details, loading, error, language = "en", labe
   const spec = details.spec;
   const modules = spec?.modules.filter((module) => module.enabled).map((module) => module.featureId) ?? [];
   const validationStatus = details.validationV2?.postMaterialization?.status ?? details.validationV2?.preMaterialization?.status ?? details.validation?.status ?? "-";
-  const mode = details.metadata.generationMode ?? "baseline";
+  const mode = displayRunMode(details.metadata.generationMode ?? "baseline");
   const provider = details.architectureSynthesis?.usedAi
     ? `${details.architectureSynthesis.provider}${details.architectureSynthesis.model ? ` · ${details.architectureSynthesis.model}` : ""}`
     : "deterministic";

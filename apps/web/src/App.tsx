@@ -947,6 +947,13 @@ function compactModelName(model?: string): string {
   return model.split("/").pop() ?? model;
 }
 
+function displayGenerationMode(mode?: GenerationMode): string {
+  if (mode === "commercial") return "GPT";
+  if (mode === "hf-open") return "Qwen";
+  if (mode === "hybrid") return "Hybrid";
+  return "Baseline";
+}
+
 function providerLabel(mode: GenerationMode, providers: AIProviderStatusSummary[], language: Lang): string {
   const codeLabel = language === "ua" ? "програмний код" : "program code";
   if (mode === "baseline") return codeLabel;
@@ -1648,7 +1655,7 @@ export default function App() {
                       </div>
                       <div className="chip-row">
                         <span className="chip">{shown.architectureSynthesis?.status ?? "baseline"}</span>
-                        <span className="chip">{shown.profile.generationMode}</span>
+                        <span className="chip">{displayGenerationMode(shown.spec.generationMode)}</span>
                       </div>
                     </div>
                     <div className="advisor-grid">
@@ -1694,7 +1701,7 @@ export default function App() {
                       <div className="history-main">
                         <strong>{item.projectName}</strong>
                         <span className="history-pills">
-                          <i>{item.generationMode ?? "baseline"}</i>
+                          <i>{displayGenerationMode(item.generationMode ?? "baseline")}</i>
                           <i>{item.profile}</i>
                         </span>
                         <small>{formatDate(item.createdAt)}</small>
