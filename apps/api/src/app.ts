@@ -174,7 +174,7 @@ function readRelationshipGraphFromOutput(outputDir: string, rootFolderName: stri
   }
 }
 
-function saveArchitecturePreviewSnapshot(answers: QuestionnaireAnswers, preview: PreviewPayload): string {
+function saveArchitecturePreviewSnapshot(answers: QuestionnaireAnswers, preview: PreviewPayload, previewDurationMs = 0): string {
   const previewId = crypto.randomUUID();
   generationRepository.savePreview({
     id: previewId,
@@ -190,12 +190,13 @@ function saveArchitecturePreviewSnapshot(answers: QuestionnaireAnswers, preview:
     notesJson: JSON.stringify(preview.notes),
     architectureSynthesisJson: JSON.stringify(preview.architectureSynthesis),
     advisorJson: preview.advisor ? JSON.stringify(preview.advisor) : undefined,
-    hybridRefinementJson: preview.hybridRefinement ? JSON.stringify(preview.hybridRefinement) : undefined
+    hybridRefinementJson: preview.hybridRefinement ? JSON.stringify(preview.hybridRefinement) : undefined,
+    previewDurationMs
   });
   return previewId;
 }
 
-function previewFromSnapshot(snapshotId: string): { answers: QuestionnaireAnswers; preview: PreviewPayload } | null {
+function previewFromSnapshot(snapshotId: string): { answers: QuestionnaireAnswers; preview: PreviewPayload; previewDurationMs: number } | null {
   const snapshot = generationRepository.getPreviewById(snapshotId);
   if (!snapshot) {
     return null;
@@ -225,13 +226,18 @@ function previewFromSnapshot(snapshotId: string): { answers: QuestionnaireAnswer
       advisor: parseSnapshotJson<ArchitectureAdvisorReport | undefined>(snapshot.advisorJson, undefined),
       advisorSummary: buildAdvisorSummary(parseSnapshotJson<ArchitectureAdvisorReport | undefined>(snapshot.advisorJson, undefined)),
       hybridRefinement: parseSnapshotJson<HybridRefinementReport | undefined>(snapshot.hybridRefinementJson, undefined)
-    }
+    },
+    previewDurationMs: typeof snapshot.previewDurationMs === "number" && Number.isFinite(snapshot.previewDurationMs)
+      ? Math.max(0, Math.round(snapshot.previewDurationMs))
+      : 0
   };
 }
 
 async function materializePreview(input: {
   answers: QuestionnaireAnswers;
   preview: PreviewPayload;
+  previewDurationMs?: number;
+  totalStartedAt?: number;
 }): Promise<{
   success: true;
   response: Record<string, unknown>;
@@ -240,7 +246,7 @@ async function materializePreview(input: {
   statusCode: number;
   response: Record<string, unknown>;
 }> {
-  const generationStartedAt = Date.now();
+  const materializationStartedAt = Date.now();
   const { answers, preview } = input;
   const directories = createRunDirectories(preview.profile.projectSlug);
   const preMaterializationValidation = preview.validationV2?.preMaterialization ?? buildPreMaterializationValidation({
@@ -279,7 +285,9 @@ async function materializePreview(input: {
     postMaterialization: postMaterializationValidation
   };
   const runMetrics = scoreRunMetrics({
-    generationTimeMs: Date.now() - generationStartedAt,
+    generationTimeMs: input.totalStartedAt
+      ? Date.now() - input.totalStartedAt
+      : (input.previewDurationMs ?? 0) + (Date.now() - materializationStartedAt),
     artifactCount: preview.manifest.summary.totalArtifacts,
     fileCount: preview.fileTree.filter((node) => node.type === "file").length,
     validation: preview.validation.manifest,
@@ -707,11 +715,14 @@ export function createApp(): FastifyInstance {
   });
 
   app.post<{ Body: QuestionnaireAnswers }>("/api/architecture/preview", async (request) => {
+    const previewStartedAt = Date.now();
     const preview = await buildArchitecturePreviewPayload(request.body);
-    const previewId = saveArchitecturePreviewSnapshot(request.body, preview);
+    const previewDurationMs = Date.now() - previewStartedAt;
+    const previewId = saveArchitecturePreviewSnapshot(request.body, preview, previewDurationMs);
     return {
       previewId,
       createdAt: new Date().toISOString(),
+      previewDurationMs,
       ...preview
     };
   });
@@ -744,8 +755,9 @@ export function createApp(): FastifyInstance {
   });
 
   app.post<{ Body: QuestionnaireAnswers }>("/api/generations", async (request, reply) => {
+    const totalStartedAt = Date.now();
     const preview = await buildArchitecturePreviewPayload(request.body);
-    const result = await materializePreview({ answers: request.body, preview });
+    const result = await materializePreview({ answers: request.body, preview, totalStartedAt });
     if (!result.success) {
       reply.code(result.statusCode);
     }

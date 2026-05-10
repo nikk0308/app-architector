@@ -108,6 +108,7 @@ ensureColumn("generations", "metricsJson", "TEXT");
 ensureColumn("generations", "generatorLogPath", "TEXT");
 ensureColumn("generations", "diagnosticsPath", "TEXT");
 ensureColumn("generations", "errorMessage", "TEXT");
+ensureColumn("architecture_previews", "previewDurationMs", "INTEGER");
 
 const insertStatement = db.prepare(`
   INSERT INTO generations (
@@ -168,16 +169,17 @@ export interface ArchitecturePreviewSnapshotRecord {
   architectureSynthesisJson?: string;
   advisorJson?: string;
   hybridRefinementJson?: string;
+  previewDurationMs?: number;
   createdAt?: string;
 }
 
 const insertPreviewStatement = db.prepare(`
   INSERT INTO architecture_previews (
     id, answersJson, profileJson, planJson, specJson, manifestJson, validationJson, validationV2Json,
-    fileTreeJson, artifactsJson, notesJson, architectureSynthesisJson, advisorJson, hybridRefinementJson, createdAt
+    fileTreeJson, artifactsJson, notesJson, architectureSynthesisJson, advisorJson, hybridRefinementJson, previewDurationMs, createdAt
   ) VALUES (
     @id, @answersJson, @profileJson, @planJson, @specJson, @manifestJson, @validationJson, @validationV2Json,
-    @fileTreeJson, @artifactsJson, @notesJson, @architectureSynthesisJson, @advisorJson, @hybridRefinementJson, @createdAt
+    @fileTreeJson, @artifactsJson, @notesJson, @architectureSynthesisJson, @advisorJson, @hybridRefinementJson, @previewDurationMs, @createdAt
   )
   ON CONFLICT(id) DO UPDATE SET
     answersJson = excluded.answersJson,
@@ -193,6 +195,7 @@ const insertPreviewStatement = db.prepare(`
     architectureSynthesisJson = excluded.architectureSynthesisJson,
     advisorJson = excluded.advisorJson,
     hybridRefinementJson = excluded.hybridRefinementJson,
+    previewDurationMs = excluded.previewDurationMs,
     createdAt = excluded.createdAt
 `);
 
@@ -400,6 +403,7 @@ export const generationRepository = {
       architectureSynthesisJson: snapshot.architectureSynthesisJson ?? null,
       advisorJson: snapshot.advisorJson ?? null,
       hybridRefinementJson: snapshot.hybridRefinementJson ?? null,
+      previewDurationMs: typeof snapshot.previewDurationMs === "number" ? Math.max(0, Math.round(snapshot.previewDurationMs)) : null,
       createdAt: snapshot.createdAt ?? new Date().toISOString()
     });
   },
@@ -423,6 +427,7 @@ export const generationRepository = {
       architectureSynthesisJson: row.architectureSynthesisJson ? String(row.architectureSynthesisJson) : undefined,
       advisorJson: row.advisorJson ? String(row.advisorJson) : undefined,
       hybridRefinementJson: row.hybridRefinementJson ? String(row.hybridRefinementJson) : undefined,
+      previewDurationMs: typeof row.previewDurationMs === "number" ? row.previewDurationMs : row.previewDurationMs ? Number(row.previewDurationMs) : undefined,
       createdAt: row.createdAt ? String(row.createdAt) : undefined
     };
   }
