@@ -113,7 +113,8 @@ function architecturePatchSchema(): Record<string, unknown> {
       "explanation",
       "assumptions",
       "risks",
-      "recommendations"
+      "recommendations",
+      "product"
     ],
     properties: {
       architectureStyle: { type: "string" },
@@ -141,6 +142,7 @@ function architecturePatchSchema(): Record<string, unknown> {
       product: {
         type: "object",
         additionalProperties: false,
+        required: ["distributionStores", "monetization", "offlineData", "runtimeQuality", "delivery"],
         properties: {
           distributionStores: stringArray,
           monetization: stringArray,

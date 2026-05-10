@@ -104,6 +104,37 @@ interface PreviewPayload {
   hybridRefinement?: HybridRefinementReport;
 }
 
+class AiExecutionError extends Error {
+  statusCode = 502;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "AiExecutionError";
+  }
+}
+
+function assertRequiredAiExecution(preview: PreviewPayload): void {
+  const mode = preview.profile.generationMode;
+  if (mode === "commercial" || mode === "hf-open") {
+    const synthesis = preview.architectureSynthesis;
+    if (!synthesis.usedAi || synthesis.provider === "deterministic" || synthesis.status === "fallback") {
+      const providerLabel = mode === "commercial" ? "OpenAI / GPT" : "Hugging Face / Qwen";
+      const reason = synthesis.warnings.length > 0 ? ` Reason: ${synthesis.warnings.join(" ")}` : "";
+      throw new AiExecutionError(`${providerLabel} generation did not complete with AI. Deterministic fallback is disabled for this mode.${reason}`);
+    }
+  }
+
+  if (mode === "hybrid") {
+    const refinement = preview.hybridRefinement;
+    const hasAcceptedPatches = (refinement?.acceptedPatches.length ?? 0) > 0;
+    const validStatus = refinement?.status === "applied" || refinement?.status === "partial";
+    if (!refinement?.enabled || refinement.provider === "deterministic" || !validStatus || !hasAcceptedPatches) {
+      const reason = refinement?.warnings.length ? ` Reason: ${refinement.warnings.join(" ")}` : "";
+      throw new AiExecutionError(`Hybrid generation did not complete AI refinement. Deterministic fallback is disabled for hybrid mode.${reason}`);
+    }
+  }
+}
+
 async function buildArchitecturePreviewPayload(answers: QuestionnaireAnswers): Promise<PreviewPayload> {
   const preview = await buildPreviewPayload(answers);
   const advisorReport = await buildArchitectureAdvisorReport({
@@ -134,7 +165,7 @@ async function buildArchitecturePreviewPayload(answers: QuestionnaireAnswers): P
     hybridRefinement
   });
 
-  return {
+  const payload: PreviewPayload = {
     ...preview,
     fileTree: responseFileTree,
     artifacts: buildGeneratedArtifacts(responseFileTree),
@@ -149,6 +180,9 @@ async function buildArchitecturePreviewPayload(answers: QuestionnaireAnswers): P
       preMaterialization: preMaterializationValidation
     }
   };
+
+  assertRequiredAiExecution(payload);
+  return payload;
 }
 
 function parseSnapshotJson<T>(value: string | undefined, fallback: T): T {
@@ -592,7 +626,7 @@ function removeGeneratedFiles(metadata: GenerationMetadata): string[] {
 function publicErrorStatusCode(error: unknown): number {
   if (error && typeof error === "object" && "statusCode" in error) {
     const statusCode = Number((error as { statusCode?: unknown }).statusCode);
-    if (Number.isInteger(statusCode) && statusCode >= 400 && statusCode < 500) {
+    if (Number.isInteger(statusCode) && statusCode >= 400 && statusCode < 600) {
       return statusCode;
     }
   }
@@ -620,7 +654,7 @@ export function createApp(): FastifyInstance {
     request.log.error({ err: error }, "request failed");
     const statusCode = publicErrorStatusCode(error);
     reply.status(statusCode).send({
-      error: statusCode >= 500 ? "Internal server error" : publicErrorMessage(error)
+      error: error instanceof AiExecutionError || statusCode < 500 ? publicErrorMessage(error) : "Internal server error"
     });
   });
 
