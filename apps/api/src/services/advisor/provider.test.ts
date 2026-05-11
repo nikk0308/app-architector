@@ -21,11 +21,19 @@ afterEach(() => {
 });
 
 describe("Hugging Face provider", () => {
-  it("uses the Inference Providers responses endpoint for Qwen chat models", async () => {
+  it("uses the Chat Completions router endpoint for Qwen chat models", async () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,
       status: 200,
-      text: async () => JSON.stringify({ output_text: "{\"summary\":\"ok\"}" })
+      text: async () => JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: "{\"summary\":\"ok\"}"
+            }
+          }
+        ]
+      })
     }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -36,10 +44,49 @@ describe("Hugging Face provider", () => {
     expect(result.text).toBe("{\"summary\":\"ok\"}");
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe("https://router.huggingface.co/v1/responses");
+    const [url, init] = fetchMock.mock.calls[0] as [string, { body: string }];
+    expect(url).toBe("https://router.huggingface.co/v1/chat/completions");
     expect(init.body).toContain("\"model\":\"Qwen/Qwen2.5-Coder-32B-Instruct\"");
-    expect(init.body).toContain("\"text\":{\"format\":{\"type\":\"json_schema\"");
+    expect(init.body).toContain("\"messages\"");
+    expect(init.body).toContain("\"response_format\":{\"type\":\"json_schema\"");
     expect(init.body).toContain("\"strict\":true");
+  });
+
+  it("falls back to plain JSON when router-side json_object returns no text", async () => {
+    const fetchMock = vi.fn(async () => {
+      if (fetchMock.mock.calls.length === 1) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ id: "empty-json-object-response" })
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: "{\"summary\":\"plain ok\"}"
+              }
+            }
+          ]
+        })
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { runHuggingFaceJson } = await loadProvider();
+    const result = await runHuggingFaceJson({ prompt: "Return JSON." });
+
+    expect(result.ok).toBe(true);
+    expect(result.text).toBe("{\"summary\":\"plain ok\"}");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const firstBody = JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body) as Record<string, unknown>;
+    const secondBody = JSON.parse((fetchMock.mock.calls[1][1] as { body: string }).body) as Record<string, unknown>;
+    expect(firstBody.response_format).toEqual({ type: "json_object" });
+    expect(secondBody.response_format).toBeUndefined();
   });
 });

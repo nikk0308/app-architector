@@ -59,17 +59,18 @@ function advisorJsonSchema(): Record<string, unknown> {
   };
 }
 
-function getResponsesEndpoint(): string {
+function getEndpoint(): string {
   if (env.HF_ENDPOINT) return env.HF_ENDPOINT;
-  return "https://router.huggingface.co/v1/responses";
+  // Qwen chat/instruct models on the Hugging Face router are more reliable
+  // through the OpenAI-compatible Chat Completions route than through
+  // /v1/responses with json_object. The responses route often returns a
+  // successful JSON envelope without output_text for routed Qwen requests,
+  // which previously looked like "response did not contain generated text".
+  return "https://router.huggingface.co/v1/chat/completions";
 }
 
-function getChatEndpoint(): string {
-  if (env.HF_ENDPOINT) {
-    if (env.HF_ENDPOINT.includes("/v1/responses")) return env.HF_ENDPOINT.replace(/\/v1\/responses\/?$/, "/v1/chat/completions");
-    return env.HF_ENDPOINT;
-  }
-  return "https://router.huggingface.co/v1/chat/completions";
+function usesResponsesEndpoint(endpoint = getEndpoint()): boolean {
+  return /\/responses\/?$/i.test(endpoint);
 }
 
 function extractText(payload: unknown): string | undefined {
@@ -86,26 +87,9 @@ function extractText(payload: unknown): string | undefined {
 
     const choices = object.choices;
     if (Array.isArray(choices)) {
-      const parts: string[] = [];
-      for (const choice of choices) {
-        if (!choice || typeof choice !== "object") continue;
-        const message = (choice as { message?: { content?: unknown }; delta?: { content?: unknown }; text?: unknown }).message;
-        const delta = (choice as { delta?: { content?: unknown } }).delta;
-        const text = (choice as { text?: unknown }).text;
-        if (typeof message?.content === "string") parts.push(message.content);
-        else if (Array.isArray(message?.content)) {
-          for (const item of message.content) {
-            if (!item || typeof item !== "object") continue;
-            const contentPart = item as { text?: unknown; content?: unknown };
-            if (typeof contentPart.text === "string") parts.push(contentPart.text);
-            else if (typeof contentPart.content === "string") parts.push(contentPart.content);
-          }
-        }
-        if (typeof delta?.content === "string") parts.push(delta.content);
-        if (typeof text === "string") parts.push(text);
-      }
-      const joined = parts.join("\n").trim();
-      if (joined) return joined;
+      const first = choices[0] as { message?: { content?: unknown }; text?: unknown } | undefined;
+      if (typeof first?.message?.content === "string" && first.message.content.trim()) return first.message.content.trim();
+      if (typeof first?.text === "string" && first.text.trim()) return first.text.trim();
     }
 
     const output = object.output;
@@ -121,7 +105,7 @@ function extractText(payload: unknown): string | undefined {
         if (Array.isArray(content)) {
           for (const part of content) {
             if (!part || typeof part !== "object") continue;
-            const value = part as { text?: unknown; content?: unknown; type?: unknown };
+            const value = part as { text?: unknown; content?: unknown };
             if (typeof value.text === "string") parts.push(value.text);
             else if (typeof value.content === "string") parts.push(value.content);
           }
@@ -141,24 +125,55 @@ function compactError(payload: unknown, raw: string): string {
   return raw.slice(0, 900);
 }
 
-type HuggingFaceFormatMode = "chat_plain_json" | "chat_json_object" | "chat_schema" | "responses_schema" | "responses_json_object" | "responses_plain_json";
+type HuggingFaceFormatMode = "schema" | "json_object" | "plain_json";
 
-function jsonInstructions(request: HuggingFaceJsonRequest): string {
-  return `${request.systemPrompt ?? "Return only valid JSON. Do not wrap the response in Markdown."}\nReturn exactly one JSON object. No Markdown fences. No comments. No prose before or after JSON. Use compact strings.`;
+function jsonInstruction(request: HuggingFaceJsonRequest): string {
+  return `${request.systemPrompt ?? "Return only valid JSON. Do not wrap the response in Markdown."}\nReturn one JSON object only. Do not use Markdown fences, comments, prose, or trailing text.`;
 }
 
-function chatRequestBody(request: HuggingFaceJsonRequest, formatMode: HuggingFaceFormatMode): Record<string, unknown> {
+function requestBody(request: HuggingFaceJsonRequest, formatMode: HuggingFaceFormatMode, endpoint = getEndpoint()): Record<string, unknown> {
+  const instructions = jsonInstruction(request);
+  const maxTokens = request.maxOutputTokens ?? env.LLM_MAX_NEW_TOKENS;
+
+  if (usesResponsesEndpoint(endpoint)) {
+    const body: Record<string, unknown> = {
+      model: env.HF_MODEL,
+      instructions,
+      input: request.prompt,
+      max_output_tokens: maxTokens,
+      temperature: 0.35
+    };
+
+    if (formatMode === "schema" && request.schema) {
+      body.text = {
+        format: {
+          type: "json_schema",
+          name: request.schemaName ?? "mag_json_response",
+          strict: true,
+          schema: request.schema
+        }
+      };
+    } else if (formatMode === "json_object") {
+      body.text = { format: { type: "json_object" } };
+    }
+
+    return body;
+  }
+
   const body: Record<string, unknown> = {
     model: env.HF_MODEL,
     messages: [
-      { role: "system", content: jsonInstructions(request) },
+      { role: "system", content: instructions },
       { role: "user", content: request.prompt }
     ],
-    max_tokens: request.maxOutputTokens ?? env.LLM_MAX_NEW_TOKENS,
-    temperature: 0.25
+    max_tokens: maxTokens,
+    temperature: 0.35
   };
 
-  if (formatMode === "chat_schema" && request.schema) {
+  // Chat Completions accepts response_format for many routed models, but Qwen
+  // can be picky. We try schema/json_object first and then plain_json without
+  // response_format, so generation still works instead of hard-failing.
+  if (formatMode === "schema" && request.schema) {
     body.response_format = {
       type: "json_schema",
       json_schema: {
@@ -167,53 +182,28 @@ function chatRequestBody(request: HuggingFaceJsonRequest, formatMode: HuggingFac
         schema: request.schema
       }
     };
-  } else if (formatMode === "chat_json_object") {
+  } else if (formatMode === "json_object") {
     body.response_format = { type: "json_object" };
   }
 
   return body;
 }
 
-function responsesRequestBody(request: HuggingFaceJsonRequest, formatMode: HuggingFaceFormatMode): Record<string, unknown> {
-  const body: Record<string, unknown> = {
-    model: env.HF_MODEL,
-    instructions: jsonInstructions(request),
-    input: request.prompt,
-    max_output_tokens: request.maxOutputTokens ?? env.LLM_MAX_NEW_TOKENS,
-    temperature: 0.25
-  };
 
-  if (formatMode === "responses_schema" && request.schema) {
-    body.text = {
-      format: {
-        type: "json_schema",
-        name: request.schemaName ?? "mag_json_response",
-        strict: true,
-        schema: request.schema
-      }
-    };
-  } else if (formatMode === "responses_json_object") {
-    body.text = { format: { type: "json_object" } };
-  }
-
-  return body;
-}
-
-async function postJson(request: HuggingFaceJsonRequest, formatMode: HuggingFaceFormatMode): Promise<HuggingFaceProviderResult> {
+async function postHuggingFaceJson(request: HuggingFaceJsonRequest, formatMode: HuggingFaceFormatMode): Promise<HuggingFaceProviderResult> {
   const controller = new AbortController();
   const requestTimeoutMs = request.timeoutMs ?? env.LLM_TIMEOUT_MS;
   const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
-  const isChat = formatMode.startsWith("chat_");
 
   try {
-    const response = await fetch(isChat ? getChatEndpoint() : getResponsesEndpoint(), {
+    const response = await fetch(getEndpoint(), {
       method: "POST",
       signal: controller.signal,
       headers: {
         Authorization: `Bearer ${env.HF_TOKEN}`,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(isChat ? chatRequestBody(request, formatMode) : responsesRequestBody(request, formatMode))
+      body: JSON.stringify(requestBody(request, formatMode, getEndpoint()))
     });
 
     const raw = await response.text();
@@ -256,8 +246,7 @@ export async function runHuggingFaceAdvisor(prompt: string): Promise<HuggingFace
     prompt,
     schema: advisorJsonSchema(),
     schemaName: "architecture_advisor_report",
-    systemPrompt: "You are an architecture reviewer for generated mobile starter projects. Return only valid JSON matching the requested schema.",
-    maxOutputTokens: 4000
+    systemPrompt: "You are an architecture reviewer for generated mobile starter projects. Return only valid JSON matching the requested schema."
   });
 }
 
@@ -266,27 +255,15 @@ export async function runHuggingFaceJson(request: HuggingFaceJsonRequest): Promi
     return { ok: false, error: "HF_TOKEN is not configured", model: env.HF_MODEL };
   }
 
-  // For Qwen through the HF router, Chat Completions is more reliable than the
-  // beta Responses endpoint: it consistently returns choices[].message.content.
-  // Start with plain JSON to avoid provider-side json_object/schema failures,
-  // then try structured formats, and keep Responses only as a compatibility path.
-  const attempts: HuggingFaceFormatMode[] = request.schema
-    ? ["chat_plain_json", "chat_json_object", "chat_schema", "responses_json_object", "responses_schema", "responses_plain_json"]
-    : ["chat_plain_json", "chat_json_object", "responses_json_object", "responses_plain_json"];
+  const attempts: HuggingFaceFormatMode[] = request.schema ? ["schema", "json_object", "plain_json"] : ["json_object", "plain_json"];
   const errors: string[] = [];
-
   for (const attempt of attempts) {
-    const result = await postJson(request, attempt);
+    const result = await postHuggingFaceJson(request, attempt);
     if (result.ok && result.text) {
       return result;
     }
     errors.push(result.error ?? `Hugging Face ${attempt} attempt failed`);
-
-    // A timeout already consumed the production request budget, so do not chain
-    // more remote calls after it. The UI will show the real reason instead of a
-    // late 504 from nginx.
-    if (result.error?.includes("timed out")) break;
   }
 
-  return { ok: false, error: errors.join(" | ").slice(0, 1800), model: env.HF_MODEL };
+  return { ok: false, error: errors.join(" | ").slice(0, 1600), model: env.HF_MODEL };
 }
