@@ -270,6 +270,37 @@ export interface DependencyPlan {
   warnings: string[];
 }
 
+export interface ArchitectureBlueprintFile {
+  path: string;
+  kind: "source" | "config" | "resource" | "documentation" | "test";
+  role: string;
+  description: string;
+  module: string;
+}
+
+export interface ArchitectureBlueprintModule {
+  name: string;
+  purpose: string;
+  emphasis: string;
+  files: ArchitectureBlueprintFile[];
+}
+
+export interface ArchitectureBlueprintRelationship {
+  from: string;
+  to: string;
+  relation: string;
+  reason: string;
+}
+
+export interface ArchitectureBlueprint {
+  provider: AdvisorProvider;
+  mode: GenerationMode;
+  model?: string;
+  strategy: string;
+  modules: ArchitectureBlueprintModule[];
+  relationships: ArchitectureBlueprintRelationship[];
+}
+
 export interface ArchitectureSpec {
   version: string;
   profileId: ProfileId;
@@ -299,6 +330,7 @@ export interface ArchitectureSpec {
     runtimeQuality: RuntimeQualityOptionId[];
     delivery: DeliveryOptionId[];
   };
+  aiBlueprint?: ArchitectureBlueprint;
   explanation: string;
 }
 
@@ -332,6 +364,7 @@ export interface ArtifactManifest {
   generationMode: GenerationMode;
   rootFolderName: string;
   artifacts: ArtifactDefinition[];
+  aiBlueprint?: ArchitectureBlueprint;
   summary: {
     totalArtifacts: number;
     requiredArtifacts: number;

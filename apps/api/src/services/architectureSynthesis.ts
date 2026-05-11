@@ -24,6 +24,7 @@ interface RawArchitecturePatch {
   risks?: unknown;
   recommendations?: unknown;
   product?: unknown;
+  aiBlueprint?: unknown;
 }
 
 interface ProviderTextResult {
@@ -160,6 +161,149 @@ function objectField(value: unknown): Record<string, unknown> {
     : {};
 }
 
+function normalizeSlug(value: string, fallback: string): string {
+  return (value || fallback)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || fallback;
+}
+
+function safeRelativePath(value: string, fallbackName: string, extension: string): string | null {
+  const cleaned = value
+    .replace(/\\/g, "/")
+    .replace(/^\/+/, "")
+    .replace(/\.{2,}/g, "")
+    .split("/")
+    .map((part) => part.trim().replace(/[<>:"|?*]/g, ""))
+    .filter(Boolean)
+    .join("/");
+  if (!cleaned || cleaned.includes("../") || cleaned.startsWith(".")) {
+    return null;
+  }
+  if (/\.[a-z0-9]+$/i.test(cleaned)) {
+    return cleaned;
+  }
+  return `${cleaned}/${fallbackName}.${extension}`;
+}
+
+function defaultBlueprintExtension(profile: QuestionnaireAnswers["profile"]): string {
+  if (profile === "ios") return "swift";
+  if (profile === "flutter") return "dart";
+  if (profile === "react-native") return "ts";
+  return "cs";
+}
+
+function normalizeBlueprint(
+  patch: RawArchitecturePatch,
+  baseline: ArchitectureSpec,
+  mode: GenerationMode,
+  provider: ProviderName,
+  model: string | undefined,
+  warnings: string[]
+): ArchitectureSpec["aiBlueprint"] {
+  const raw = objectField(patch.aiBlueprint);
+  const rawModules = Array.isArray(raw.modules) ? raw.modules : [];
+  const extension = defaultBlueprintExtension(baseline.profileId);
+  const modules: NonNullable<ArchitectureSpec["aiBlueprint"]>["modules"] = [];
+  const knownPaths = new Set<string>();
+  const moduleLimit = mode === "commercial" ? 18 : mode === "hf-open" ? 16 : 20;
+  const fileLimit = mode === "commercial" ? 14 : mode === "hf-open" ? 12 : 14;
+
+  rawModules.slice(0, moduleLimit).forEach((rawModule, moduleIndex) => {
+    const moduleObject = objectField(rawModule);
+    const name = asString(moduleObject.name) ?? `AIModule${moduleIndex + 1}`;
+    const moduleSlug = normalizeSlug(name, `ai-module-${moduleIndex + 1}`);
+    const rawFiles = Array.isArray(moduleObject.files) ? moduleObject.files : [];
+    const files: NonNullable<ArchitectureSpec["aiBlueprint"]>["modules"][number]["files"] = [];
+
+    rawFiles.slice(0, fileLimit).forEach((rawFile, fileIndex) => {
+      const fileObject = objectField(rawFile);
+      const fallbackName = `${moduleSlug.replace(/(^|-)([a-z])/g, (_, _dash, letter) => letter.toUpperCase()) || "AIBoundary"}${fileIndex + 1}`;
+      const path = safeRelativePath(asString(fileObject.path) ?? "", fallbackName, extension)
+        ?? `AI/${moduleSlug}/${fallbackName}.${extension}`;
+      if (knownPaths.has(path)) {
+        return;
+      }
+      knownPaths.add(path);
+      const kindCandidate = asString(fileObject.kind) ?? "source";
+      const kind = ["source", "config", "resource", "documentation", "test"].includes(kindCandidate) ? kindCandidate as "source" | "config" | "resource" | "documentation" | "test" : "source";
+      files.push({
+        path,
+        kind,
+        role: asString(fileObject.role) ?? "source boundary",
+        description: asString(fileObject.description) ?? `${path.split("/").pop()} is an AI-proposed ${name} file.`,
+        module: normalizeSlug(asString(fileObject.module) ?? name, moduleSlug)
+      });
+    });
+
+    if (files.length > 0) {
+      modules.push({
+        name,
+        purpose: asString(moduleObject.purpose) ?? `AI-proposed ${name} module for ${mode} generation.`,
+        emphasis: asString(moduleObject.emphasis) ?? (mode === "commercial" ? "production readiness" : "code structure"),
+        files
+      });
+    }
+  });
+
+  if (modules.length === 0) {
+    warnings.push("AI response did not include usable aiBlueprint modules; provider-specific blueprint files were not added.");
+    return undefined;
+  }
+
+  const validPaths = new Set(modules.flatMap((module) => module.files.map((file) => file.path)));
+  const rawRelationships = Array.isArray(raw.relationships) ? raw.relationships : [];
+  const relationships: NonNullable<ArchitectureSpec["aiBlueprint"]>["relationships"] = [];
+  const relationKeys = new Set<string>();
+  for (const rawRelationship of rawRelationships.slice(0, 180)) {
+    const relationObject = objectField(rawRelationship);
+    const from = asString(relationObject.from);
+    const to = asString(relationObject.to);
+    if (!from || !to || from === to || !validPaths.has(from) || !validPaths.has(to)) {
+      continue;
+    }
+    const relation = normalizeSlug(asString(relationObject.relation) ?? "uses", "uses");
+    const key = `${from}|${to}|${relation}`;
+    if (relationKeys.has(key)) {
+      continue;
+    }
+    relationKeys.add(key);
+    relationships.push({
+      from,
+      to,
+      relation,
+      reason: asString(relationObject.reason) ?? `${from.split("/").pop()} ${relation} ${to.split("/").pop()}.`
+    });
+  }
+
+  const flatFiles = modules.flatMap((module) => module.files);
+  for (let index = 1; relationships.length < Math.min(140, Math.max(24, flatFiles.length * 2)) && index < flatFiles.length; index += 1) {
+    const source = flatFiles[index - 1];
+    const target = flatFiles[index];
+    const relation = index % 5 === 0 ? "documents" : index % 4 === 0 ? "tests" : index % 3 === 0 ? "configures" : "uses";
+    const key = `${source.path}|${target.path}|${relation}`;
+    if (!relationKeys.has(key)) {
+      relationKeys.add(key);
+      relationships.push({
+        from: source.path,
+        to: target.path,
+        relation,
+        reason: `${source.path.split("/").pop()} ${relation} ${target.path.split("/").pop()} inside the AI blueprint.`
+      });
+    }
+  }
+
+  return {
+    provider,
+    mode,
+    model,
+    strategy: asString(raw.strategy) ?? (mode === "commercial" ? "Production-grade commercial expansion around the locked architecture." : "Open-model maintainability expansion around the locked architecture."),
+    modules,
+    relationships
+  };
+}
+
 function extractJson(text: string): RawArchitecturePatch | null {
   const trimmed = text.trim();
   const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
@@ -179,7 +323,19 @@ function architecturePatchSchema(baseline: ArchitectureSpec): Record<string, unk
   const stringArray = {
     type: "array",
     items: { type: "string" },
-    maxItems: 10
+    maxItems: 20
+  };
+  const blueprintFile = {
+    type: "object",
+    additionalProperties: false,
+    required: ["path", "kind", "role", "description", "module"],
+    properties: {
+      path: { type: "string" },
+      kind: { type: "string", enum: ["source", "config", "resource", "documentation", "test"] },
+      role: { type: "string" },
+      description: { type: "string" },
+      module: { type: "string" }
+    }
   };
 
   return {
@@ -196,9 +352,12 @@ function architecturePatchSchema(baseline: ArchitectureSpec): Record<string, unk
       "assumptions",
       "risks",
       "recommendations",
-      "product"
+      "product",
+      "aiBlueprint"
     ],
     properties: {
+      // Core user-selected architecture knobs are accepted for backward compatibility,
+      // but the normalizer preserves the user's chosen architecture/state/navigation.
       architectureStyle: { type: "string", enum: PROFILE_ALLOWED_OPTIONS[baseline.profileId].architectureStyle },
       stateManagement: { type: "string", enum: PROFILE_ALLOWED_OPTIONS[baseline.profileId].stateManagement },
       navigationStyle: { type: "string", enum: PROFILE_ALLOWED_OPTIONS[baseline.profileId].navigationStyle },
@@ -232,6 +391,45 @@ function architecturePatchSchema(baseline: ArchitectureSpec): Record<string, unk
           runtimeQuality: { ...stringArray, items: { type: "string", enum: [...PRODUCT_ALLOWED_OPTIONS.runtimeQuality] } },
           delivery: { ...stringArray, items: { type: "string", enum: [...PRODUCT_ALLOWED_OPTIONS.delivery] } }
         }
+      },
+      aiBlueprint: {
+        type: "object",
+        additionalProperties: false,
+        required: ["strategy", "modules", "relationships"],
+        properties: {
+          strategy: { type: "string" },
+          modules: {
+            type: "array",
+            minItems: 6,
+            maxItems: 18,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["name", "purpose", "emphasis", "files"],
+              properties: {
+                name: { type: "string" },
+                purpose: { type: "string" },
+                emphasis: { type: "string" },
+                files: { type: "array", minItems: 3, maxItems: 14, items: blueprintFile }
+              }
+            }
+          },
+          relationships: {
+            type: "array",
+            maxItems: 120,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["from", "to", "relation", "reason"],
+              properties: {
+                from: { type: "string" },
+                to: { type: "string" },
+                relation: { type: "string" },
+                reason: { type: "string" }
+              }
+            }
+          }
+        }
       }
     }
   };
@@ -239,22 +437,55 @@ function architecturePatchSchema(baseline: ArchitectureSpec): Record<string, unk
 
 function buildPrompt(answers: QuestionnaireAnswers, baseline: ArchitectureSpec, mode: GenerationMode): string {
   const userInstruction = typeof answers.aiInstruction === "string" && answers.aiInstruction.trim()
-    ? answers.aiInstruction.trim().slice(0, 2000)
+    ? answers.aiInstruction.trim().slice(0, 4000)
     : "";
+  const projectPascal = baseline.naming.projectPascal;
+  const root = baseline.naming.rootDirectoryName;
+  const platform = baseline.profileId;
+  const extByProfile: Record<string, string> = { ios: "swift", flutter: "dart", "react-native": "ts", unity: "cs" };
+  const ext = extByProfile[platform] ?? "ts";
+
+  const modeGoal = mode === "commercial"
+    ? [
+      "GPT mode should act like a senior product/platform architect for a commercial app.",
+      "Keep the user's selected platform, architecture style, state management and navigation untouched, but propose a richer implementation blueprint around release readiness, monetization, store compliance, telemetry, operations, risk controls, environment separation and business-critical flows.",
+      "It may add many files/modules when they are justified. Prefer pragmatic production boundaries and explicit diagnostics. Do not copy the Qwen/open-model shape."
+    ].join(" ")
+    : mode === "hf-open"
+      ? [
+        "Qwen/open-model mode should act like a code-structure and maintainability architect.",
+        "Keep the user's selected platform, architecture style, state management and navigation untouched, but propose a richer implementation blueprint around domain boundaries, contracts, local-first/offline data, clean module seams, testability, generated source clarity and documentation.",
+        "It may add many files/modules when they are justified. Prefer readable source scaffolding and architectural seams. Do not copy the GPT/commercial shape."
+      ].join(" ")
+      : modeInstruction(mode, baseline);
 
   return [
-    "You are generating a controlled mobile ArchitectureSpec patch for a starter-project generator.",
-    "Return only JSON matching the schema. Do not write files. Do not change the selected platform/profile.",
-    "The deterministic generator will materialize files after your patch is normalized and validated.",
-    "",
-    "Allowed profile:",
-    baseline.profileId,
-    "",
-    "Generation mode:",
-    mode,
+    "You are producing an AI architecture blueprint for App Architector, a controlled starter-project generator used as a diploma laboratory stand for comparing AI generation.",
+    "Return only valid JSON matching the provided schema. No Markdown. No comments. No extra text.",
+    "IMPORTANT: the user-selected core architecture knobs are locked. Do NOT try to change platform/profile, architecture style, state management, navigation style or package identity. Your differentiation must come from the blueprint: modules, files, responsibilities, relationships, risks and recommendations.",
+    "The deterministic materializer will turn your aiBlueprint.files into real generated files, so every file path must be concrete, platform-appropriate, safe, and relative to the project root, without leading slash or '..'.",
+    `Use the root folder ${root}. Paths inside aiBlueprint must be relative to that root, for example Assets/Scripts/Commercial/RevenueGuard.${ext} or Docs/CommercialReadiness.md. Do not include the root folder in file paths.`,
+    `Use the selected platform ${platform}. Source files should usually use .${ext}; tests may use source/test naming that is natural for the platform.`,
+    "Each file must have a useful role and description, because the UI displays this in the generated tree. Avoid generic 'source artifact'.",
+    "Relationships should reference file paths that appear in aiBlueprint.modules[].files[].path. Use relation labels like wires, uses, implements, configures, observes, routes-to, renders, persists-through, validates, tracks, documents, tests.",
+    "Produce enough blueprint depth to make this AI mode visibly different from baseline and from the other AI provider. A strong answer commonly contains 45-120 extra files and many relationships; fewer is acceptable only if strongly justified by the domain.",
+    "Keep all choices platform-safe and aligned with the user form. You may refine optional feature/product lists only when it improves the generated package; do not disable a user-requested feature just to be different.",
     "",
     "Mode-specific objective:",
-    modeInstruction(mode, baseline),
+    modeGoal,
+    "",
+    "Locked baseline selected by the user:",
+    JSON.stringify({
+      profileId: baseline.profileId,
+      projectName: baseline.projectName,
+      appDisplayName: baseline.appDisplayName,
+      packageId: baseline.naming.packageId,
+      architecture: baseline.architecture,
+      features: baseline.features,
+      product: baseline.product,
+      enabledModules: baseline.modules.filter((module) => module.enabled).map((module) => module.featureId),
+      dependencyWarnings: baseline.dependencyPlan.warnings
+    }, null, 2),
     "",
     "User answers:",
     JSON.stringify(answers, null, 2),
@@ -262,48 +493,58 @@ function buildPrompt(answers: QuestionnaireAnswers, baseline: ArchitectureSpec, 
     "Additional user instruction:",
     userInstruction || "No additional instruction was provided.",
     "",
-    "Baseline spec:",
-    JSON.stringify({
-      profileId: baseline.profileId,
-      architecture: baseline.architecture,
-      features: baseline.features,
-      product: baseline.product,
-      modules: baseline.modules.filter((module) => module.enabled).map((module) => ({
-        featureId: module.featureId,
-        supported: module.supported,
-        required: module.required
-      })),
-      warnings: baseline.dependencyPlan.warnings
-    }, null, 2),
-    "",
-    "Choose architectureStyle/stateManagement/navigationStyle/features/product arrays so this mode creates a visibly different generated package while staying platform-safe.",
-    "Do not simply echo the baseline values. Respect explicit user context, but make the mode-specific architecture tradeoff visible in files, modules, metrics and advisor notes.",
-    "",
-    "Required JSON shape:",
+    "Required JSON shape example:",
     JSON.stringify({
       architectureStyle: baseline.architecture.style,
       stateManagement: baseline.architecture.stateManagement,
       navigationStyle: baseline.architecture.navigationStyle,
-      environmentMode: answers.environmentMode ?? "single",
+      environmentMode: answers.environmentMode ?? baseline.architecture.environmentMode,
       features: {
         auth: Boolean(answers.hasAuth),
         analytics: Boolean(answers.hasAnalytics),
         localization: Boolean(answers.hasLocalization),
         push: Boolean(answers.hasPush),
-        networking: Boolean(answers.hasNetworking),
+        networking: answers.hasNetworking !== false,
         persistence: Boolean(answers.hasPersistence)
       },
-      includeExampleScreen: Boolean(answers.includeExampleScreen),
-      explanation: "One concise explanation of the selected architecture.",
+      includeExampleScreen: answers.includeExampleScreen ?? true,
+      explanation: "Why this AI blueprint extends the locked architecture.",
       assumptions: ["Concrete assumption about product or delivery context."],
       risks: ["Concrete implementation risk."],
       recommendations: ["Concrete next engineering recommendation."],
       product: {
-        distributionStores: answers.distributionStores ?? [],
-        monetization: answers.monetization ?? [],
-        offlineData: answers.offlineData ?? [],
-        runtimeQuality: answers.runtimeQuality ?? [],
-        delivery: answers.delivery ?? []
+        distributionStores: answers.distributionStores ?? baseline.product.distributionStores,
+        monetization: answers.monetization ?? baseline.product.monetization,
+        offlineData: answers.offlineData ?? baseline.product.offlineData,
+        runtimeQuality: answers.runtimeQuality ?? baseline.product.runtimeQuality,
+        delivery: answers.delivery ?? baseline.product.delivery
+      },
+      aiBlueprint: {
+        strategy: "One sentence describing the generation strategy.",
+        modules: [
+          {
+            name: "CommercialReadiness",
+            purpose: "Explains why this module exists.",
+            emphasis: "production risk, store readiness, telemetry, or code maintainability",
+            files: [
+              {
+                path: `Assets/Scripts/${projectPascal}/CommercialReadiness/RevenueGuard.${ext}`,
+                kind: "source",
+                role: "service",
+                description: "Validates purchase and entitlement state before premium flows are opened.",
+                module: "commercial-readiness"
+              }
+            ]
+          }
+        ],
+        relationships: [
+          {
+            from: `Assets/Scripts/${projectPascal}/CommercialReadiness/RevenueGuard.${ext}`,
+            to: `Assets/Scripts/${projectPascal}/CommercialReadiness/RevenueGuard.${ext}`,
+            relation: "documents",
+            reason: "Replace this example with a real relation between two different blueprint files."
+          }
+        ]
       }
     }, null, 2)
   ].join("\n");
@@ -313,30 +554,31 @@ function normalizePatch(
   answers: QuestionnaireAnswers,
   baseline: ArchitectureSpec,
   patch: RawArchitecturePatch,
-  warnings: string[]
-): { answers: QuestionnaireAnswers; assumptions: string[]; risks: string[]; recommendations: string[]; explanation?: string } {
-  const nextAnswers: QuestionnaireAnswers = { ...answers, generationMode: answers.generationMode ?? "baseline", includeLLMNotes: true };
-  const architecture = objectField(patch.architecture);
-  const fieldAliases: Record<(typeof stringFields)[number], unknown[]> = {
-    architectureStyle: [patch.architectureStyle, architecture.style, architecture.architectureStyle],
-    stateManagement: [patch.stateManagement, architecture.stateManagement, architecture.state],
-    navigationStyle: [patch.navigationStyle, architecture.navigationStyle, architecture.navigation]
+  warnings: string[],
+  provider: ProviderName,
+  model: string | undefined,
+  mode: GenerationMode
+): { answers: QuestionnaireAnswers; assumptions: string[]; risks: string[]; recommendations: string[]; explanation?: string; aiBlueprint?: ArchitectureSpec["aiBlueprint"] } {
+  // Keep the user's core architecture selections locked. GPT/Qwen differentiation must
+  // come from the AI blueprint depth and rationale, not from silently switching
+  // architectureStyle/stateManagement/navigationStyle behind the user's back.
+  const nextAnswers: QuestionnaireAnswers = {
+    ...answers,
+    generationMode: answers.generationMode ?? "baseline",
+    includeLLMNotes: true,
+    profile: baseline.profileId,
+    architectureStyle: answers.architectureStyle ?? baseline.architecture.style,
+    stateManagement: answers.stateManagement ?? baseline.architecture.stateManagement,
+    navigationStyle: answers.navigationStyle ?? baseline.architecture.navigationStyle,
+    projectName: answers.projectName,
+    appDisplayName: answers.appDisplayName,
+    packageId: answers.packageId,
+    aiInstruction: answers.aiInstruction
   };
 
-  for (const field of stringFields) {
-    const value = fieldAliases[field].map(asString).find(Boolean);
-    if (value) {
-      nextAnswers[field] = value;
-    } else {
-      warnings.push(`AI spec patch missed ${field}; deterministic baseline value was kept.`);
-    }
-  }
-
-  const environmentMode = patch.environmentMode ?? architecture.environmentMode;
+  const environmentMode = patch.environmentMode ?? objectField(patch.architecture).environmentMode;
   if (environmentMode === "single" || environmentMode === "multi") {
     nextAnswers.environmentMode = environmentMode;
-  } else {
-    warnings.push("AI spec patch missed environmentMode; deterministic baseline value was kept.");
   }
 
   const features = objectField(patch.features);
@@ -352,15 +594,16 @@ function normalizePatch(
   for (const field of featureFields) {
     const value = asBoolean(features[featureMap[field]]);
     if (typeof value === "boolean") {
-      nextAnswers[field] = value;
-    } else {
-      warnings.push(`AI spec patch missed feature ${featureMap[field]}; deterministic baseline value was kept.`);
+      // Do not disable an explicitly selected feature. The AI may add depth around it,
+      // but it should not remove the user's chosen architecture inputs.
+      const original = answers[field];
+      nextAnswers[field] = original === true ? true : value;
     }
   }
 
   const includeExampleScreen = asBoolean(patch.includeExampleScreen);
   if (typeof includeExampleScreen === "boolean") {
-    nextAnswers.includeExampleScreen = includeExampleScreen;
+    nextAnswers.includeExampleScreen = answers.includeExampleScreen === false ? false : includeExampleScreen;
   }
 
   const product = objectField(patch.product);
@@ -375,18 +618,15 @@ function normalizePatch(
   if (runtimeQuality.length > 0) nextAnswers.runtimeQuality = runtimeQuality as QuestionnaireAnswers["runtimeQuality"];
   if (delivery.length > 0) nextAnswers.delivery = delivery as QuestionnaireAnswers["delivery"];
 
-  nextAnswers.profile = baseline.profileId;
-  nextAnswers.projectName = answers.projectName;
-  nextAnswers.appDisplayName = answers.appDisplayName;
-  nextAnswers.packageId = answers.packageId;
-  nextAnswers.aiInstruction = answers.aiInstruction;
+  const aiBlueprint = normalizeBlueprint(patch, baseline, mode, provider, model, warnings);
 
   return {
     answers: nextAnswers,
     assumptions: asStringArray(patch.assumptions),
     risks: asStringArray(patch.risks),
     recommendations: asStringArray(patch.recommendations),
-    explanation: asString(patch.explanation)
+    explanation: asString(patch.explanation),
+    aiBlueprint
   };
 }
 
@@ -485,14 +725,14 @@ export async function synthesizeArchitectureSpec(
       schema: architecturePatchSchema(baseline),
       schemaName: "architecture_spec_patch",
       systemPrompt: "You generate controlled JSON patches for a mobile ArchitectureSpec. Return only valid JSON.",
-      maxOutputTokens: Math.max(env.LLM_MAX_NEW_TOKENS, 900)
+      maxOutputTokens: Math.max(env.LLM_MAX_NEW_TOKENS, mode === "commercial" ? 12000 : 10000)
     })
     : await runHuggingFaceJson({
       prompt,
       schema: architecturePatchSchema(baseline),
       schemaName: "architecture_spec_patch",
       systemPrompt: "You generate controlled JSON patches for a mobile ArchitectureSpec. Return only valid JSON matching the requested schema.",
-      maxOutputTokens: Math.max(env.LLM_MAX_NEW_TOKENS, 900)
+      maxOutputTokens: Math.max(env.LLM_MAX_NEW_TOKENS, mode === "commercial" ? 12000 : 10000)
     }));
 
   if (!providerResult.ok || !providerResult.text) {
@@ -527,13 +767,14 @@ export async function synthesizeArchitectureSpec(
   }
 
   const warnings: string[] = [];
-  const normalized = normalizePatch(answers, baseline, parsed, warnings);
+  const normalized = normalizePatch(answers, baseline, parsed, warnings, provider, providerResult.model, mode);
   const modeShapedAnswers = applyModeSignature(normalized.answers, mode);
   const spec = buildArchitectureSpec({
     ...modeShapedAnswers,
     generationMode: mode,
     includeLLMNotes: true
   });
+  spec.aiBlueprint = normalized.aiBlueprint;
   const metadata: ArchitectureSynthesisSummary = {
     provider,
     mode,
@@ -546,5 +787,7 @@ export async function synthesizeArchitectureSpec(
     recommendations: normalized.recommendations
   };
 
-  return { spec: applyExplanation(spec, metadata, normalized.explanation), metadata };
+  const explainedSpec = applyExplanation(spec, metadata, normalized.explanation);
+  explainedSpec.aiBlueprint = normalized.aiBlueprint;
+  return { spec: explainedSpec, metadata };
 }

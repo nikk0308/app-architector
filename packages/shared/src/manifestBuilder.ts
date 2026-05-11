@@ -273,6 +273,7 @@ export function buildArtifactManifest(spec: ArchitectureSpec): ArtifactManifest 
     generationMode: spec.generationMode,
     rootFolderName: spec.naming.rootDirectoryName,
     artifacts,
+    aiBlueprint: spec.aiBlueprint,
     summary: {
       totalArtifacts: artifacts.length,
       requiredArtifacts: artifacts.filter((artifact) => artifact.required).length,

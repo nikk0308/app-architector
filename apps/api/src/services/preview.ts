@@ -29,6 +29,21 @@ export function buildFileTreePreview(
   paths.add(`${manifest.rootFolderName}/architecture/`);
   paths.add(`${manifest.rootFolderName}/architecture/file-relationships.graph.json`);
 
+  const blueprint = (manifest as unknown as { aiBlueprint?: { modules?: Array<{ files?: Array<{ path?: string }> }> } }).aiBlueprint;
+  for (const module of blueprint?.modules ?? []) {
+    for (const file of module.files ?? []) {
+      if (!file.path || file.path.includes("..")) continue;
+      const pathParts = file.path.split("/").filter(Boolean);
+      let current = manifest.rootFolderName;
+      paths.add(`${current}/`);
+      for (const [index, part] of pathParts.entries()) {
+        current = `${current}/${part}`;
+        const isFile = index === pathParts.length - 1 && /\.[a-z0-9]+$/i.test(part);
+        paths.add(isFile ? current : `${current}/`);
+      }
+    }
+  }
+
   return Array.from(paths)
     .sort((left, right) => left.localeCompare(right))
     .map((path) => ({
