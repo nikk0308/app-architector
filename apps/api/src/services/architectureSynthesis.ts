@@ -1062,7 +1062,7 @@ async function runArchitectureProvider(
       // application still validates, normalizes and repairs the object locally.
       systemPrompt: "You generate controlled JSON patches for a mobile ArchitectureSpec. Return only one valid JSON object, no Markdown.",
       maxOutputTokens: Math.min(Math.max(env.LLM_MAX_NEW_TOKENS, 6500), 8500),
-      timeoutMs: Math.min(env.LLM_TIMEOUT_MS, 52000)
+      timeoutMs: Math.min(env.LLM_TIMEOUT_MS, 58000)
     });
 }
 
