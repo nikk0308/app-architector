@@ -64,47 +64,140 @@ function getEndpoint(): string {
 }
 
 function extractText(payload: unknown): string | undefined {
-  if (typeof payload === "string") return payload;
+  if (typeof payload === "string") return payload.trim() || undefined;
   if (Array.isArray(payload)) {
     const first = payload[0] as HuggingFaceGeneratedItem | undefined;
     return first?.generated_text ?? first?.summary_text;
   }
   if (payload && typeof payload === "object") {
     const object = payload as Record<string, unknown>;
-    if (typeof object.output_text === "string") return object.output_text;
-    if (typeof object.generated_text === "string") return object.generated_text;
+    if (typeof object.output_text === "string" && object.output_text.trim()) return object.output_text.trim();
+    if (typeof object.generated_text === "string" && object.generated_text.trim()) return object.generated_text.trim();
     if (typeof object.error === "string") throw new Error(object.error);
 
     const choices = object.choices;
     if (Array.isArray(choices)) {
-      const first = choices[0] as { message?: { content?: unknown } } | undefined;
-      if (typeof first?.message?.content === "string") return first.message.content;
+      const first = choices[0] as { message?: { content?: unknown }; text?: unknown } | undefined;
+      if (typeof first?.message?.content === "string" && first.message.content.trim()) return first.message.content.trim();
+      if (typeof first?.text === "string" && first.text.trim()) return first.text.trim();
     }
 
     const output = object.output;
     if (Array.isArray(output)) {
+      const parts: string[] = [];
       for (const item of output) {
         if (!item || typeof item !== "object") continue;
         const content = (item as { content?: unknown }).content;
-        if (typeof content === "string") return content;
+        if (typeof content === "string") {
+          parts.push(content);
+          continue;
+        }
         if (Array.isArray(content)) {
-          const text = content
-            .map((part) => {
-              if (!part || typeof part !== "object") return "";
-              const value = part as { text?: unknown; content?: unknown };
-              return typeof value.text === "string"
-                ? value.text
-                : typeof value.content === "string"
-                  ? value.content
-                  : "";
-            })
-            .join("");
-          if (text.trim()) return text;
+          for (const part of content) {
+            if (!part || typeof part !== "object") continue;
+            const value = part as { text?: unknown; content?: unknown };
+            if (typeof value.text === "string") parts.push(value.text);
+            else if (typeof value.content === "string") parts.push(value.content);
+          }
         }
       }
+      const text = parts.join("\n").trim();
+      if (text) return text;
     }
   }
   return undefined;
+}
+
+function compactError(payload: unknown, raw: string): string {
+  if (payload && typeof payload === "object" && "error" in payload) {
+    return JSON.stringify((payload as { error?: unknown }).error).slice(0, 900);
+  }
+  return raw.slice(0, 900);
+}
+
+type HuggingFaceFormatMode = "schema" | "json_object" | "plain_json";
+
+function requestBody(request: HuggingFaceJsonRequest, formatMode: HuggingFaceFormatMode): Record<string, unknown> {
+  const instructions = `${request.systemPrompt ?? "Return only valid JSON. Do not wrap the response in Markdown."}\nReturn one JSON object only. Do not use Markdown fences, comments, prose, or trailing text.`;
+  const body: Record<string, unknown> = {
+    model: env.HF_MODEL,
+    instructions,
+    input: request.prompt,
+    max_output_tokens: request.maxOutputTokens ?? env.LLM_MAX_NEW_TOKENS,
+    temperature: 0.35
+  };
+
+  // Hugging Face's Responses API follows the OpenAI Responses shape. The old
+  // Chat Completions-style response_format field is intentionally avoided here;
+  // it caused provider-side schema parsing failures for several routed models.
+  if (formatMode === "schema" && request.schema) {
+    body.text = {
+      format: {
+        type: "json_schema",
+        name: request.schemaName ?? "mag_json_response",
+        strict: true,
+        schema: request.schema
+      }
+    };
+  } else if (formatMode === "json_object") {
+    body.text = {
+      format: {
+        type: "json_object"
+      }
+    };
+  }
+
+  return body;
+}
+
+async function postHuggingFaceJson(request: HuggingFaceJsonRequest, formatMode: HuggingFaceFormatMode): Promise<HuggingFaceProviderResult> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), env.LLM_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(getEndpoint(), {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${env.HF_TOKEN}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(requestBody(request, formatMode))
+    });
+
+    const raw = await response.text();
+    let payload: unknown = raw;
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      payload = raw;
+    }
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: `Hugging Face request failed (${formatMode}): ${response.status} ${compactError(payload, raw)}`,
+        model: env.HF_MODEL
+      };
+    }
+
+    const text = extractText(payload);
+    if (!text) {
+      return { ok: false, error: `Hugging Face response did not contain generated text (${formatMode})`, model: env.HF_MODEL };
+    }
+
+    return { ok: true, text, model: env.HF_MODEL };
+  } catch (error) {
+    const isAbort = error instanceof Error && error.name === "AbortError";
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      ok: false,
+      error: isAbort ? `Hugging Face request timed out after ${env.LLM_TIMEOUT_MS} ms (${formatMode})` : `${message} (${formatMode})`,
+      model: env.HF_MODEL
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function runHuggingFaceAdvisor(prompt: string): Promise<HuggingFaceProviderResult> {
@@ -121,61 +214,15 @@ export async function runHuggingFaceJson(request: HuggingFaceJsonRequest): Promi
     return { ok: false, error: "HF_TOKEN is not configured", model: env.HF_MODEL };
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), env.LLM_TIMEOUT_MS);
-
-  try {
-    const response = await fetch(getEndpoint(), {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        Authorization: `Bearer ${env.HF_TOKEN}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: env.HF_MODEL,
-        instructions: request.systemPrompt ?? "Return only valid JSON. Do not wrap the response in Markdown.",
-        input: request.prompt,
-        max_output_tokens: request.maxOutputTokens ?? env.LLM_MAX_NEW_TOKENS,
-        temperature: 0.2,
-        response_format: request.schema
-          ? {
-            type: "json_schema",
-            json_schema: {
-              name: request.schemaName ?? "mag_json_response",
-              schema: request.schema,
-              strict: true
-            }
-          }
-          : { type: "json_object" }
-      })
-    });
-
-    const raw = await response.text();
-    let payload: unknown = raw;
-    try {
-      payload = JSON.parse(raw);
-    } catch {
-      payload = raw;
+  const attempts: HuggingFaceFormatMode[] = request.schema ? ["schema", "json_object", "plain_json"] : ["json_object", "plain_json"];
+  const errors: string[] = [];
+  for (const attempt of attempts) {
+    const result = await postHuggingFaceJson(request, attempt);
+    if (result.ok && result.text) {
+      return result;
     }
-
-    if (!response.ok) {
-      const error = typeof payload === "object" && payload !== null && "error" in payload
-        ? String((payload as { error?: unknown }).error)
-        : raw.slice(0, 300);
-      return { ok: false, error: `Hugging Face request failed: ${response.status} ${error}`, model: env.HF_MODEL };
-    }
-
-    const text = extractText(payload);
-    if (!text) {
-      return { ok: false, error: "Hugging Face response did not contain generated text", model: env.HF_MODEL };
-    }
-
-    return { ok: true, text, model: env.HF_MODEL };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return { ok: false, error: message, model: env.HF_MODEL };
-  } finally {
-    clearTimeout(timeout);
+    errors.push(result.error ?? `Hugging Face ${attempt} attempt failed`);
   }
+
+  return { ok: false, error: errors.join(" | ").slice(0, 1600), model: env.HF_MODEL };
 }

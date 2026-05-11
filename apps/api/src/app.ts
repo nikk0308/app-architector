@@ -114,10 +114,8 @@ class AiExecutionError extends Error {
 }
 
 function shouldEnforceAiExecution(): boolean {
-  // CI/smoke tests intentionally run without real LLM credentials, so they must keep
-  // exercising the deterministic contract. In deployed/dev environments, enable
-  // STRICT_AI_MODE_FAILURES=true together with LLM_ENABLED=true to fail loudly when
-  // GPT/Qwen/Hybrid was requested but the provider did not actually run.
+  // AI modes should fail loudly instead of silently looking like baseline.
+  // Set STRICT_AI_MODE_FAILURES=false only for local/CI smoke tests without LLM credentials.
   return env.LLM_ENABLED && env.STRICT_AI_MODE_FAILURES;
 }
 
@@ -133,6 +131,14 @@ function assertRequiredAiExecution(preview: PreviewPayload): void {
       const providerLabel = mode === "commercial" ? "OpenAI / GPT" : "Hugging Face / Qwen";
       const reason = synthesis.warnings.length > 0 ? ` Reason: ${synthesis.warnings.join(" ")}` : "";
       throw new AiExecutionError(`${providerLabel} generation did not complete with AI. Deterministic fallback is disabled for this mode.${reason}`);
+    }
+
+    const blueprintModules = preview.spec.aiBlueprint?.modules.length ?? 0;
+    const blueprintFiles = preview.spec.aiBlueprint?.modules.reduce((sum, module) => sum + module.files.length, 0) ?? 0;
+    if (blueprintModules < 4 || blueprintFiles < 20) {
+      const providerLabel = mode === "commercial" ? "OpenAI / GPT" : "Hugging Face / Qwen";
+      const reason = synthesis.warnings.length > 0 ? ` Reason: ${synthesis.warnings.join(" ")}` : "";
+      throw new AiExecutionError(`${providerLabel} returned JSON, but it did not produce a usable architecture blueprint (${blueprintModules} modules, ${blueprintFiles} files).${reason}`);
     }
   }
 

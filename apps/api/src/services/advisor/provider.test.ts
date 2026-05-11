@@ -39,7 +39,7 @@ describe("Hugging Face provider", () => {
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("https://router.huggingface.co/v1/responses");
     expect(init.body).toContain("\"model\":\"Qwen/Qwen2.5-Coder-32B-Instruct\"");
-    expect(init.body).toContain("\"response_format\":{\"type\":\"json_schema\"");
+    expect(init.body).toContain("\"text\":{\"format\":{\"type\":\"json_schema\"");
     expect(init.body).toContain("\"strict\":true");
   });
 });

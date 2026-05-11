@@ -20,9 +20,9 @@ function numberFromEnv(name: string, fallback: number): number {
 }
 
 const port = numberFromEnv("PORT", 3000);
-const apiRequestTimeoutMs = numberFromEnv("API_REQUEST_TIMEOUT_MS", 120_000);
+const apiRequestTimeoutMs = numberFromEnv("API_REQUEST_TIMEOUT_MS", 240_000);
 const requestBodyLimitBytes = numberFromEnv("REQUEST_BODY_LIMIT_BYTES", 1_048_576);
-const generatorTimeoutMs = numberFromEnv("GENERATOR_TIMEOUT_MS", 120_000);
+const generatorTimeoutMs = numberFromEnv("GENERATOR_TIMEOUT_MS", 240_000);
 const outputRoot = process.env.OUTPUT_ROOT
   ? path.resolve(process.env.OUTPUT_ROOT)
   : path.resolve(storageRoot, "generated");
@@ -46,10 +46,10 @@ export const env = {
   OPENAI_MODEL: process.env.OPENAI_MODEL ?? "gpt-5.4-mini",
   ENABLE_LLM_ENRICHMENT: process.env.ENABLE_LLM_ENRICHMENT === "true",
   LLM_ENABLED: process.env.LLM_ENABLED === "true" || process.env.ENABLE_LLM_ENRICHMENT === "true",
-  STRICT_AI_MODE_FAILURES: process.env.STRICT_AI_MODE_FAILURES === "true",
+  STRICT_AI_MODE_FAILURES: process.env.STRICT_AI_MODE_FAILURES !== "false",
   HF_TOKEN: process.env.HF_TOKEN ?? process.env.HUGGINGFACE_API_TOKEN ?? "",
   HF_MODEL: process.env.HF_MODEL ?? "Qwen/Qwen2.5-Coder-32B-Instruct",
   HF_ENDPOINT: process.env.HF_ENDPOINT ?? "",
-  LLM_TIMEOUT_MS: numberFromEnv("LLM_TIMEOUT_MS", 15000),
-  LLM_MAX_NEW_TOKENS: numberFromEnv("LLM_MAX_NEW_TOKENS", 700)
+  LLM_TIMEOUT_MS: Math.max(numberFromEnv("LLM_TIMEOUT_MS", 90_000), 60_000),
+  LLM_MAX_NEW_TOKENS: Math.max(numberFromEnv("LLM_MAX_NEW_TOKENS", 12_000), 4_000)
 };

@@ -207,8 +207,8 @@ function normalizeBlueprint(
   const extension = defaultBlueprintExtension(baseline.profileId);
   const modules: NonNullable<ArchitectureSpec["aiBlueprint"]>["modules"] = [];
   const knownPaths = new Set<string>();
-  const moduleLimit = mode === "commercial" ? 18 : mode === "hf-open" ? 16 : 20;
-  const fileLimit = mode === "commercial" ? 14 : mode === "hf-open" ? 12 : 14;
+  const moduleLimit = mode === "commercial" ? 24 : mode === "hf-open" ? 22 : 20;
+  const fileLimit = mode === "commercial" ? 20 : mode === "hf-open" ? 18 : 16;
 
   rawModules.slice(0, moduleLimit).forEach((rawModule, moduleIndex) => {
     const moduleObject = objectField(rawModule);
@@ -256,7 +256,7 @@ function normalizeBlueprint(
   const rawRelationships = Array.isArray(raw.relationships) ? raw.relationships : [];
   const relationships: NonNullable<ArchitectureSpec["aiBlueprint"]>["relationships"] = [];
   const relationKeys = new Set<string>();
-  for (const rawRelationship of rawRelationships.slice(0, 180)) {
+  for (const rawRelationship of rawRelationships.slice(0, 360)) {
     const relationObject = objectField(rawRelationship);
     const from = asString(relationObject.from);
     const to = asString(relationObject.to);
@@ -278,7 +278,7 @@ function normalizeBlueprint(
   }
 
   const flatFiles = modules.flatMap((module) => module.files);
-  for (let index = 1; relationships.length < Math.min(140, Math.max(24, flatFiles.length * 2)) && index < flatFiles.length; index += 1) {
+  for (let index = 1; relationships.length < Math.min(260, Math.max(48, Math.ceil(flatFiles.length * 2.25))) && index < flatFiles.length; index += 1) {
     const source = flatFiles[index - 1];
     const target = flatFiles[index];
     const relation = index % 5 === 0 ? "documents" : index % 4 === 0 ? "tests" : index % 3 === 0 ? "configures" : "uses";
@@ -401,7 +401,7 @@ function architecturePatchSchema(baseline: ArchitectureSpec): Record<string, unk
           modules: {
             type: "array",
             minItems: 6,
-            maxItems: 18,
+            maxItems: 24,
             items: {
               type: "object",
               additionalProperties: false,
@@ -410,13 +410,13 @@ function architecturePatchSchema(baseline: ArchitectureSpec): Record<string, unk
                 name: { type: "string" },
                 purpose: { type: "string" },
                 emphasis: { type: "string" },
-                files: { type: "array", minItems: 3, maxItems: 14, items: blueprintFile }
+                files: { type: "array", minItems: 3, maxItems: 20, items: blueprintFile }
               }
             }
           },
           relationships: {
             type: "array",
-            maxItems: 120,
+            maxItems: 260,
             items: {
               type: "object",
               additionalProperties: false,
@@ -467,8 +467,8 @@ function buildPrompt(answers: QuestionnaireAnswers, baseline: ArchitectureSpec, 
     `Use the root folder ${root}. Paths inside aiBlueprint must be relative to that root, for example Assets/Scripts/Commercial/RevenueGuard.${ext} or Docs/CommercialReadiness.md. Do not include the root folder in file paths.`,
     `Use the selected platform ${platform}. Source files should usually use .${ext}; tests may use source/test naming that is natural for the platform.`,
     "Each file must have a useful role and description, because the UI displays this in the generated tree. Avoid generic 'source artifact'.",
-    "Relationships should reference file paths that appear in aiBlueprint.modules[].files[].path. Use relation labels like wires, uses, implements, configures, observes, routes-to, renders, persists-through, validates, tracks, documents, tests.",
-    "Produce enough blueprint depth to make this AI mode visibly different from baseline and from the other AI provider. A strong answer commonly contains 45-120 extra files and many relationships; fewer is acceptable only if strongly justified by the domain.",
+    "Relationships should reference file paths that appear in aiBlueprint.modules[].files[].path. Use relation labels like wires, uses, implements, configures, observes, routes-to, renders, persists-through, validates, tracks, documents, tests. Do not generate placeholder self-links; every relation must connect two different files.",
+    "Produce enough blueprint depth to make this AI mode visibly different from baseline and from the other AI provider. For normal diploma comparison runs, aim for 60-160 additional AI blueprint files and at least 2 relationships per blueprint file. Fewer is acceptable only when the user's domain is genuinely tiny, and then explain why.",
     "Keep all choices platform-safe and aligned with the user form. You may refine optional feature/product lists only when it improves the generated package; do not disable a user-requested feature just to be different.",
     "",
     "Mode-specific objective:",
@@ -768,9 +768,8 @@ export async function synthesizeArchitectureSpec(
 
   const warnings: string[] = [];
   const normalized = normalizePatch(answers, baseline, parsed, warnings, provider, providerResult.model, mode);
-  const modeShapedAnswers = applyModeSignature(normalized.answers, mode);
   const spec = buildArchitectureSpec({
-    ...modeShapedAnswers,
+    ...normalized.answers,
     generationMode: mode,
     includeLLMNotes: true
   });
