@@ -2,22 +2,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 async function loadProvider() {
   vi.resetModules();
-  vi.doMock("../../env.js", () => ({
-    env: {
-      HF_TOKEN: "hf_test",
-      HF_MODEL: "Qwen/Qwen2.5-Coder-32B-Instruct",
-      HF_ENDPOINT: "",
-      LLM_TIMEOUT_MS: 1000,
-      LLM_MAX_NEW_TOKENS: 321
-    }
-  }));
+  vi.stubEnv("HF_TOKEN", "hf_test");
+  vi.stubEnv("HUGGINGFACE_API_TOKEN", "hf_test");
+  vi.stubEnv("HF_MODEL", "Qwen/Qwen2.5-Coder-32B-Instruct");
+  vi.stubEnv("HF_ENDPOINT", "");
+  vi.stubEnv("LLM_TIMEOUT_MS", "1000");
+  vi.stubEnv("LLM_MAX_NEW_TOKENS", "321");
   return import("./provider.js");
 }
 
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
-  vi.doUnmock("../../env.js");
+  vi.unstubAllEnvs();
 });
 
 describe("Hugging Face provider", () => {
@@ -38,9 +35,12 @@ describe("Hugging Face provider", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const { runHuggingFaceAdvisor } = await loadProvider();
-    await runHuggingFaceAdvisor("Return JSON.");
+    const result = await runHuggingFaceAdvisor("Return JSON.");
 
-    expect(fetchMock).toHaveBeenCalled();
+    expect(result.ok).toBe(true);
+    expect(result.text).toBe("{\"summary\":\"ok\"}");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
     const [url, init] = fetchMock.mock.calls[0] as [string, { body: string }];
     expect(url).toBe("https://router.huggingface.co/v1/chat/completions");
     expect(init.body).toContain("\"model\":\"Qwen/Qwen2.5-Coder-32B-Instruct\"");
@@ -75,9 +75,12 @@ describe("Hugging Face provider", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const { runHuggingFaceJson } = await loadProvider();
-    await runHuggingFaceJson({ prompt: "Return JSON." });
+    const result = await runHuggingFaceJson({ prompt: "Return JSON." });
 
+    expect(result.ok).toBe(true);
+    expect(result.text).toBe("{\"summary\":\"plain ok\"}");
     expect(fetchMock).toHaveBeenCalledTimes(2);
+
     const firstBody = JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body) as Record<string, unknown>;
     const secondBody = JSON.parse((fetchMock.mock.calls[1][1] as { body: string }).body) as Record<string, unknown>;
     expect(firstBody.response_format).toEqual({ type: "json_object" });
