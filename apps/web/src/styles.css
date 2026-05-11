@@ -2300,3 +2300,25 @@ pre {
     max-height: 560px;
   }
 }
+
+/* Final Qwen timeout / comparison alignment tweaks */
+.advisor-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ai-contribution-card {
+  min-height: 112px;
+  align-content: start;
+}
+
+.ai-contribution-card p {
+  min-height: 68px;
+  display: flex;
+  align-items: center;
+}
+
+.health-card-head {
+  align-items: flex-start;
+}

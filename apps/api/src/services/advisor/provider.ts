@@ -13,6 +13,7 @@ export interface HuggingFaceJsonRequest {
   schemaName?: string;
   systemPrompt?: string;
   maxOutputTokens?: number;
+  timeoutMs?: number;
 }
 
 interface HuggingFaceGeneratedItem {
@@ -152,7 +153,8 @@ function requestBody(request: HuggingFaceJsonRequest, formatMode: HuggingFaceFor
 
 async function postHuggingFaceJson(request: HuggingFaceJsonRequest, formatMode: HuggingFaceFormatMode): Promise<HuggingFaceProviderResult> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), env.LLM_TIMEOUT_MS);
+  const requestTimeoutMs = request.timeoutMs ?? env.LLM_TIMEOUT_MS;
+  const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
 
   try {
     const response = await fetch(getEndpoint(), {
@@ -192,7 +194,7 @@ async function postHuggingFaceJson(request: HuggingFaceJsonRequest, formatMode: 
     const message = error instanceof Error ? error.message : String(error);
     return {
       ok: false,
-      error: isAbort ? `Hugging Face request timed out after ${env.LLM_TIMEOUT_MS} ms (${formatMode})` : `${message} (${formatMode})`,
+      error: isAbort ? `Hugging Face request timed out after ${requestTimeoutMs} ms (${formatMode})` : `${message} (${formatMode})`,
       model: env.HF_MODEL
     };
   } finally {
@@ -214,7 +216,7 @@ export async function runHuggingFaceJson(request: HuggingFaceJsonRequest): Promi
     return { ok: false, error: "HF_TOKEN is not configured", model: env.HF_MODEL };
   }
 
-  const attempts: HuggingFaceFormatMode[] = request.schema ? ["schema", "json_object", "plain_json"] : ["json_object", "plain_json"];
+  const attempts: HuggingFaceFormatMode[] = request.schema ? ["schema", "json_object", "plain_json"] : ["json_object"];
   const errors: string[] = [];
   for (const attempt of attempts) {
     const result = await postHuggingFaceJson(request, attempt);
