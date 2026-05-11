@@ -210,7 +210,7 @@ export async function runOpenAIJson(request: OpenAIJsonRequest): Promise<OpenAIP
     return { ok: false, error: "OPENAI_API_KEY is not configured", model: env.OPENAI_MODEL };
   }
 
-  const attempts: OpenAIFormatMode[] = ["schema", "json_object", "plain_json"];
+  const attempts: OpenAIFormatMode[] = ["json_object", "schema", "plain_json"];
   const errors: string[] = [];
   for (const attempt of attempts) {
     const result = await postOpenAIJson(request, attempt);

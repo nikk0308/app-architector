@@ -96,7 +96,8 @@ async function request<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
   const response = await fetch(input, init);
   if (!response.ok) {
     const payload = await response.json().catch(() => ({ error: "Unknown error" }));
-    throw new Error(payload.error ?? "Request failed");
+    const message = payload.error ?? payload.message ?? payload.detail ?? "Request failed";
+    throw new Error(typeof message === "string" ? message : "Request failed");
   }
   return (await response.json()) as T;
 }

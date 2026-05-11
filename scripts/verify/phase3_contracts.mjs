@@ -297,9 +297,11 @@ try {
   );
 
   check(
-    contains(architectureSynthesisSource, 'return mode === "commercial" || mode === "hf-open";'),
-    "api.hybrid-keeps-deterministic-spec",
-    "Hybrid mode keeps ArchitectureSpec deterministic; AI is applied later through refinement policy."
+    contains(architectureSynthesisSource, 'return mode === "commercial" || mode === "hf-open" || mode === "hybrid";')
+      && contains(architectureSynthesisSource, 'if (mode === "hybrid") return env.OPENAI_API_KEY ? "openai" : env.HF_TOKEN ? "huggingface" : "deterministic";')
+      && contains(architectureSynthesisSource, 'Hybrid mode should be the strongest combined mode'),
+    "api.hybrid-ai-blueprint-synthesis",
+    "Hybrid mode can synthesize an AI blueprint around locked questionnaire choices before optional refinement."
   );
 
   check(

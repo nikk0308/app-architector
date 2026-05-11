@@ -162,15 +162,32 @@ function assertRequiredAiExecution(preview: PreviewPayload): void {
 
 async function buildArchitecturePreviewPayload(answers: QuestionnaireAnswers): Promise<PreviewPayload> {
   const preview = await buildPreviewPayload(answers);
+  // Preview already performs the expensive AI blueprint call for GPT/Qwen/Hybrid.
+  // Keep the advisor pass local for those modes so one user action does not trigger
+  // multiple long provider calls and hit the production proxy timeout. The generated
+  // archive still receives AI-driven assumptions/risks/recommendations from
+  // architectureSynthesis metadata.
+  const advisorMode = preview.architectureSynthesis.usedAi ? "baseline" : preview.profile.generationMode;
   const advisorReport = await buildArchitectureAdvisorReport({
     answers,
     spec: preview.spec,
     manifest: preview.manifest,
     validation: preview.validation.manifest,
-    mode: preview.profile.generationMode
+    mode: advisorMode
   });
 
-  const hybridRefinement = preview.profile.generationMode === "hybrid"
+  const hybridBlueprintFiles = preview.spec.aiBlueprint?.modules.reduce((sum, module) => sum + module.files.length, 0) ?? 0;
+  const hybridHasAiBlueprint = preview.profile.generationMode === "hybrid"
+    && preview.architectureSynthesis.usedAi
+    && preview.architectureSynthesis.provider !== "deterministic"
+    && preview.architectureSynthesis.status !== "fallback"
+    && hybridBlueprintFiles >= 20;
+
+  // Hybrid now receives a real AI ArchitectureSpec blueprint before materialization.
+  // When that blueprint is present, the old documentation-only refinement pass is skipped
+  // to avoid a second long LLM call and production 504s. If no blueprint exists, the
+  // legacy allowlisted refinement path remains as a compatibility fallback.
+  const hybridRefinement = preview.profile.generationMode === "hybrid" && !hybridHasAiBlueprint
     ? await buildHybridRefinementReport({
       answers,
       spec: preview.spec,

@@ -628,7 +628,7 @@ function buildPrompt(answers: QuestionnaireAnswers, baseline: ArchitectureSpec, 
     `Use the selected platform ${platform}. Source files should usually use .${ext}; tests may use source/test naming that is natural for the platform.`,
     "Each file must have a useful role and description, because the UI displays this in the generated tree. Avoid generic 'source artifact'.",
     "Relationships should reference file paths that appear in aiBlueprint.modules[].files[].path. Use relation labels like wires, uses, implements, configures, observes, routes-to, renders, persists-through, validates, tracks, documents, tests. Do not generate placeholder self-links; every relation must connect two different files.",
-    "Produce enough blueprint depth to make this AI mode visibly different from baseline and from the other AI provider while still respecting the selected architecture. For normal diploma comparison runs, aim for 70-180 additional AI blueprint files and at least 2 relationships per blueprint file. Fewer is acceptable only when the user's domain is genuinely tiny, and then explain why.",
+    "Produce enough blueprint depth to make this AI mode visibly different from baseline and from the other AI provider while still respecting the selected architecture. For normal diploma comparison runs, aim for 45-120 additional AI blueprint files and at least 2 relationships per blueprint file. Fewer is acceptable only when the user's domain is genuinely tiny, and then explain why.",
     "Keep all choices platform-safe and aligned with the user form. You may refine optional feature/product lists only when it improves the generated package; do not disable a user-requested feature just to be different.",
     "",
     "Mode-specific objective:",
@@ -892,14 +892,14 @@ export async function synthesizeArchitectureSpec(
       schema: architecturePatchSchema(baseline),
       schemaName: "architecture_spec_patch",
       systemPrompt: "You generate controlled JSON patches for a mobile ArchitectureSpec. Return only valid JSON.",
-      maxOutputTokens: Math.max(env.LLM_MAX_NEW_TOKENS, 16000)
+      maxOutputTokens: Math.max(env.LLM_MAX_NEW_TOKENS, 14000)
     })
     : await runHuggingFaceJson({
       prompt,
       schema: architecturePatchSchema(baseline),
       schemaName: "architecture_spec_patch",
       systemPrompt: "You generate controlled JSON patches for a mobile ArchitectureSpec. Return only valid JSON matching the requested schema.",
-      maxOutputTokens: Math.max(env.LLM_MAX_NEW_TOKENS, 16000)
+      maxOutputTokens: Math.max(env.LLM_MAX_NEW_TOKENS, 14000)
     }));
 
   if (!providerResult.ok || !providerResult.text) {
