@@ -1179,7 +1179,15 @@ export async function synthesizeArchitectureSpec(
     includeLLMNotes: true
   });
   spec.aiBlueprint = normalized.aiBlueprint;
-  const hardWarnings = warnings.filter((warning) => !warning.startsWith("AI blueprint path remapped into the selected architecture:"));
+  const hardWarnings = warnings.filter((warning) => {
+    // Path remapping and local blueprint completion are expected parts of the
+    // production normalizer. They keep provider output inside the selected
+    // architecture and avoid 504-prone retry loops, but they do not mean the AI
+    // answer was rejected. Missing/unparseable/partial core patches still stay
+    // visible as repaired or fallback through other warnings.
+    return !warning.startsWith("AI blueprint path remapped into the selected architecture:")
+      && !warning.startsWith("AI blueprint was normalized and completed locally from the provider response");
+  });
   const metadata: ArchitectureSynthesisSummary = {
     provider,
     mode,
