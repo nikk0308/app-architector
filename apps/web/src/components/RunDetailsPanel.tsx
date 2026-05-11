@@ -106,9 +106,15 @@ export function RunDetailsPanel({ details, loading, error, language = "en", labe
   const modules = spec?.modules.filter((module) => module.enabled).map((module) => module.featureId) ?? [];
   const validationStatus = details.validationV2?.postMaterialization?.status ?? details.validationV2?.preMaterialization?.status ?? details.validation?.status ?? "-";
   const mode = displayRunMode(details.metadata.generationMode ?? "baseline");
-  const provider = details.architectureSynthesis?.usedAi
+  const synthesisProvider = details.architectureSynthesis?.usedAi
     ? `${details.architectureSynthesis.provider}${details.architectureSynthesis.model ? ` · ${details.architectureSynthesis.model}` : ""}`
     : "deterministic";
+  const hybridProvider = details.hybridRefinement?.provider && details.hybridRefinement.provider !== "deterministic"
+    ? `${details.hybridRefinement.provider}${details.hybridRefinement.model ? ` · ${details.hybridRefinement.model}` : ""}`
+    : undefined;
+  const provider = details.metadata.generationMode === "hybrid" && hybridProvider
+    ? `deterministic base + ${hybridProvider} refinement`
+    : synthesisProvider;
   const fileCount = metrics?.fileCount ?? details.metadata.fileTree?.filter((node) => node.type === "file").length ?? "-";
   const relationCount = details.relationshipGraph?.summary?.edges ?? details.artifacts.filter((artifact) => artifact.path.includes("relationship")).length;
   const humanSummary = isUa

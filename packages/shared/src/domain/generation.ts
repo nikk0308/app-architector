@@ -196,6 +196,12 @@ export function scoreRunMetrics(input: ScoreRunMetricsInput): RunMetrics {
   const advisorLlmWarnings = input.advisor?.llm?.warnings.length ?? 0;
   const synthesisWarnings = input.architectureSynthesis?.warnings.length ?? 0;
   const hybridWarnings = input.hybridRefinement?.warnings.length ?? 0;
+  const hybridPatchCount = input.hybridRefinement?.acceptedPatches.length ?? 0;
+  const hybridProvider = input.hybridRefinement
+    && input.hybridRefinement.provider !== "deterministic"
+    && hybridPatchCount > 0
+      ? input.hybridRefinement.provider
+      : undefined;
 
   return {
     generationTimeMs: Math.max(0, Math.round(input.generationTimeMs)),
@@ -204,9 +210,9 @@ export function scoreRunMetrics(input: ScoreRunMetricsInput): RunMetrics {
     warningCount: advisorWarnings + advisorLlmWarnings + synthesisWarnings + hybridWarnings + input.validation.issues.length,
     validationStatus: input.validation.status,
     advisorUsed: Boolean(input.advisor),
-    providerUsed: Boolean(input.architectureSynthesis?.usedAi || input.advisor?.llm?.used || (input.hybridRefinement?.acceptedPatches.length ?? 0) > 0),
-    architectureProvider: input.architectureSynthesis?.provider ?? "deterministic",
-    hybridPatchCount: input.hybridRefinement?.acceptedPatches.length ?? 0,
+    providerUsed: Boolean(input.architectureSynthesis?.usedAi || input.advisor?.llm?.used || hybridPatchCount > 0),
+    architectureProvider: hybridProvider ?? input.architectureSynthesis?.provider ?? "deterministic",
+    hybridPatchCount,
     zipAvailable: input.zipAvailable
   };
 }

@@ -2,6 +2,57 @@ import { describe, expect, it } from "vitest";
 import type { QuestionnaireAnswers } from "@mag/shared";
 import { synthesizeArchitectureSpec } from "./architectureSynthesis.js";
 
+
+function testBlueprint() {
+  return {
+    strategy: "Test AI expansion around locked user choices.",
+    modules: [
+      {
+        name: "RevenueReadiness",
+        purpose: "Adds production commerce boundaries for the test patch.",
+        emphasis: "commercial readiness",
+        files: [
+          {
+            path: "src/revenue/RevenueGuard.ts",
+            kind: "source",
+            role: "service",
+            description: "Checks entitlement state before opening paid features.",
+            module: "revenue-readiness"
+          },
+          {
+            path: "src/revenue/RevenueEvents.ts",
+            kind: "source",
+            role: "event contract",
+            description: "Defines commerce analytics events for checkout and restore flows.",
+            module: "revenue-readiness"
+          },
+          {
+            path: "docs/revenue-readiness.md",
+            kind: "documentation",
+            role: "documentation",
+            description: "Explains revenue readiness boundaries and checks.",
+            module: "revenue-readiness"
+          }
+        ]
+      }
+    ],
+    relationships: [
+      {
+        from: "src/revenue/RevenueGuard.ts",
+        to: "src/revenue/RevenueEvents.ts",
+        relation: "tracks",
+        reason: "RevenueGuard emits checkout and restore events through RevenueEvents."
+      },
+      {
+        from: "docs/revenue-readiness.md",
+        to: "src/revenue/RevenueGuard.ts",
+        relation: "documents",
+        reason: "The documentation explains the guard behavior."
+      }
+    ]
+  };
+}
+
 const payload: QuestionnaireAnswers = {
   projectName: "AI Spec",
   appDisplayName: "AI Spec",
@@ -48,7 +99,8 @@ describe("architecture synthesis", () => {
           explanation: "AI selected a feature-first React Native starter with explicit service boundaries.",
           assumptions: ["The app starts with an authenticated commerce flow."],
           risks: ["Payments still require a sandbox integration."],
-          recommendations: ["Add checkout contract tests before production release."]
+          recommendations: ["Add checkout contract tests before production release."],
+          aiBlueprint: testBlueprint()
         })
       }
     });
@@ -60,6 +112,7 @@ describe("architecture synthesis", () => {
     expect(result.spec.features.analytics).toBe(true);
     expect(result.spec.features.localization).toBe(true);
     expect(result.metadata.recommendations[0]).toContain("checkout");
+    expect(result.spec.aiBlueprint?.modules[0]?.files.length).toBeGreaterThan(0);
   });
 
   it("repairs an incomplete AI patch with deterministic baseline values", async () => {
@@ -84,7 +137,9 @@ describe("architecture synthesis", () => {
 
     expect(result.metadata.status).toBe("repaired");
     expect(result.metadata.usedAi).toBe(true);
-    expect(result.spec.architecture.style).toBe("layered");
+    // AI may explain and enrich the starter, but it must not silently override
+    // user-selected architecture knobs from the questionnaire.
+    expect(result.spec.architecture.style).toBe(payload.architectureStyle ?? "feature-first");
     expect(result.spec.architecture.stateManagement.length).toBeGreaterThan(0);
     expect(result.metadata.warnings.length).toBeGreaterThan(0);
   });
