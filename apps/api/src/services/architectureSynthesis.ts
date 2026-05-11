@@ -543,7 +543,7 @@ function architecturePatchSchema(baseline: ArchitectureSpec): Record<string, unk
           strategy: { type: "string" },
           modules: {
             type: "array",
-            minItems: 6,
+            minItems: 10,
             maxItems: 24,
             items: {
               type: "object",
@@ -553,13 +553,13 @@ function architecturePatchSchema(baseline: ArchitectureSpec): Record<string, unk
                 name: { type: "string" },
                 purpose: { type: "string" },
                 emphasis: { type: "string" },
-                files: { type: "array", minItems: 3, maxItems: 20, items: blueprintFile }
+                files: { type: "array", minItems: 4, maxItems: 18, items: blueprintFile }
               }
             }
           },
           relationships: {
             type: "array",
-            maxItems: 260,
+            maxItems: 360,
             items: {
               type: "object",
               additionalProperties: false,
@@ -628,7 +628,9 @@ function buildPrompt(answers: QuestionnaireAnswers, baseline: ArchitectureSpec, 
     `Use the selected platform ${platform}. Source files should usually use .${ext}; tests may use source/test naming that is natural for the platform.`,
     "Each file must have a useful role and description, because the UI displays this in the generated tree. Avoid generic 'source artifact'.",
     "Relationships should reference file paths that appear in aiBlueprint.modules[].files[].path. Use relation labels like wires, uses, implements, configures, observes, routes-to, renders, persists-through, validates, tracks, documents, tests. Do not generate placeholder self-links; every relation must connect two different files.",
-    "Produce enough blueprint depth to make this AI mode visibly different from baseline and from the other AI provider while still respecting the selected architecture. For normal diploma comparison runs, aim for 45-120 additional AI blueprint files and at least 2 relationships per blueprint file. Fewer is acceptable only when the user's domain is genuinely tiny, and then explain why.",
+    "Produce enough blueprint depth to make this AI mode visibly different from baseline and from the other AI provider while still respecting the selected architecture. This is a diploma benchmark: do not return a tiny blueprint. Target 55-110 additional AI blueprint files, at least 10 modules, and at least 2 relationships per blueprint file.",
+    "Hard minimum for a usable answer: 10 modules, 45 files, and 90 relationships. If you cannot meet it, still return the closest valid blueprint and explicitly explain the limitation in risks/warnings-style text.",
+    "Do not put many files under a project-name dump folder. Keep files distributed inside the selected architecture roots and existing module boundaries: UI/screens, domain/models, data/repositories, services/integrations, runtime/config, tests/docs as appropriate for the selected platform.",
     "Keep all choices platform-safe and aligned with the user form. You may refine optional feature/product lists only when it improves the generated package; do not disable a user-requested feature just to be different.",
     "",
     "Mode-specific objective:",
@@ -848,6 +850,65 @@ function applyExplanation(spec: ArchitectureSpec, metadata: ArchitectureSynthesi
   };
 }
 
+function blueprintStats(blueprint?: ArchitectureSpec["aiBlueprint"]): { modules: number; files: number; relationships: number } {
+  const modules = blueprint?.modules.length ?? 0;
+  const files = blueprint?.modules.reduce((sum, module) => sum + module.files.length, 0) ?? 0;
+  const relationships = blueprint?.relationships.length ?? 0;
+  return { modules, files, relationships };
+}
+
+function isUsableAiBlueprint(blueprint?: ArchitectureSpec["aiBlueprint"]): boolean {
+  const stats = blueprintStats(blueprint);
+  return stats.modules >= 6 && stats.files >= 20;
+}
+
+function isStrongAiBlueprint(blueprint?: ArchitectureSpec["aiBlueprint"]): boolean {
+  const stats = blueprintStats(blueprint);
+  return stats.modules >= 10 && stats.files >= 45 && stats.relationships >= 70;
+}
+
+function buildBlueprintRetryPrompt(basePrompt: string, provider: ProviderName, previousIssue: string): string {
+  const providerAngle = provider === "huggingface"
+    ? "Qwen should focus on open-source maintainability, explicit boundaries, offline/data quality, and testable runtime contracts."
+    : provider === "openai"
+      ? "GPT should focus on commercial delivery readiness, product/commerce flow depth, telemetry, release quality, and integration contracts."
+      : "Hybrid should combine deterministic structure with a stronger AI blueprint and integration/readiness depth.";
+
+  return [
+    basePrompt,
+    "",
+    "RETRY / REPAIR REQUIREMENT:",
+    previousIssue,
+    "The previous answer was not deep enough for the benchmark. Return a larger JSON object now.",
+    "Minimum target for this retry: 10+ modules, 45+ files, and 90+ relationships inside aiBlueprint.",
+    "Distribute files across clean architecture folders. Do not create one giant app-name folder with unrelated classes.",
+    providerAngle,
+    "Return only the JSON object."
+  ].join("\n");
+}
+
+async function runArchitectureProvider(
+  provider: ProviderName,
+  prompt: string,
+  baseline: ArchitectureSpec
+) {
+  return provider === "openai"
+    ? await runOpenAIJson({
+      prompt,
+      schema: architecturePatchSchema(baseline),
+      schemaName: "architecture_spec_patch",
+      systemPrompt: "You generate controlled JSON patches for a mobile ArchitectureSpec. Return only valid JSON.",
+      maxOutputTokens: Math.max(env.LLM_MAX_NEW_TOKENS, 14000)
+    })
+    : await runHuggingFaceJson({
+      prompt,
+      schema: architecturePatchSchema(baseline),
+      schemaName: "architecture_spec_patch",
+      systemPrompt: "You generate controlled JSON patches for a mobile ArchitectureSpec. Return only valid JSON matching the requested schema.",
+      maxOutputTokens: Math.max(env.LLM_MAX_NEW_TOKENS, 14000)
+    });
+}
+
 export async function synthesizeArchitectureSpec(
   answers: QuestionnaireAnswers,
   options: ArchitectureSynthesisOptions = {}
@@ -886,21 +947,7 @@ export async function synthesizeArchitectureSpec(
   }
 
   const prompt = buildPrompt(answers, baseline, mode);
-  const providerResult = options.providerResult ?? (provider === "openai"
-    ? await runOpenAIJson({
-      prompt,
-      schema: architecturePatchSchema(baseline),
-      schemaName: "architecture_spec_patch",
-      systemPrompt: "You generate controlled JSON patches for a mobile ArchitectureSpec. Return only valid JSON.",
-      maxOutputTokens: Math.max(env.LLM_MAX_NEW_TOKENS, 14000)
-    })
-    : await runHuggingFaceJson({
-      prompt,
-      schema: architecturePatchSchema(baseline),
-      schemaName: "architecture_spec_patch",
-      systemPrompt: "You generate controlled JSON patches for a mobile ArchitectureSpec. Return only valid JSON matching the requested schema.",
-      maxOutputTokens: Math.max(env.LLM_MAX_NEW_TOKENS, 14000)
-    }));
+  let providerResult = options.providerResult ?? await runArchitectureProvider(provider, prompt, baseline);
 
   if (!providerResult.ok || !providerResult.text) {
     const metadata: ArchitectureSynthesisSummary = {
@@ -917,7 +964,14 @@ export async function synthesizeArchitectureSpec(
     return { spec: applyExplanation(baseline, metadata), metadata };
   }
 
-  const parsed = extractJson(providerResult.text);
+  let parsed = extractJson(providerResult.text);
+
+  if (!options.providerResult && !parsed) {
+    const retryPrompt = buildBlueprintRetryPrompt(prompt, provider, "The previous provider response did not contain parseable JSON.");
+    providerResult = await runArchitectureProvider(provider, retryPrompt, baseline);
+    parsed = providerResult.ok && providerResult.text ? extractJson(providerResult.text) : null;
+  }
+
   if (!parsed) {
     const metadata: ArchitectureSynthesisSummary = {
       provider: "deterministic",
@@ -933,8 +987,33 @@ export async function synthesizeArchitectureSpec(
     return { spec: applyExplanation(baseline, metadata), metadata };
   }
 
-  const warnings: string[] = [];
-  const normalized = normalizePatch(answers, baseline, parsed, warnings, provider, providerResult.model, mode);
+  let warnings: string[] = [];
+  let normalized = normalizePatch(answers, baseline, parsed, warnings, provider, providerResult.model, mode);
+
+  if (!options.providerResult && !isStrongAiBlueprint(normalized.aiBlueprint)) {
+    const stats = blueprintStats(normalized.aiBlueprint);
+    const retryPrompt = buildBlueprintRetryPrompt(
+      prompt,
+      provider,
+      `The previous blueprint was too small for a meaningful comparison: ${stats.modules} modules, ${stats.files} files, ${stats.relationships} relationships.`
+    );
+    const retryResult = await runArchitectureProvider(provider, retryPrompt, baseline);
+    const retryParsed = retryResult.ok && retryResult.text ? extractJson(retryResult.text) : null;
+    if (retryParsed) {
+      const retryWarnings: string[] = [];
+      const retryNormalized = normalizePatch(answers, baseline, retryParsed, retryWarnings, provider, retryResult.model, mode);
+      if (isUsableAiBlueprint(retryNormalized.aiBlueprint) && blueprintStats(retryNormalized.aiBlueprint).files >= stats.files) {
+        providerResult = retryResult;
+        parsed = retryParsed;
+        warnings = retryWarnings;
+        normalized = retryNormalized;
+      } else {
+        warnings.push(`AI blueprint retry was still smaller than expected (${blueprintStats(retryNormalized.aiBlueprint).modules} modules, ${blueprintStats(retryNormalized.aiBlueprint).files} files); kept the stronger previous response.`);
+      }
+    } else if (!retryResult.ok) {
+      warnings.push(`AI blueprint retry failed: ${retryResult.error ?? "unknown provider error"}`);
+    }
+  }
   const spec = buildArchitectureSpec({
     ...normalized.answers,
     generationMode: mode,
