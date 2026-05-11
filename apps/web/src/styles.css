@@ -1,5 +1,12 @@
 :root {
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
   color-scheme: dark;
   --bg: #070707;
   --bg-2: #0d0f14;
@@ -49,8 +56,16 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background:
-    radial-gradient(900px 500px at 0% 0%, rgba(212, 175, 55, 0.13), transparent 55%),
-    radial-gradient(900px 500px at 100% 0%, rgba(212, 175, 55, 0.08), transparent 45%),
+    radial-gradient(
+      900px 500px at 0% 0%,
+      rgba(212, 175, 55, 0.13),
+      transparent 55%
+    ),
+    radial-gradient(
+      900px 500px at 100% 0%,
+      rgba(212, 175, 55, 0.08),
+      transparent 45%
+    ),
     linear-gradient(180deg, var(--bg), var(--bg-2));
 }
 
@@ -62,7 +77,11 @@ select {
 
 button,
 a {
-  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease;
 }
 
 button:hover:not(:disabled),
@@ -850,7 +869,11 @@ textarea {
   border: 1px solid rgba(212, 175, 55, 0.25);
   border-radius: 14px;
   background:
-    linear-gradient(180deg, rgba(212, 175, 55, 0.09), rgba(212, 175, 55, 0.035)),
+    linear-gradient(
+      180deg,
+      rgba(212, 175, 55, 0.09),
+      rgba(212, 175, 55, 0.035)
+    ),
     var(--input);
 }
 
@@ -1342,7 +1365,7 @@ textarea {
   background: #ffffff0f;
   color: var(--muted);
   font-style: normal;
-  font-size: clamp(.75rem, 0.8vw, 0.96rem);
+  font-size: clamp(0.75rem, 0.8vw, 0.96rem);
 }
 
 .history-actions {
@@ -1817,7 +1840,11 @@ pre {
   gap: 16px;
   padding: 22px;
   background:
-    radial-gradient(circle at 10% 0%, rgba(212, 175, 55, 0.08), transparent 34%),
+    radial-gradient(
+      circle at 10% 0%,
+      rgba(212, 175, 55, 0.08),
+      transparent 34%
+    ),
     var(--card);
 }
 
@@ -1877,9 +1904,18 @@ pre {
   font-size: 1.2rem;
 }
 
-.health-highlight.best { color: var(--accent-2); border-color: rgba(212, 175, 55, 0.45); }
-.health-highlight.fast { color: #60a5fa; border-color: rgba(79, 140, 255, 0.45); }
-.health-highlight.weak { color: #f87171; border-color: rgba(239, 68, 68, 0.45); }
+.health-highlight.best {
+  color: var(--accent-2);
+  border-color: rgba(212, 175, 55, 0.45);
+}
+.health-highlight.fast {
+  color: #60a5fa;
+  border-color: rgba(79, 140, 255, 0.45);
+}
+.health-highlight.weak {
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.45);
+}
 
 .health-card-grid {
   display: flex;
@@ -1899,7 +1935,11 @@ pre {
   border: 1px solid color-mix(in srgb, var(--run-color) 56%, transparent);
   border-radius: 18px;
   background:
-    radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--run-color) 16%, transparent), transparent 42%),
+    radial-gradient(
+      circle at 0% 0%,
+      color-mix(in srgb, var(--run-color) 16%, transparent),
+      transparent 42%
+    ),
     rgba(255, 255, 255, 0.028);
   box-shadow: 0 18px 55px rgba(0, 0, 0, 0.22);
 }
@@ -2091,9 +2131,9 @@ pre {
   .option-grid.four,
   .option-grid.five,
   .module-grid,
-    .history-grid,
-    .advisor-grid,
-    .evaluation-grid {
+  .history-grid,
+  .advisor-grid,
+  .evaluation-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -2129,7 +2169,7 @@ pre {
   .history-grid,
   .filters-row,
   .validation-stage-grid,
-    .compare-row {
+  .compare-row {
     grid-template-columns: 1fr;
   }
 
@@ -2174,5 +2214,88 @@ pre {
   .runs-compare-actions {
     align-items: flex-start;
     flex-direction: column;
+  }
+}
+
+.ai-contribution-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--run-color) 34%, var(--line));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--run-color) 10%, transparent);
+}
+
+.ai-contribution-card strong {
+  color: var(--run-color);
+  font-size: 0.82rem;
+}
+
+.ai-contribution-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.ai-contribution-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.ai-contribution-grid span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.ai-contribution-grid small {
+  color: var(--muted);
+  font-size: 0.64rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.ai-contribution-grid b {
+  color: var(--run-color);
+  font-size: 1rem;
+}
+
+.run-details-tree-block {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.run-details-tree-block .file-explorer {
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+}
+
+.run-details-tree-block .file-tree {
+  min-height: 520px;
+  max-height: 620px;
+}
+
+.run-details-tree-block .file-detail-panel {
+  max-height: 620px;
+  overflow: auto;
+}
+
+@media (max-width: 1180px) {
+  .run-details-tree-block .file-explorer {
+    grid-template-columns: 1fr;
+  }
+
+  .run-details-tree-block .file-tree,
+  .run-details-tree-block .file-detail-panel {
+    min-height: 360px;
+    max-height: 560px;
   }
 }
