@@ -131,12 +131,13 @@ const stringFields = ["architectureStyle", "stateManagement", "navigationStyle"]
 const featureFields = ["hasAuth", "hasAnalytics", "hasLocalization", "hasPush", "hasNetworking", "hasPersistence"] as const;
 
 function wantsAiSpec(mode?: GenerationMode): boolean {
-  return mode === "commercial" || mode === "hf-open";
+  return mode === "commercial" || mode === "hf-open" || mode === "hybrid";
 }
 
 function selectProvider(mode: GenerationMode): ProviderName {
   if (mode === "hf-open") return "huggingface";
   if (mode === "commercial") return "openai";
+  if (mode === "hybrid") return env.OPENAI_API_KEY ? "openai" : env.HF_TOKEN ? "huggingface" : "deterministic";
   if (env.OPENAI_API_KEY) return "openai";
   if (env.HF_TOKEN) return "huggingface";
   return "deterministic";
@@ -194,6 +195,132 @@ function defaultBlueprintExtension(profile: QuestionnaireAnswers["profile"]): st
   return "cs";
 }
 
+const PROFILE_BLUEPRINT_ROOTS: Record<QuestionnaireAnswers["profile"], string[]> = {
+  ios: [
+    "Sources/App",
+    "Sources/Core",
+    "Sources/Features",
+    "Sources/Services",
+    "Sources/Resources",
+    "Tests",
+    "Docs"
+  ],
+  flutter: [
+    "lib/app",
+    "lib/core",
+    "lib/features",
+    "lib/services",
+    "test",
+    "docs"
+  ],
+  "react-native": [
+    "src/app",
+    "src/core",
+    "src/features",
+    "src/services",
+    "__tests__",
+    "docs"
+  ],
+  unity: [
+    "Assets/Scripts/Core",
+    "Assets/Scripts/Modules",
+    "Assets/Scripts/Services",
+    "Assets/Scripts/UI",
+    "Assets/Scripts/Config",
+    "Assets/Prefabs",
+    "Assets/Scenes",
+    "Assets/Tests",
+    "Docs"
+  ]
+};
+
+function pascalCase(value: string, fallback: string): string {
+  const raw = value.trim() || fallback;
+  const parts = raw.split(/[^A-Za-z0-9]+/).filter(Boolean);
+  const result = parts.map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join("");
+  return result || fallback;
+}
+
+function moduleBucket(name: string, role: string, path: string): string {
+  const text = `${name} ${role} ${path}`.toLowerCase();
+  if (/auth|login|identity|session|token/.test(text)) return "Auth";
+  if (/analytic|telemetry|event|tracking/.test(text)) return "Analytics";
+  if (/locali[sz]ation|i18n|l10n|translation/.test(text)) return "Localization";
+  if (/push|notification/.test(text)) return "Push";
+  if (/network|api|http|gateway|client|integration/.test(text)) return "Networking";
+  if (/persist|storage|cache|database|offline|sync|repository|migration/.test(text)) return "OfflineData";
+  if (/moneti[sz]ation|purchase|payment|billing|subscription|entitlement|commerce|revenue/.test(text)) return "Monetization";
+  if (/release|delivery|ci|cd|pipeline|store|signing|deploy|compliance/.test(text)) return "Delivery";
+  if (/quality|diagnostic|logging|crash|monitor|flag|test|validation|readiness|runtime/.test(text)) return "RuntimeQuality";
+  if (/navigation|route|coordinator|flow/.test(text)) return "Navigation";
+  if (/ui|screen|view|prefab|style|resource/.test(text)) return "UI";
+  return "Core";
+}
+
+function blueprintRootFor(profile: QuestionnaireAnswers["profile"], kind: string, moduleName: string, role: string, rawPath: string): string {
+  const bucket = moduleBucket(moduleName, role, rawPath);
+  if (kind === "documentation") return profile === "unity" ? `Docs/${bucket}` : `docs/${bucket}`;
+  if (kind === "test") {
+    if (profile === "ios") return `Tests/${bucket}`;
+    if (profile === "flutter") return `test/${bucket}`;
+    if (profile === "react-native") return `__tests__/${bucket}`;
+    return `Assets/Tests/${bucket}`;
+  }
+  if (kind === "config") {
+    if (profile === "ios") return `Sources/Resources/Config/${bucket}`;
+    if (profile === "flutter") return `lib/core/config/${normalizeSlug(bucket, "core")}`;
+    if (profile === "react-native") return `src/core/config/${normalizeSlug(bucket, "core")}`;
+    return `Assets/Scripts/Config/${bucket}`;
+  }
+  if (profile === "ios") return `Sources/Features/${bucket}`;
+  if (profile === "flutter") return `lib/features/${normalizeSlug(bucket, "core")}`;
+  if (profile === "react-native") return `src/features/${normalizeSlug(bucket, "core")}`;
+  return `Assets/Scripts/Modules/${bucket}`;
+}
+
+function sanitizeBlueprintPath(
+  rawPath: string,
+  fallbackName: string,
+  extension: string,
+  kind: string,
+  moduleName: string,
+  role: string,
+  baseline: ArchitectureSpec,
+  warnings: string[]
+): string | null {
+  const safe = safeRelativePath(rawPath, fallbackName, extension);
+  const projectPascal = baseline.naming.projectPascal;
+  const appName = pascalCase(baseline.projectName, projectPascal);
+  const rootNames = new Set([baseline.naming.rootDirectoryName, projectPascal, appName, normalizeSlug(appName, appName).replace(/-/g, "")]);
+  let path = safe;
+  if (path) {
+    const parts = path.split("/").filter(Boolean);
+    const cleaned: string[] = [];
+    for (const part of parts) {
+      const compact = part.replace(/[^A-Za-z0-9]/g, "");
+      if (rootNames.has(part) || rootNames.has(compact)) {
+        continue;
+      }
+      cleaned.push(part);
+    }
+    path = cleaned.join("/");
+  }
+
+  const allowedRoots = PROFILE_BLUEPRINT_ROOTS[baseline.profileId];
+  const allowed = Boolean(path && allowedRoots.some((root) => path === root || path.startsWith(`${root}/`)));
+  if (!path || !allowed) {
+    const ext = kind === "documentation" ? "md" : kind === "config" ? "json" : extension;
+    const fileName = `${fallbackName}.${ext}`;
+    const root = blueprintRootFor(baseline.profileId, kind, moduleName, role, rawPath);
+    const mapped = `${root}/${fileName}`;
+    if (rawPath.trim()) {
+      warnings.push(`AI blueprint path remapped into the selected architecture: ${rawPath} -> ${mapped}`);
+    }
+    return mapped;
+  }
+  return path;
+}
+
 function normalizeBlueprint(
   patch: RawArchitecturePatch,
   baseline: ArchitectureSpec,
@@ -207,6 +334,7 @@ function normalizeBlueprint(
   const extension = defaultBlueprintExtension(baseline.profileId);
   const modules: NonNullable<ArchitectureSpec["aiBlueprint"]>["modules"] = [];
   const knownPaths = new Set<string>();
+  const rawPathMap = new Map<string, string>();
   const moduleLimit = mode === "commercial" ? 24 : mode === "hf-open" ? 22 : 20;
   const fileLimit = mode === "commercial" ? 20 : mode === "hf-open" ? 18 : 16;
 
@@ -219,19 +347,32 @@ function normalizeBlueprint(
 
     rawFiles.slice(0, fileLimit).forEach((rawFile, fileIndex) => {
       const fileObject = objectField(rawFile);
-      const fallbackName = `${moduleSlug.replace(/(^|-)([a-z])/g, (_, _dash, letter) => letter.toUpperCase()) || "AIBoundary"}${fileIndex + 1}`;
-      const path = safeRelativePath(asString(fileObject.path) ?? "", fallbackName, extension)
-        ?? `AI/${moduleSlug}/${fallbackName}.${extension}`;
-      if (knownPaths.has(path)) {
-        return;
-      }
-      knownPaths.add(path);
       const kindCandidate = asString(fileObject.kind) ?? "source";
       const kind = ["source", "config", "resource", "documentation", "test"].includes(kindCandidate) ? kindCandidate as "source" | "config" | "resource" | "documentation" | "test" : "source";
+      const role = asString(fileObject.role) ?? "source boundary";
+      const fallbackName = `${pascalCase(moduleSlug, "AIBoundary")}${fileIndex + 1}`;
+      const path = sanitizeBlueprintPath(
+        asString(fileObject.path) ?? "",
+        fallbackName,
+        extension,
+        kind,
+        name,
+        role,
+        baseline,
+        warnings
+      );
+      if (!path || knownPaths.has(path)) {
+        return;
+      }
+      const rawPath = asString(fileObject.path);
+      if (rawPath) {
+        rawPathMap.set(rawPath, path);
+      }
+      knownPaths.add(path);
       files.push({
         path,
         kind,
-        role: asString(fileObject.role) ?? "source boundary",
+        role,
         description: asString(fileObject.description) ?? `${path.split("/").pop()} is an AI-proposed ${name} file.`,
         module: normalizeSlug(asString(fileObject.module) ?? name, moduleSlug)
       });
@@ -258,8 +399,10 @@ function normalizeBlueprint(
   const relationKeys = new Set<string>();
   for (const rawRelationship of rawRelationships.slice(0, 360)) {
     const relationObject = objectField(rawRelationship);
-    const from = asString(relationObject.from);
-    const to = asString(relationObject.to);
+    const fromRaw = asString(relationObject.from);
+    const toRaw = asString(relationObject.to);
+    const from = fromRaw ? rawPathMap.get(fromRaw) ?? fromRaw : undefined;
+    const to = toRaw ? rawPathMap.get(toRaw) ?? toRaw : undefined;
     if (!from || !to || from === to || !validPaths.has(from) || !validPaths.has(to)) {
       continue;
     }
@@ -445,30 +588,47 @@ function buildPrompt(answers: QuestionnaireAnswers, baseline: ArchitectureSpec, 
   const extByProfile: Record<string, string> = { ios: "swift", flutter: "dart", "react-native": "ts", unity: "cs" };
   const ext = extByProfile[platform] ?? "ts";
 
+  const commonBenchmarkGoal = [
+    "Benchmark comparison mode is ON: GPT, Qwen and Hybrid receive the same locked baseline, the same user intent, the same schema and a comparable token budget.",
+    "The generated result must stay usable as a real starter architecture, not as an artificial benchmark artifact.",
+    "Do not create a separate top-level application-name folder for AI additions. Place new files inside the existing platform architecture roots and existing domain buckets.",
+    "The AI may change the generated file tree, file names, file responsibilities, relationships, documentation, risks and recommendations. It must NOT change the user's platform, architecture style, state management, navigation style, enabled core modules, package identity or selected publication target.",
+    "Additional depth is allowed when it fits the locked architecture: domain boundaries, integration points, testing/readiness/docs, runtime quality, commercial readiness, offline/data, telemetry and delivery."
+  ].join(" ");
+
+  const sampleSourceRoot = blueprintRootFor(baseline.profileId, "source", "Monetization", "service", "revenue");
+  const sampleStateRoot = blueprintRootFor(baseline.profileId, "source", "Monetization", "state", "entitlement");
+
   const modeGoal = mode === "commercial"
     ? [
-      "GPT mode should act like a senior product/platform architect for a commercial app.",
-      "Keep the user's selected platform, architecture style, state management and navigation untouched, but propose a richer implementation blueprint around release readiness, monetization, store compliance, telemetry, operations, risk controls, environment separation and business-critical flows.",
-      "It may add many files/modules when they are justified. Prefer pragmatic production boundaries and explicit diagnostics. Do not copy the Qwen/open-model shape."
+      commonBenchmarkGoal,
+      "GPT mode should act like a senior product/platform architect for a production app: business-critical flows, store readiness, monetization boundaries, operational diagnostics, environment separation, failure handling and release checks.",
+      "Do not add arbitrary modules outside the selected architecture. Express these ideas as deeper files inside the existing architecture buckets."
     ].join(" ")
     : mode === "hf-open"
       ? [
-        "Qwen/open-model mode should act like a code-structure and maintainability architect.",
-        "Keep the user's selected platform, architecture style, state management and navigation untouched, but propose a richer implementation blueprint around domain boundaries, contracts, local-first/offline data, clean module seams, testability, generated source clarity and documentation.",
-        "It may add many files/modules when they are justified. Prefer readable source scaffolding and architectural seams. Do not copy the GPT/commercial shape."
+        commonBenchmarkGoal,
+        "Qwen/open-model mode should act like a code-structure and maintainability architect: clean contracts, domain boundaries, local-first/offline seams, testability, generated source clarity and readable module ownership.",
+        "Do not add arbitrary modules outside the selected architecture. Express these ideas as deeper files inside the existing architecture buckets."
       ].join(" ")
-      : modeInstruction(mode, baseline);
+      : mode === "hybrid"
+        ? [
+          commonBenchmarkGoal,
+          "Hybrid mode should be the strongest combined mode: preserve deterministic structure, then add a broad AI blueprint that covers production readiness and code maintainability together. It may be deeper than GPT-only or Qwen-only, but still must live inside the selected architecture roots."
+        ].join(" ")
+        : modeInstruction(mode, baseline);
 
   return [
     "You are producing an AI architecture blueprint for App Architector, a controlled starter-project generator used as a diploma laboratory stand for comparing AI generation.",
     "Return only valid JSON matching the provided schema. No Markdown. No comments. No extra text.",
     "IMPORTANT: the user-selected core architecture knobs are locked. Do NOT try to change platform/profile, architecture style, state management, navigation style or package identity. Your differentiation must come from the blueprint: modules, files, responsibilities, relationships, risks and recommendations.",
     "The deterministic materializer will turn your aiBlueprint.files into real generated files, so every file path must be concrete, platform-appropriate, safe, and relative to the project root, without leading slash or '..'.",
-    `Use the root folder ${root}. Paths inside aiBlueprint must be relative to that root, for example Assets/Scripts/Commercial/RevenueGuard.${ext} or Docs/CommercialReadiness.md. Do not include the root folder in file paths.`,
+    `Use the root folder ${root}. Paths inside aiBlueprint must be relative to that root. Do not include ${root}, ${projectPascal}, or any application-name directory as an extra path prefix.`,
+    `Allowed AI file roots for this platform: ${PROFILE_BLUEPRINT_ROOTS[platform].join(", ")}. Keep additions inside these roots so the architecture remains clean and usable.`,
     `Use the selected platform ${platform}. Source files should usually use .${ext}; tests may use source/test naming that is natural for the platform.`,
     "Each file must have a useful role and description, because the UI displays this in the generated tree. Avoid generic 'source artifact'.",
     "Relationships should reference file paths that appear in aiBlueprint.modules[].files[].path. Use relation labels like wires, uses, implements, configures, observes, routes-to, renders, persists-through, validates, tracks, documents, tests. Do not generate placeholder self-links; every relation must connect two different files.",
-    "Produce enough blueprint depth to make this AI mode visibly different from baseline and from the other AI provider. For normal diploma comparison runs, aim for 60-160 additional AI blueprint files and at least 2 relationships per blueprint file. Fewer is acceptable only when the user's domain is genuinely tiny, and then explain why.",
+    "Produce enough blueprint depth to make this AI mode visibly different from baseline and from the other AI provider while still respecting the selected architecture. For normal diploma comparison runs, aim for 70-180 additional AI blueprint files and at least 2 relationships per blueprint file. Fewer is acceptable only when the user's domain is genuinely tiny, and then explain why.",
     "Keep all choices platform-safe and aligned with the user form. You may refine optional feature/product lists only when it improves the generated package; do not disable a user-requested feature just to be different.",
     "",
     "Mode-specific objective:",
@@ -524,25 +684,32 @@ function buildPrompt(answers: QuestionnaireAnswers, baseline: ArchitectureSpec, 
         modules: [
           {
             name: "CommercialReadiness",
-            purpose: "Explains why this module exists.",
+            purpose: "Explains why this boundary exists inside the selected architecture.",
             emphasis: "production risk, store readiness, telemetry, or code maintainability",
             files: [
               {
-                path: `Assets/Scripts/${projectPascal}/CommercialReadiness/RevenueGuard.${ext}`,
+                path: `${sampleSourceRoot}/RevenueGuard.${ext}`,
                 kind: "source",
                 role: "service",
                 description: "Validates purchase and entitlement state before premium flows are opened.",
-                module: "commercial-readiness"
+                module: "monetization"
+              },
+              {
+                path: `${sampleStateRoot}/EntitlementState.${ext}`,
+                kind: "source",
+                role: "state",
+                description: "Stores the current entitlement snapshot used by UI and purchase flows.",
+                module: "monetization"
               }
             ]
           }
         ],
         relationships: [
           {
-            from: `Assets/Scripts/${projectPascal}/CommercialReadiness/RevenueGuard.${ext}`,
-            to: `Assets/Scripts/${projectPascal}/CommercialReadiness/RevenueGuard.${ext}`,
-            relation: "documents",
-            reason: "Replace this example with a real relation between two different blueprint files."
+            from: `${sampleSourceRoot}/RevenueGuard.${ext}`,
+            to: `${sampleStateRoot}/EntitlementState.${ext}`,
+            relation: "drives-state",
+            reason: "RevenueGuard updates entitlement state after purchase checks."
           }
         ]
       }
@@ -725,14 +892,14 @@ export async function synthesizeArchitectureSpec(
       schema: architecturePatchSchema(baseline),
       schemaName: "architecture_spec_patch",
       systemPrompt: "You generate controlled JSON patches for a mobile ArchitectureSpec. Return only valid JSON.",
-      maxOutputTokens: Math.max(env.LLM_MAX_NEW_TOKENS, mode === "commercial" ? 12000 : 10000)
+      maxOutputTokens: Math.max(env.LLM_MAX_NEW_TOKENS, 16000)
     })
     : await runHuggingFaceJson({
       prompt,
       schema: architecturePatchSchema(baseline),
       schemaName: "architecture_spec_patch",
       systemPrompt: "You generate controlled JSON patches for a mobile ArchitectureSpec. Return only valid JSON matching the requested schema.",
-      maxOutputTokens: Math.max(env.LLM_MAX_NEW_TOKENS, mode === "commercial" ? 12000 : 10000)
+      maxOutputTokens: Math.max(env.LLM_MAX_NEW_TOKENS, 16000)
     }));
 
   if (!providerResult.ok || !providerResult.text) {
@@ -774,11 +941,12 @@ export async function synthesizeArchitectureSpec(
     includeLLMNotes: true
   });
   spec.aiBlueprint = normalized.aiBlueprint;
+  const hardWarnings = warnings.filter((warning) => !warning.startsWith("AI blueprint path remapped into the selected architecture:"));
   const metadata: ArchitectureSynthesisSummary = {
     provider,
     mode,
     usedAi: true,
-    status: warnings.length > 0 ? "repaired" : "ai-applied",
+    status: hardWarnings.length > 0 ? "repaired" : "ai-applied",
     model: providerResult.model,
     warnings,
     assumptions: normalized.assumptions,

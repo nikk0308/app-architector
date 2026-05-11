@@ -144,7 +144,7 @@ describe("architecture synthesis", () => {
     expect(result.metadata.warnings.length).toBeGreaterThan(0);
   });
 
-  it("keeps hybrid ArchitectureSpec deterministic before refinement policy is applied", async () => {
+  it("applies AI ArchitectureSpec blueprint for hybrid before refinement policy is applied", async () => {
     const result = await synthesizeArchitectureSpec({
       ...payload,
       generationMode: "hybrid"
@@ -168,18 +168,21 @@ describe("architecture synthesis", () => {
             persistence: true
           },
           includeExampleScreen: true,
-          explanation: "This patch must be ignored for hybrid mode.",
+          explanation: "Hybrid uses AI blueprint while keeping locked questionnaire choices.",
           assumptions: [],
           risks: [],
-          recommendations: []
+          recommendations: [],
+          aiBlueprint: testBlueprint()
         })
       }
     });
 
     expect(result.metadata.mode).toBe("hybrid");
-    expect(result.metadata.usedAi).toBe(false);
-    expect(result.metadata.status).toBe("baseline");
+    expect(result.metadata.usedAi).toBe(true);
+    expect(result.metadata.status).toBe("ai-applied");
     expect(result.spec.generationMode).toBe("hybrid");
+    // Hybrid may deepen the file tree, but user-selected questionnaire knobs stay locked.
     expect(result.spec.architecture.stateManagement).not.toBe("redux");
+    expect(result.spec.aiBlueprint?.modules[0]?.files.length).toBeGreaterThan(0);
   });
 });

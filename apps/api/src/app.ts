@@ -143,12 +143,19 @@ function assertRequiredAiExecution(preview: PreviewPayload): void {
   }
 
   if (mode === "hybrid") {
+    const synthesis = preview.architectureSynthesis;
+    const blueprintModules = preview.spec.aiBlueprint?.modules.length ?? 0;
+    const blueprintFiles = preview.spec.aiBlueprint?.modules.reduce((sum, module) => sum + module.files.length, 0) ?? 0;
+    const synthesisOk = synthesis.usedAi && synthesis.provider !== "deterministic" && synthesis.status !== "fallback" && blueprintModules >= 4 && blueprintFiles >= 20;
     const refinement = preview.hybridRefinement;
     const hasAcceptedPatches = (refinement?.acceptedPatches.length ?? 0) > 0;
     const validStatus = refinement?.status === "applied" || refinement?.status === "partial";
-    if (!refinement?.enabled || refinement.provider === "deterministic" || !validStatus || !hasAcceptedPatches) {
-      const reason = refinement?.warnings.length ? ` Reason: ${refinement.warnings.join(" ")}` : "";
-      throw new AiExecutionError(`Hybrid generation did not complete AI refinement. Deterministic fallback is disabled for hybrid mode.${reason}`);
+    const refinementOk = Boolean(refinement?.enabled && refinement.provider !== "deterministic" && validStatus && hasAcceptedPatches);
+
+    if (!synthesisOk && !refinementOk) {
+      const synthesisReason = synthesis.warnings.length ? ` Synthesis: ${synthesis.warnings.join(" ")}` : "";
+      const refinementReason = refinement?.warnings.length ? ` Refinement: ${refinement.warnings.join(" ")}` : "";
+      throw new AiExecutionError(`Hybrid generation did not complete AI-backed blueprint/refinement. Deterministic fallback is disabled for hybrid mode.${synthesisReason}${refinementReason}`);
     }
   }
 }
@@ -764,6 +771,15 @@ export function createApp(): FastifyInstance {
 
   app.post<{ Body: QuestionnaireAnswers }>("/api/profile/preview", async (request) => {
     return await buildPreviewPayload(request.body);
+  });
+
+  app.get("/api/architecture/preview", async (_request, reply) => {
+    reply.code(405);
+    return {
+      error: "Method Not Allowed",
+      message: "Architecture preview requires POST with questionnaire answers. The GET route is intentionally kept only to avoid an unhelpful unknown-route error in browser diagnostics.",
+      expectedMethod: "POST"
+    };
   });
 
   app.post<{ Body: QuestionnaireAnswers }>("/api/architecture/preview", async (request) => {
