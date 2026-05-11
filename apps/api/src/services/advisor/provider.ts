@@ -255,10 +255,21 @@ export async function runHuggingFaceJson(request: HuggingFaceJsonRequest): Promi
     return { ok: false, error: "HF_TOKEN is not configured", model: env.HF_MODEL };
   }
 
-  const attempts: HuggingFaceFormatMode[] = request.schema ? ["schema", "json_object", "plain_json"] : ["json_object", "plain_json"];
+  const attempts: HuggingFaceFormatMode[] = request.schema ? ["schema", "json_object", "plain_json"] : ["plain_json", "json_object"];
   const errors: string[] = [];
+  const startedAt = Date.now();
+  const totalBudgetMs = request.timeoutMs ?? env.LLM_TIMEOUT_MS;
   for (const attempt of attempts) {
-    const result = await postHuggingFaceJson(request, attempt);
+    const elapsedMs = Date.now() - startedAt;
+    const remainingMs = totalBudgetMs - elapsedMs;
+    if (remainingMs < 3500) {
+      errors.push(`Hugging Face ${attempt} attempt skipped because total request budget was exhausted`);
+      break;
+    }
+    const result = await postHuggingFaceJson({
+      ...request,
+      timeoutMs: Math.max(3500, Math.min(request.timeoutMs ?? env.LLM_TIMEOUT_MS, remainingMs))
+    }, attempt);
     if (result.ok && result.text) {
       return result;
     }

@@ -1057,12 +1057,13 @@ async function runArchitectureProvider(
     })
     : await runHuggingFaceJson({
       prompt,
-      // Qwen through the Hugging Face router is much more reliable when we ask
-      // for a plain JSON object instead of a strict router-side schema. The
-      // application still validates, normalizes and repairs the object locally.
+      // Qwen through the Hugging Face router is most reliable when the first
+      // attempt is plain JSON. Router-side json_object often delays or returns
+      // an envelope without generated text, which can push the whole /preview
+      // request into a gateway timeout before the useful attempt even starts.
       systemPrompt: "You generate controlled JSON patches for a mobile ArchitectureSpec. Return only one valid JSON object, no Markdown.",
-      maxOutputTokens: Math.min(Math.max(env.LLM_MAX_NEW_TOKENS, 6500), 8500),
-      timeoutMs: Math.min(env.LLM_TIMEOUT_MS, 58000)
+      maxOutputTokens: Math.min(Math.max(env.LLM_MAX_NEW_TOKENS, 6500), 8000),
+      timeoutMs: Math.min(env.LLM_TIMEOUT_MS, 110000)
     });
 }
 
@@ -1186,7 +1187,8 @@ export async function synthesizeArchitectureSpec(
     // answer was rejected. Missing/unparseable/partial core patches still stay
     // visible as repaired or fallback through other warnings.
     return !warning.startsWith("AI blueprint path remapped into the selected architecture:")
-      && !warning.startsWith("AI blueprint was normalized and completed locally from the provider response");
+      && !warning.startsWith("AI blueprint was normalized and completed locally from the provider response")
+      && !warning.includes("normalized and completed locally from the provider response");
   });
   const metadata: ArchitectureSynthesisSummary = {
     provider,
