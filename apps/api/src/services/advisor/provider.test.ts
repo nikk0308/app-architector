@@ -43,7 +43,7 @@ describe("Hugging Face provider", () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, { body: string }];
     expect(url).toBe("https://router.huggingface.co/v1/chat/completions");
     const body = JSON.parse(init.body) as Record<string, unknown>;
-    expect(body.model).toBe("Qwen/Qwen2.5-Coder-32B-Instruct");
+    expect(body.model).toBe("Qwen/Qwen2.5-Coder-32B-Instruct:nscale");
     expect(body.messages).toBeTruthy();
     expect(body.response_format).toMatchObject({
       type: "json_schema",

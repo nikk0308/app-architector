@@ -50,6 +50,7 @@ export const env = {
   HF_TOKEN: process.env.HF_TOKEN ?? process.env.HUGGINGFACE_API_TOKEN ?? "",
   HF_MODEL: process.env.HF_MODEL ?? "Qwen/Qwen2.5-Coder-32B-Instruct",
   HF_ENDPOINT: process.env.HF_ENDPOINT ?? "",
+  HF_PROVIDER: process.env.HF_PROVIDER ?? "nscale",
   LLM_TIMEOUT_MS: Math.max(numberFromEnv("LLM_TIMEOUT_MS", 300_000), 60_000),
   LLM_MAX_NEW_TOKENS: Math.max(numberFromEnv("LLM_MAX_NEW_TOKENS", 14_000), 4_000)
 };

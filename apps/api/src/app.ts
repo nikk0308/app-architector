@@ -105,7 +105,7 @@ interface PreviewPayload {
 }
 
 class AiExecutionError extends Error {
-  statusCode = 502;
+  statusCode = 424;
 
   constructor(message: string) {
     super(message);
