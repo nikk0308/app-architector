@@ -780,8 +780,8 @@ function buildPrompt(answers: QuestionnaireAnswers, baseline: ArchitectureSpec, 
     `Use the selected platform ${platform}. Source files should usually use .${ext}; tests may use source/test naming that is natural for the platform.`,
     "Each file must have a useful role and description, because the UI displays this in the generated tree. Avoid generic 'source artifact'.",
     "Relationships should reference file paths that appear in aiBlueprint.modules[].files[].path. Use relation labels like wires, uses, implements, configures, observes, routes-to, renders, persists-through, validates, tracks, documents, tests. Do not generate placeholder self-links; every relation must connect two different files.",
-    "Produce enough blueprint depth to make this AI mode visibly different from baseline and from the other AI provider while still respecting the selected architecture. This is a diploma benchmark: do not return a tiny blueprint. Target 45-85 additional AI blueprint files, at least 8 modules, and at least 2 relationships per blueprint file. Prefer concise descriptions over long prose so the response stays parseable, but do not downgrade the blueprint into a tiny seed.",
-    "Hard minimum for a usable answer: 8 modules, 36 files, and 72 relationships. If you cannot meet it, still return the closest valid blueprint and explicitly explain the limitation in risks/warnings-style text.",
+    "Produce a compact but meaningful AI blueprint seed that makes this AI mode visibly different from baseline and from the other AI provider while still respecting the selected architecture. The local materializer will expand your seed into the full starter tree, so do not list every final file. Target 18-32 high-signal AI blueprint files across 8-12 modules and 36-80 relationships. Prefer concise descriptions and short names so Qwen and GPT operate under the same practical response budget.",
+    "Hard minimum for a usable answer: 6 modules, 18 files, and 30 relationships. If you cannot meet it, still return the closest valid blueprint and explicitly explain the limitation in risks/warnings-style text.",
     "Do not put many files under a project-name dump folder. Keep files distributed inside the selected architecture roots and existing module boundaries: UI/screens, domain/models, data/repositories, services/integrations, runtime/config, tests/docs as appropriate for the selected platform.",
     "Keep all choices platform-safe and aligned with the user form. You may refine optional feature/product lists only when it improves the generated package; do not disable a user-requested feature just to be different.",
     "",
@@ -1011,12 +1011,12 @@ function blueprintStats(blueprint?: ArchitectureSpec["aiBlueprint"]): { modules:
 
 function isUsableAiBlueprint(blueprint?: ArchitectureSpec["aiBlueprint"]): boolean {
   const stats = blueprintStats(blueprint);
-  return stats.modules >= 6 && stats.files >= 20;
+  return stats.modules >= 6 && stats.files >= 18;
 }
 
 function isStrongAiBlueprint(blueprint?: ArchitectureSpec["aiBlueprint"]): boolean {
   const stats = blueprintStats(blueprint);
-  return stats.modules >= 8 && stats.files >= 36 && stats.relationships >= 70;
+  return stats.modules >= 8 && stats.files >= 24 && stats.relationships >= 40;
 }
 
 function buildBlueprintRetryPrompt(basePrompt: string, _provider: ProviderName, previousIssue: string): string {
@@ -1026,7 +1026,7 @@ function buildBlueprintRetryPrompt(basePrompt: string, _provider: ProviderName, 
     "RETRY / REPAIR REQUIREMENT:",
     previousIssue,
     "The previous answer was not deep enough for the benchmark. Return a larger JSON object now.",
-    "Minimum target for this retry: 8+ modules, 36+ files, and 72+ relationships inside aiBlueprint.",
+    "Minimum target for this retry: 8+ modules, 24+ files, and 40+ relationships inside aiBlueprint.",
     "Distribute files across clean architecture folders. Do not create one giant app-name folder with unrelated classes.",
     "Keep the same benchmark objective; do not switch platform, architecture style, state management, navigation, modules, package identity or publication target.",
     "Return only the JSON object."
@@ -1038,7 +1038,7 @@ async function runArchitectureProvider(
   prompt: string,
   baseline: ArchitectureSpec
 ) {
-  const maxOutputTokens = Math.max(env.LLM_MAX_NEW_TOKENS, 14000);
+  const maxOutputTokens = Math.max(env.LLM_MAX_NEW_TOKENS, 7000);
   return provider === "openai"
     ? await runOpenAIJson({
       prompt,
@@ -1051,7 +1051,8 @@ async function runArchitectureProvider(
       prompt,
       systemPrompt: "You generate controlled JSON patches for a mobile ArchitectureSpec. Return only one valid JSON object, no Markdown.",
       maxOutputTokens,
-      timeoutMs: env.LLM_TIMEOUT_MS
+      timeoutMs: env.LLM_TIMEOUT_MS,
+      formatModes: ["plain_json"]
     });
 }
 

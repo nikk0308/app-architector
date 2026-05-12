@@ -14,6 +14,7 @@ export interface HuggingFaceJsonRequest {
   systemPrompt?: string;
   maxOutputTokens?: number;
   timeoutMs?: number;
+  formatModes?: HuggingFaceFormatMode[];
 }
 
 interface HuggingFaceGeneratedItem {
@@ -79,6 +80,9 @@ function extractText(payload: unknown): string | undefined {
     if (typeof object.output_text === "string" && object.output_text.trim()) return object.output_text.trim();
     if (typeof object.generated_text === "string" && object.generated_text.trim()) return object.generated_text.trim();
     if (typeof object.error === "string") throw new Error(object.error);
+    if (object.aiBlueprint || object.summary || object.modules || object.architectureStyle || object.explanation) {
+      return JSON.stringify(object);
+    }
 
     const choices = object.choices;
     if (Array.isArray(choices)) {
@@ -255,7 +259,7 @@ export async function runHuggingFaceJson(request: HuggingFaceJsonRequest): Promi
     return { ok: false, error: "HF_TOKEN is not configured", model: env.HF_MODEL };
   }
 
-  const attempts: HuggingFaceFormatMode[] = request.schema ? ["schema", "json_object", "plain_json"] : ["plain_json", "json_object"];
+  const attempts: HuggingFaceFormatMode[] = request.formatModes ?? (request.schema ? ["schema", "json_object", "plain_json"] : ["plain_json", "json_object"]);
   const errors: string[] = [];
   const startedAt = Date.now();
   const totalBudgetMs = request.timeoutMs ?? env.LLM_TIMEOUT_MS;
