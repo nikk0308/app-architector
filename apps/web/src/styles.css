@@ -574,7 +574,8 @@ textarea {
 }
 
 .error-banner,
-.warning-banner {
+.warning-banner,
+.info-banner {
   margin-bottom: 12px;
   padding: 12px 14px;
   border-radius: 14px;
@@ -591,6 +592,12 @@ textarea {
   border: 1px solid rgba(245, 158, 11, 0.35);
   background: rgba(245, 158, 11, 0.1);
   color: #fde68a;
+}
+
+.info-banner {
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  background: rgba(59, 130, 246, 0.1);
+  color: #bfdbfe;
 }
 
 .tree-stack {

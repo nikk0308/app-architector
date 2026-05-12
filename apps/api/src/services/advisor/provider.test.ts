@@ -1,14 +1,18 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-async function loadProvider() {
+async function loadProvider(overrides: Record<string, string> = {}) {
   vi.resetModules();
   vi.stubEnv("HF_TOKEN", "hf_test");
   vi.stubEnv("HUGGINGFACE_API_TOKEN", "");
   vi.stubEnv("HF_MODEL", "Qwen/Qwen2.5-Coder-32B-Instruct");
   vi.stubEnv("HF_PROVIDER", "nscale");
+  vi.stubEnv("HF_PROVIDER_SEQUENCE", "");
   vi.stubEnv("HF_ENDPOINT", "");
   vi.stubEnv("LLM_TIMEOUT_MS", "1000");
   vi.stubEnv("LLM_MAX_NEW_TOKENS", "321");
+  for (const [key, value] of Object.entries(overrides)) {
+    vi.stubEnv(key, value);
+  }
   return import("./provider.js");
 }
 
@@ -168,6 +172,50 @@ describe("Hugging Face provider", () => {
     expect(result.errorCode).toBe("credits_depleted");
     expect(result.error).toBe("Hugging Face credits are depleted. Add credits or switch generation mode.");
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("tries the next Hugging Face provider after a gateway timeout without repeating the same provider", async () => {
+    const fetchMock = vi.fn(async () => {
+      if (fetchMock.mock.calls.length === 1) {
+        return {
+          ok: false,
+          status: 504,
+          headers: { get: () => "text/html" },
+          text: async () => "<!DOCTYPE html><html><body><h1>504 Gateway Timeout</h1></body></html>"
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => "application/json" },
+        text: async () => JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: "{\"summary\":\"provider failover ok\"}"
+              }
+            }
+          ]
+        })
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { runHuggingFaceJson } = await loadProvider({ HF_PROVIDER_SEQUENCE: "nscale,nebius" });
+    const result = await runHuggingFaceJson({
+      prompt: "Return JSON.",
+      formatModes: ["plain_json"],
+      timeoutMs: 5000
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.model).toBe("Qwen/Qwen2.5-Coder-32B-Instruct:nebius");
+    expect(result.provider).toBe("nebius");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const firstBody = JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body) as Record<string, unknown>;
+    const secondBody = JSON.parse((fetchMock.mock.calls[1][1] as { body: string }).body) as Record<string, unknown>;
+    expect(firstBody.model).toBe("Qwen/Qwen2.5-Coder-32B-Instruct:nscale");
+    expect(secondBody.model).toBe("Qwen/Qwen2.5-Coder-32B-Instruct:nebius");
   });
 
   it("returns a clear error when Hugging Face responds without generated text", async () => {

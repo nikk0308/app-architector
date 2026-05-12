@@ -71,6 +71,28 @@ export interface PreviewResponse {
 export interface ArchitecturePreviewResponse extends PreviewResponse {
   previewId: string;
   createdAt: string;
+  previewDurationMs?: number;
+}
+
+export type ArchitecturePreviewJobStatus = "queued" | "running" | "completed" | "failed";
+
+export interface ArchitecturePreviewJobResponse {
+  id: string;
+  status: ArchitecturePreviewJobStatus;
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string;
+  completedAt?: string;
+  elapsedMs: number;
+  previewId?: string;
+  preview?: ArchitecturePreviewResponse;
+  error?: {
+    error?: string;
+    message?: string;
+    detail?: string;
+    statusCode?: number;
+    code?: string;
+  };
 }
 
 export interface AdvisorPlanResponse {
@@ -141,6 +163,35 @@ export async function createArchitecturePreview(payload: QuestionnaireAnswers): 
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   });
+}
+
+async function requestPreviewJob(input: RequestInfo, init?: RequestInit): Promise<ArchitecturePreviewJobResponse> {
+  const response = await fetch(input, init);
+  const raw = await response.text().catch(() => "");
+  let payload: Record<string, unknown> = {};
+  try {
+    payload = raw ? JSON.parse(raw) as Record<string, unknown> : {};
+  } catch {
+    payload = {};
+  }
+
+  if (!response.ok && payload.status !== "failed") {
+    const message = payload.error ?? payload.message ?? payload.detail;
+    throw new Error(typeof message === "string" && message.trim() ? message.trim() : `Request failed with HTTP ${response.status}`);
+  }
+  return payload as unknown as ArchitecturePreviewJobResponse;
+}
+
+export async function createArchitecturePreviewJob(payload: QuestionnaireAnswers): Promise<ArchitecturePreviewJobResponse> {
+  return requestPreviewJob(apiUrl("/api/architecture/preview/jobs"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function fetchArchitecturePreviewJob(id: string): Promise<ArchitecturePreviewJobResponse> {
+  return requestPreviewJob(apiUrl(`/api/architecture/preview/jobs/${id}`));
 }
 
 export async function createGeneration(payload: QuestionnaireAnswers): Promise<GenerationResponse> {

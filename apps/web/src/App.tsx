@@ -17,13 +17,16 @@ import {
   apiUrl,
   clearGenerations,
   compareGenerations,
+  createArchitecturePreviewJob,
   createArchitecturePreview,
   createGenerationFromPreview,
   deleteGeneration,
+  fetchArchitecturePreviewJob,
   fetchGenerationDetails,
   fetchProviderStatuses,
   listGenerations,
   type ArchitecturePreviewResponse,
+  type ArchitecturePreviewJobResponse,
   type GenerationResponse,
 } from "./api";
 import {
@@ -1259,6 +1262,17 @@ function formatDate(value: string): string {
       })} UTC`;
 }
 
+function formatElapsed(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 function stepLabel(value: number): string {
   return `Step ${value}`;
 }
@@ -1457,6 +1471,8 @@ export default function App() {
   const [providers, setProviders] = useState<AIProviderStatusSummary[]>([]);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [loadingZip, setLoadingZip] = useState(false);
+  const [previewJob, setPreviewJob] =
+    useState<ArchitecturePreviewJobResponse | null>(null);
   const [historyBusy, setHistoryBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedDetails, setSelectedDetails] =
@@ -1590,6 +1606,44 @@ export default function App() {
     setGenerations(await listGenerations());
   }
 
+  function previewJobError(job: ArchitecturePreviewJobResponse): Error {
+    const message =
+      job.error?.detail ??
+      job.error?.message ??
+      job.error?.error ??
+      t.previewFailed;
+    return new Error(message);
+  }
+
+  async function waitForPreviewJob(jobId: string): Promise<ArchitecturePreviewResponse> {
+    const startedAt = Date.now();
+    const maxWaitMs = 390_000;
+
+    while (Date.now() - startedAt < maxWaitMs) {
+      const job = await fetchArchitecturePreviewJob(jobId);
+      setPreviewJob(job);
+      if (job.status === "completed" && job.preview) {
+        return job.preview;
+      }
+      if (job.status === "failed") {
+        throw previewJobError(job);
+      }
+      await sleep(job.status === "queued" ? 1000 : 2500);
+    }
+
+    throw new Error(`${t.previewFailed}: Qwen preview job timed out while waiting for the architecture blueprint.`);
+  }
+
+  async function createPreviewForMode(request: QuestionnaireAnswers): Promise<ArchitecturePreviewResponse> {
+    if ((request.generationMode ?? "baseline") !== "hf-open") {
+      return createArchitecturePreview(request);
+    }
+
+    const job = await createArchitecturePreviewJob(request);
+    setPreviewJob(job);
+    return waitForPreviewJob(job.id);
+  }
+
   async function generateTree() {
     if (!requiredValid) {
       setError(t.requiredError);
@@ -1599,8 +1653,9 @@ export default function App() {
       setLoadingPreview(true);
       setLoadingZip(true);
       setError(null);
+      setPreviewJob(null);
       const request = payload();
-      const result = await createArchitecturePreview(request);
+      const result = await createPreviewForMode(request);
       const nextForm = formFromPreview(request, result);
       setForm(nextForm);
       setPreview(result);
@@ -1620,6 +1675,7 @@ export default function App() {
     } finally {
       setLoadingPreview(false);
       setLoadingZip(false);
+      setPreviewJob(null);
     }
   }
 
@@ -1712,6 +1768,9 @@ export default function App() {
       (item.generationMode ?? "baseline") === historyMode;
     return platformOk && modeOk;
   });
+  const previewProgressLabel = previewJob
+    ? `${t.generatingTree} ${formatElapsed(previewJob.elapsedMs)}`
+    : t.generatingTree;
 
   const stepState = (id: StepId): string => {
     if (id === activeStep) return "active";
@@ -2189,7 +2248,7 @@ export default function App() {
                     onClick={() => void generateTree()}
                   >
                     {loadingPreview || loadingZip
-                      ? t.generatingTree
+                      ? previewProgressLabel
                       : t.generateTree}
                   </button>
                   {generation && !previewOutdated ? (
@@ -2210,6 +2269,11 @@ export default function App() {
                   )}
                 </div>
               </div>
+              {previewJob ? (
+                <div className="info-banner">
+                  {previewProgressLabel}
+                </div>
+              ) : null}
               {shown ? (
                 <div className="tree-stack">
                   <FileTreeViewer

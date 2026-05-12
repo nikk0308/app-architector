@@ -114,6 +114,107 @@ class AiExecutionError extends Error {
   }
 }
 
+type PreviewJobStatus = "queued" | "running" | "completed" | "failed";
+
+interface PreviewJobRecord {
+  id: string;
+  status: PreviewJobStatus;
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string;
+  completedAt?: string;
+  elapsedMs: number;
+  previewId?: string;
+  preview?: PreviewPayload & {
+    previewId: string;
+    createdAt: string;
+    previewDurationMs: number;
+  };
+  error?: Record<string, unknown>;
+}
+
+const previewJobs = new Map<string, PreviewJobRecord>();
+const previewJobTtlMs = 30 * 60 * 1000;
+
+function prunePreviewJobs(now = Date.now()): void {
+  for (const [id, job] of previewJobs.entries()) {
+    if (now - Date.parse(job.createdAt) > previewJobTtlMs) {
+      previewJobs.delete(id);
+    }
+  }
+}
+
+function publicPreviewJob(job: PreviewJobRecord): PreviewJobRecord {
+  return {
+    ...job,
+    elapsedMs: job.status === "running" && job.startedAt
+      ? Math.max(job.elapsedMs, Date.now() - Date.parse(job.startedAt))
+      : job.elapsedMs
+  };
+}
+
+function startPreviewJob(answers: QuestionnaireAnswers): PreviewJobRecord {
+  prunePreviewJobs();
+  const now = new Date().toISOString();
+  const job: PreviewJobRecord = {
+    id: crypto.randomUUID(),
+    status: "queued",
+    createdAt: now,
+    updatedAt: now,
+    elapsedMs: 0
+  };
+  previewJobs.set(job.id, job);
+
+  void (async () => {
+    const started = Date.now();
+    const startedAt = new Date(started).toISOString();
+    previewJobs.set(job.id, {
+      ...job,
+      status: "running",
+      startedAt,
+      updatedAt: startedAt
+    });
+
+    try {
+      const preview = await buildArchitecturePreviewPayload(answers);
+      const previewDurationMs = Date.now() - started;
+      const previewId = saveArchitecturePreviewSnapshot(answers, preview, previewDurationMs);
+      const completedAt = new Date().toISOString();
+      previewJobs.set(job.id, {
+        id: job.id,
+        status: "completed",
+        createdAt: job.createdAt,
+        startedAt,
+        completedAt,
+        updatedAt: completedAt,
+        elapsedMs: previewDurationMs,
+        previewId,
+        preview: {
+          previewId,
+          createdAt: completedAt,
+          previewDurationMs,
+          ...preview
+        }
+      });
+    } catch (error) {
+      const statusCode = publicErrorStatusCode(error);
+      const failedAt = new Date().toISOString();
+      previewJobs.set(job.id, {
+        id: job.id,
+        status: "failed",
+        createdAt: job.createdAt,
+        startedAt,
+        completedAt: failedAt,
+        updatedAt: failedAt,
+        elapsedMs: Date.now() - started,
+        error: publicErrorPayload(error, statusCode)
+      });
+    }
+  })();
+
+  return job;
+}
+
 function shouldEnforceAiExecution(): boolean {
   // AI modes should fail loudly instead of silently looking like baseline.
   // Set STRICT_AI_MODE_FAILURES=false only for local/CI smoke tests without LLM credentials.
@@ -716,6 +817,17 @@ export function createApp(): FastifyInstance {
   const corsOrigin = env.CORS_ORIGIN === "*" ? true : env.CORS_ORIGIN.split(",").map((item) => item.trim()).filter(Boolean);
   void app.register(cors, { origin: corsOrigin });
 
+  app.addHook("onReady", async () => {
+    app.log.info({
+      apiRequestTimeoutMs: env.API_REQUEST_TIMEOUT_MS,
+      generatorTimeoutMs: env.GENERATOR_TIMEOUT_MS,
+      llmTimeoutMs: env.LLM_TIMEOUT_MS,
+      hfModel: env.HF_MODEL,
+      hfProvider: env.HF_PROVIDER,
+      hfProviderSequence: env.HF_PROVIDER_SEQUENCE || env.HF_PROVIDER
+    }, "effective runtime timeouts and AI provider configuration");
+  });
+
   app.setErrorHandler((error, request, reply) => {
     request.log.error({ err: error }, "request failed");
     const statusCode = publicErrorStatusCode(error);
@@ -819,6 +931,30 @@ export function createApp(): FastifyInstance {
       message: "Architecture preview requires POST with questionnaire answers. The GET route is intentionally kept only to avoid an unhelpful unknown-route error in browser diagnostics.",
       expectedMethod: "POST"
     };
+  });
+
+  app.post<{ Body: QuestionnaireAnswers }>("/api/architecture/preview/jobs", async (request) => {
+    const job = startPreviewJob(request.body);
+    return publicPreviewJob(job);
+  });
+
+  app.get<{ Params: { id: string } }>("/api/architecture/preview/jobs/:id", async (request, reply) => {
+    prunePreviewJobs();
+    const job = previewJobs.get(request.params.id);
+    if (!job) {
+      reply.code(404);
+      return {
+        error: "Architecture preview job not found or expired",
+        message: "Architecture preview job not found or expired",
+        statusCode: 404
+      };
+    }
+    const publicJob = publicPreviewJob(job);
+    if (publicJob.status === "failed") {
+      const statusCode = Number(publicJob.error?.statusCode ?? 424);
+      reply.code(Number.isInteger(statusCode) && statusCode >= 400 && statusCode < 600 ? statusCode : 424);
+    }
+    return publicJob;
   });
 
   app.post<{ Body: QuestionnaireAnswers }>("/api/architecture/preview", async (request) => {

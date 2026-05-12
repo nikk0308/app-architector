@@ -2,10 +2,16 @@ import type { AIProviderStatusSummary } from "@mag/shared";
 import { env } from "../../env.js";
 
 function huggingFaceModelLabel(): string {
-  if (!env.HF_PROVIDER || env.HF_PROVIDER === "auto" || env.HF_MODEL.includes(":")) {
+  const sequence = env.HF_PROVIDER_SEQUENCE
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const provider = sequence[0] ?? env.HF_PROVIDER;
+  const suffix = sequence.length > 1 ? ` (+${sequence.length - 1} failover)` : "";
+  if (!provider || provider === "auto" || env.HF_MODEL.includes(":")) {
     return env.HF_MODEL;
   }
-  return `${env.HF_MODEL}:${env.HF_PROVIDER}`;
+  return `${env.HF_MODEL}:${provider}${suffix}`;
 }
 
 export function getProviderStatusSummaries(): AIProviderStatusSummary[] {

@@ -170,6 +170,8 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
           HF_MODEL: ${{ vars.HF_MODEL }}
+          HF_PROVIDER: ${{ vars.HF_PROVIDER }}
+          HF_PROVIDER_SEQUENCE: ${{ vars.HF_PROVIDER_SEQUENCE }}
           LLM_ENABLED_VAR: ${{ vars.LLM_ENABLED }}
           ENABLE_LLM_ENRICHMENT_VAR: ${{ vars.ENABLE_LLM_ENRICHMENT }}
         shell: bash
@@ -195,6 +197,8 @@ jobs:
           append_if_set HF_TOKEN "$HF_TOKEN"
           append_if_set OPENAI_MODEL "$OPENAI_MODEL"
           append_if_set HF_MODEL "$HF_MODEL"
+          append_if_set HF_PROVIDER "$HF_PROVIDER"
+          append_if_set HF_PROVIDER_SEQUENCE "$HF_PROVIDER_SEQUENCE"
 
           if [ -n "$LLM_ENABLED_VAR" ]; then
             append_if_set LLM_ENABLED "$LLM_ENABLED_VAR"
@@ -218,6 +222,8 @@ jobs:
             echo "hf_token_configured=$([ -n "$HF_TOKEN" ] && echo yes || echo no)"
             echo "openai_model_configured=$([ -n "$OPENAI_MODEL" ] && echo yes || echo no)"
             echo "hf_model_configured=$([ -n "$HF_MODEL" ] && echo yes || echo no)"
+            echo "hf_provider_configured=$([ -n "$HF_PROVIDER" ] && echo yes || echo no)"
+            echo "hf_provider_sequence_configured=$([ -n "$HF_PROVIDER_SEQUENCE" ] && echo yes || echo no)"
           } > "$DIAGNOSTICS_DIR/ai-runtime-env-summary.env"
 
       - name: Create release directory
