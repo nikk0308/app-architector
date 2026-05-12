@@ -1,6 +1,13 @@
 import type { AIProviderStatusSummary } from "@mag/shared";
 import { env } from "../../env.js";
 
+function huggingFaceModelLabel(): string {
+  if (!env.HF_PROVIDER || env.HF_PROVIDER === "auto" || env.HF_MODEL.includes(":")) {
+    return env.HF_MODEL;
+  }
+  return `${env.HF_MODEL}:${env.HF_PROVIDER}`;
+}
+
 export function getProviderStatusSummaries(): AIProviderStatusSummary[] {
   return [
     {
@@ -14,7 +21,7 @@ export function getProviderStatusSummaries(): AIProviderStatusSummary[] {
       provider: "huggingface",
       enabled: env.LLM_ENABLED && Boolean(env.HF_TOKEN),
       status: !env.LLM_ENABLED ? "disabled" : env.HF_TOKEN ? "ready" : "fallback",
-      model: env.HF_MODEL,
+      model: huggingFaceModelLabel(),
       capabilities: ["advisor", "spec-synthesis"],
       reason: !env.LLM_ENABLED
         ? "LLM_ENABLED is false."

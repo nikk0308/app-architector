@@ -115,6 +115,67 @@ describe("architecture synthesis", () => {
     expect(result.spec.aiBlueprint?.modules[0]?.files.length).toBeGreaterThan(0);
   });
 
+  it("applies a Qwen ArchitectureSpec patch without converting it into deterministic success", async () => {
+    const result = await synthesizeArchitectureSpec({
+      ...payload,
+      generationMode: "hf-open"
+    }, {
+      llmEnabled: true,
+      forcedProvider: "huggingface",
+      providerResult: {
+        ok: true,
+        model: "Qwen/Qwen2.5-Coder-32B-Instruct:nscale",
+        text: JSON.stringify({
+          architectureStyle: "feature-first",
+          stateManagement: "zustand",
+          navigationStyle: "stack",
+          environmentMode: "multi",
+          features: {
+            auth: true,
+            analytics: true,
+            localization: true,
+            push: false,
+            networking: true,
+            persistence: true
+          },
+          includeExampleScreen: true,
+          explanation: "Qwen produced an open-model architecture blueprint around locked user choices.",
+          assumptions: ["The app needs maintainable local-first module boundaries."],
+          risks: ["Offline conflict resolution still needs product decisions."],
+          recommendations: ["Add repository contract tests for generated data seams."],
+          aiBlueprint: testBlueprint()
+        })
+      }
+    });
+
+    expect(result.metadata.provider).toBe("huggingface");
+    expect(result.metadata.usedAi).toBe(true);
+    expect(result.metadata.status).toBe("ai-applied");
+    expect(result.spec.generationMode).toBe("hf-open");
+    expect(result.spec.aiBlueprint?.provider).toBe("huggingface");
+    expect(result.spec.aiBlueprint?.modules.length).toBeGreaterThanOrEqual(10);
+    expect(result.spec.aiBlueprint?.relationships.length).toBeGreaterThanOrEqual(90);
+  });
+
+  it("marks Qwen provider failures as fallback metadata so strict API policy can fail the request", async () => {
+    const result = await synthesizeArchitectureSpec({
+      ...payload,
+      generationMode: "hf-open"
+    }, {
+      llmEnabled: true,
+      forcedProvider: "huggingface",
+      providerResult: {
+        ok: false,
+        model: "Qwen/Qwen2.5-Coder-32B-Instruct:nscale",
+        error: "Hugging Face provider timed out after 120000 ms. The request reached Hugging Face, but the provider did not complete the architecture blueprint in time."
+      }
+    });
+
+    expect(result.metadata.usedAi).toBe(false);
+    expect(result.metadata.status).toBe("fallback");
+    expect(result.metadata.warnings[0]).toContain("Hugging Face provider timed out");
+  });
+
   it("repairs an incomplete AI patch with deterministic baseline values", async () => {
     const result = await synthesizeArchitectureSpec(payload, {
       llmEnabled: true,

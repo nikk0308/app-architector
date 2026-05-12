@@ -467,9 +467,9 @@ function ensureUsefulAiBlueprint(
 ): ArchitectureSpec["aiBlueprint"] {
   if (!blueprint) return undefined;
 
-  const minModules = provider === "huggingface" ? 8 : 10;
-  const minFiles = provider === "huggingface" ? 42 : 45;
-  const minRelationships = provider === "huggingface" ? 84 : 90;
+  const minModules = 10;
+  const minFiles = 45;
+  const minRelationships = 90;
   const stats = blueprintStats(blueprint);
   if (stats.modules >= minModules && stats.files >= minFiles && stats.relationships >= minRelationships) {
     return blueprint;
@@ -506,6 +506,20 @@ function ensureUsefulAiBlueprint(
     const finalName = `${providerPrefix}${name}`;
     if (existingModuleNames.has(normalizeSlug(finalName, finalName))) continue;
     modules.push({ name: finalName, purpose, emphasis, files: [] });
+    existingModuleNames.add(normalizeSlug(finalName, finalName));
+  }
+
+  let expansionIndex = 1;
+  while (modules.length < minModules) {
+    const finalName = `${providerPrefix}ArchitectureSlice${expansionIndex}`;
+    expansionIndex += 1;
+    if (existingModuleNames.has(normalizeSlug(finalName, finalName))) continue;
+    modules.push({
+      name: finalName,
+      purpose: "Provider-guided architecture slice added to keep GPT and Qwen benchmark constraints equal.",
+      emphasis: provider === "huggingface" ? "maintainable code boundaries" : "production architecture completeness",
+      files: []
+    });
     existingModuleNames.add(normalizeSlug(finalName, finalName));
   }
 

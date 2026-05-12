@@ -106,6 +106,7 @@ interface PreviewPayload {
 
 class AiExecutionError extends Error {
   statusCode = 424;
+  code = "AI_PROVIDER_FAILED";
 
   constructor(message: string) {
     super(message);
@@ -682,6 +683,29 @@ function publicErrorMessage(error: unknown): string {
   return "Request failed";
 }
 
+function publicErrorPayload(error: unknown, statusCode: number): Record<string, unknown> {
+  const message = publicErrorMessage(error);
+  const isPublic = error instanceof AiExecutionError || statusCode < 500;
+  if (!isPublic) {
+    return {
+      error: "Internal server error",
+      message: "Internal server error",
+      statusCode
+    };
+  }
+
+  const payload: Record<string, unknown> = {
+    error: message,
+    message,
+    statusCode
+  };
+  if (error instanceof AiExecutionError) {
+    payload.code = error.code;
+    payload.detail = message;
+  }
+  return payload;
+}
+
 export function createApp(): FastifyInstance {
   const app = Fastify({
     logger: { level: env.LOG_LEVEL },
@@ -695,9 +719,7 @@ export function createApp(): FastifyInstance {
   app.setErrorHandler((error, request, reply) => {
     request.log.error({ err: error }, "request failed");
     const statusCode = publicErrorStatusCode(error);
-    reply.status(statusCode).send({
-      error: error instanceof AiExecutionError || statusCode < 500 ? publicErrorMessage(error) : "Internal server error"
-    });
+    reply.status(statusCode).send(publicErrorPayload(error, statusCode));
   });
 
   app.get("/api/health", async () => ({

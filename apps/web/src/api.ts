@@ -95,9 +95,29 @@ export interface GenerationResponse extends PreviewResponse {
 async function request<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
   const response = await fetch(input, init);
   if (!response.ok) {
-    const payload = await response.json().catch(() => ({ error: "Unknown error" }));
-    const message = payload.error ?? payload.message ?? payload.detail ?? "Request failed";
-    throw new Error(typeof message === "string" ? message : "Request failed");
+    const raw = await response.text().catch(() => "");
+    let payload: Record<string, unknown> = {};
+    try {
+      payload = raw ? JSON.parse(raw) as Record<string, unknown> : {};
+    } catch {
+      payload = {};
+    }
+
+    const providerError = payload.providerError;
+    const providerMessage = providerError && typeof providerError === "object"
+      ? (providerError as Record<string, unknown>).message
+      : undefined;
+    const message = payload.error ?? payload.message ?? payload.detail ?? payload.reason ?? providerMessage;
+    if (typeof message === "string" && message.trim()) {
+      throw new Error(message.trim());
+    }
+
+    const lower = raw.toLowerCase();
+    if ((response.status === 502 || response.status === 504) && (lower.includes("bad gateway") || lower.includes("gateway timeout") || lower.includes("<html"))) {
+      throw new Error("The API gateway timed out while waiting for the generation request. If this was Qwen, Hugging Face may still be busy or unavailable.");
+    }
+
+    throw new Error(`Request failed with HTTP ${response.status}`);
   }
   return (await response.json()) as T;
 }

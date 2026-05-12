@@ -5,6 +5,10 @@ export interface HuggingFaceProviderResult {
   text?: string;
   error?: string;
   model?: string;
+  errorCode?: HuggingFaceProviderErrorCode;
+  statusCode?: number;
+  durationMs?: number;
+  terminal?: boolean;
 }
 
 export interface HuggingFaceJsonRequest {
@@ -21,6 +25,14 @@ interface HuggingFaceGeneratedItem {
   generated_text?: string;
   summary_text?: string;
 }
+
+type HuggingFaceProviderErrorCode =
+  | "credits_depleted"
+  | "provider_timeout"
+  | "gateway_timeout"
+  | "no_generated_text"
+  | "http_error"
+  | "network_error";
 
 function advisorJsonSchema(): Record<string, unknown> {
   const stringArray = {
@@ -69,6 +81,19 @@ function usesResponsesEndpoint(endpoint = getEndpoint()): boolean {
   return /\/responses\/?$/i.test(endpoint);
 }
 
+function usesRouterChatEndpoint(endpoint = getEndpoint()): boolean {
+  return /router\.huggingface\.co\/v1\/chat\/completions\/?$/i.test(endpoint);
+}
+
+function huggingFaceModelId(endpoint = getEndpoint()): string {
+  const model = env.HF_MODEL.trim();
+  const provider = env.HF_PROVIDER.trim();
+  if (!model || !usesRouterChatEndpoint(endpoint) || !provider || provider === "auto" || model.includes(":")) {
+    return model;
+  }
+  return `${model}:${provider}`;
+}
+
 function extractText(payload: unknown): string | undefined {
   if (typeof payload === "string") return payload.trim() || undefined;
   if (Array.isArray(payload)) {
@@ -79,15 +104,20 @@ function extractText(payload: unknown): string | undefined {
     const object = payload as Record<string, unknown>;
     if (typeof object.output_text === "string" && object.output_text.trim()) return object.output_text.trim();
     if (typeof object.generated_text === "string" && object.generated_text.trim()) return object.generated_text.trim();
-    if (typeof object.error === "string") throw new Error(object.error);
+    if (typeof object.error === "string") return undefined;
     if (object.aiBlueprint || object.summary || object.modules || object.architectureStyle || object.explanation) {
       return JSON.stringify(object);
     }
 
     const choices = object.choices;
     if (Array.isArray(choices)) {
-      const first = choices[0] as { message?: { content?: unknown }; text?: unknown } | undefined;
+      const first = choices[0] as { message?: { content?: unknown }; text?: unknown; delta?: { content?: unknown } } | undefined;
       if (typeof first?.message?.content === "string" && first.message.content.trim()) return first.message.content.trim();
+      if (Array.isArray(first?.message?.content)) {
+        const text = textParts(first.message.content).join("\n").trim();
+        if (text) return text;
+      }
+      if (typeof first?.delta?.content === "string" && first.delta.content.trim()) return first.delta.content.trim();
       if (typeof first?.text === "string" && first.text.trim()) return first.text.trim();
     }
 
@@ -117,11 +147,88 @@ function extractText(payload: unknown): string | undefined {
   return undefined;
 }
 
+function textParts(value: unknown[]): string[] {
+  const parts: string[] = [];
+  for (const part of value) {
+    if (typeof part === "string" && part.trim()) {
+      parts.push(part.trim());
+      continue;
+    }
+    if (!part || typeof part !== "object") continue;
+    const object = part as { text?: unknown; content?: unknown };
+    if (typeof object.text === "string" && object.text.trim()) parts.push(object.text.trim());
+    else if (typeof object.content === "string" && object.content.trim()) parts.push(object.content.trim());
+  }
+  return parts;
+}
+
 function compactError(payload: unknown, raw: string): string {
   if (payload && typeof payload === "object" && "error" in payload) {
     return JSON.stringify((payload as { error?: unknown }).error).slice(0, 900);
   }
   return raw.slice(0, 900);
+}
+
+function looksLikeHtml(raw: string, contentType = ""): boolean {
+  const trimmed = raw.trim().slice(0, 80).toLowerCase();
+  return contentType.toLowerCase().includes("text/html")
+    || trimmed.startsWith("<!doctype html")
+    || trimmed.startsWith("<html");
+}
+
+function payloadErrorText(payload: unknown, raw: string): string {
+  if (payload && typeof payload === "object") {
+    const object = payload as Record<string, unknown>;
+    const error = object.error;
+    if (typeof error === "string") return error;
+    if (error && typeof error === "object") {
+      const message = (error as Record<string, unknown>).message;
+      if (typeof message === "string") return message;
+      return JSON.stringify(error).slice(0, 500);
+    }
+    const message = object.message;
+    if (typeof message === "string") return message;
+  }
+  return raw.trim().slice(0, 500);
+}
+
+function classifyHttpError(input: {
+  status: number;
+  payload: unknown;
+  raw: string;
+  contentType?: string;
+  durationMs: number;
+  timeoutMs: number;
+}): Pick<HuggingFaceProviderResult, "error" | "errorCode" | "statusCode" | "durationMs" | "terminal"> {
+  const errorText = payloadErrorText(input.payload, input.raw);
+  const lower = errorText.toLowerCase();
+  if (input.status === 402 || lower.includes("credit") || lower.includes("billing")) {
+    return {
+      error: "Hugging Face credits are depleted. Add credits or switch generation mode.",
+      errorCode: "credits_depleted",
+      statusCode: input.status,
+      durationMs: input.durationMs,
+      terminal: true
+    };
+  }
+
+  if (input.status === 504 || input.status === 502 || input.status === 503 || looksLikeHtml(input.raw, input.contentType)) {
+    return {
+      error: `Hugging Face provider timed out after ${input.durationMs} ms. The request reached Hugging Face, but the provider did not complete the architecture blueprint in time.`,
+      errorCode: input.status === 504 ? "provider_timeout" : "gateway_timeout",
+      statusCode: input.status,
+      durationMs: input.durationMs,
+      terminal: true
+    };
+  }
+
+  return {
+    error: `Hugging Face request failed with HTTP ${input.status}: ${compactError(input.payload, input.raw)}`,
+    errorCode: "http_error",
+    statusCode: input.status,
+    durationMs: input.durationMs,
+    terminal: input.status >= 500
+  };
 }
 
 type HuggingFaceFormatMode = "schema" | "json_object" | "plain_json";
@@ -138,10 +245,11 @@ function jsonInstruction(request: HuggingFaceJsonRequest): string {
 function requestBody(request: HuggingFaceJsonRequest, formatMode: HuggingFaceFormatMode, endpoint = getEndpoint()): Record<string, unknown> {
   const instructions = jsonInstruction(request);
   const maxTokens = request.maxOutputTokens ?? env.LLM_MAX_NEW_TOKENS;
+  const model = huggingFaceModelId(endpoint);
 
   if (usesResponsesEndpoint(endpoint)) {
     const body: Record<string, unknown> = {
-      model: env.HF_MODEL,
+      model,
       instructions,
       input: request.prompt,
       max_output_tokens: maxTokens,
@@ -165,7 +273,7 @@ function requestBody(request: HuggingFaceJsonRequest, formatMode: HuggingFaceFor
   }
 
   const body: Record<string, unknown> = {
-    model: env.HF_MODEL,
+    model,
     messages: [
       { role: "system", content: instructions },
       { role: "user", content: request.prompt }
@@ -196,20 +304,24 @@ async function postHuggingFaceJson(request: HuggingFaceJsonRequest, formatMode: 
   const requestTimeoutMs = request.timeoutMs ?? env.LLM_TIMEOUT_MS;
   const startedAt = Date.now();
   const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
-  debugLog("attempt_started", { formatMode, model: env.HF_MODEL, timeoutMs: requestTimeoutMs, maxOutputTokens: request.maxOutputTokens ?? env.LLM_MAX_NEW_TOKENS, promptChars: request.prompt.length });
+  const endpoint = getEndpoint();
+  const model = huggingFaceModelId(endpoint);
+  debugLog("attempt_started", { formatMode, model, endpoint, timeoutMs: requestTimeoutMs, maxOutputTokens: request.maxOutputTokens ?? env.LLM_MAX_NEW_TOKENS, promptChars: request.prompt.length });
 
   try {
-    const response = await fetch(getEndpoint(), {
+    const response = await fetch(endpoint, {
       method: "POST",
       signal: controller.signal,
       headers: {
         Authorization: `Bearer ${env.HF_TOKEN}`,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(requestBody(request, formatMode, getEndpoint()))
+      body: JSON.stringify(requestBody(request, formatMode, endpoint))
     });
 
     const raw = await response.text();
+    const durationMs = Date.now() - startedAt;
+    const contentType = response.headers?.get?.("content-type") ?? "";
     let payload: unknown = raw;
     try {
       payload = JSON.parse(raw);
@@ -220,25 +332,44 @@ async function postHuggingFaceJson(request: HuggingFaceJsonRequest, formatMode: 
     if (!response.ok) {
       return {
         ok: false,
-        error: `Hugging Face request failed (${formatMode}, ${Date.now() - startedAt} ms): ${response.status} ${compactError(payload, raw)}`,
-        model: env.HF_MODEL
+        model,
+        ...classifyHttpError({
+          status: response.status,
+          payload,
+          raw,
+          contentType,
+          durationMs,
+          timeoutMs: requestTimeoutMs
+        })
       };
     }
 
     const text = extractText(payload);
     if (!text) {
-      return { ok: false, error: `Hugging Face response did not contain generated text (${formatMode}, ${Date.now() - startedAt} ms)`, model: env.HF_MODEL };
+      return {
+        ok: false,
+        error: `Hugging Face response did not contain generated text (${formatMode}, ${durationMs} ms).`,
+        errorCode: "no_generated_text",
+        durationMs,
+        model
+      };
     }
 
-    debugLog("attempt_completed", { formatMode, durationMs: Date.now() - startedAt, textChars: text.length });
-    return { ok: true, text, model: env.HF_MODEL };
+    debugLog("attempt_completed", { formatMode, durationMs, textChars: text.length });
+    return { ok: true, text, model, durationMs };
   } catch (error) {
     const isAbort = error instanceof Error && error.name === "AbortError";
     const message = error instanceof Error ? error.message : String(error);
+    const durationMs = Date.now() - startedAt;
     return {
       ok: false,
-      error: isAbort ? `Hugging Face request timed out after ${requestTimeoutMs} ms (${formatMode})` : `${message} (${formatMode}, ${Date.now() - startedAt} ms)`,
-      model: env.HF_MODEL
+      error: isAbort
+        ? `Hugging Face provider timed out after ${requestTimeoutMs} ms before completing the architecture blueprint.`
+        : `Hugging Face request failed before completion: ${message}`,
+      errorCode: isAbort ? "provider_timeout" : "network_error",
+      durationMs,
+      terminal: isAbort,
+      model
     };
   } finally {
     clearTimeout(timeout);
@@ -263,6 +394,7 @@ export async function runHuggingFaceJson(request: HuggingFaceJsonRequest): Promi
   const errors: string[] = [];
   const startedAt = Date.now();
   const totalBudgetMs = request.timeoutMs ?? env.LLM_TIMEOUT_MS;
+  let lastResult: HuggingFaceProviderResult | undefined;
   for (const attempt of attempts) {
     const elapsedMs = Date.now() - startedAt;
     const remainingMs = totalBudgetMs - elapsedMs;
@@ -277,8 +409,20 @@ export async function runHuggingFaceJson(request: HuggingFaceJsonRequest): Promi
     if (result.ok && result.text) {
       return result;
     }
+    lastResult = result;
     errors.push(result.error ?? `Hugging Face ${attempt} attempt failed`);
+    if (result.terminal) {
+      break;
+    }
   }
 
-  return { ok: false, error: errors.join(" | ").slice(0, 1600), model: env.HF_MODEL };
+  return {
+    ok: false,
+    error: errors.join(" | ").slice(0, 1600),
+    model: lastResult?.model ?? huggingFaceModelId(),
+    errorCode: lastResult?.errorCode,
+    statusCode: lastResult?.statusCode,
+    durationMs: lastResult?.durationMs,
+    terminal: lastResult?.terminal
+  };
 }
