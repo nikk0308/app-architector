@@ -14,6 +14,7 @@ export interface HuggingFaceJsonRequest {
   systemPrompt?: string;
   maxOutputTokens?: number;
   timeoutMs?: number;
+  formatModes?: HuggingFaceFormatMode[];
 }
 
 interface HuggingFaceGeneratedItem {
@@ -68,24 +69,6 @@ function usesResponsesEndpoint(endpoint = getEndpoint()): boolean {
   return /\/responses\/?$/i.test(endpoint);
 }
 
-function defaultProviderForModel(model: string): string {
-  if (/^Qwen\/Qwen2\.5-Coder-32B-Instruct$/i.test(model)) return "nscale";
-  return "";
-}
-
-function hasProviderSuffix(model: string): boolean {
-  return /:[A-Za-z0-9_-]+$/.test(model);
-}
-
-function getModelCandidates(): string[] {
-  const configured = env.HF_MODEL.trim() || "Qwen/Qwen2.5-Coder-32B-Instruct";
-  const provider = (env.HF_PROVIDER || defaultProviderForModel(configured)).trim();
-  const candidates = hasProviderSuffix(configured) || !provider || provider === "auto"
-    ? [configured]
-    : [`${configured}:${provider}`, configured];
-  return [...new Set(candidates)];
-}
-
 function extractText(payload: unknown): string | undefined {
   if (typeof payload === "string") return payload.trim() || undefined;
   if (Array.isArray(payload)) {
@@ -97,6 +80,9 @@ function extractText(payload: unknown): string | undefined {
     if (typeof object.output_text === "string" && object.output_text.trim()) return object.output_text.trim();
     if (typeof object.generated_text === "string" && object.generated_text.trim()) return object.generated_text.trim();
     if (typeof object.error === "string") throw new Error(object.error);
+    if (object.aiBlueprint || object.summary || object.modules || object.architectureStyle || object.explanation) {
+      return JSON.stringify(object);
+    }
 
     const choices = object.choices;
     if (Array.isArray(choices)) {
@@ -131,68 +117,6 @@ function extractText(payload: unknown): string | undefined {
   return undefined;
 }
 
-function extractStreamDelta(payload: unknown): string {
-  if (!payload || typeof payload !== "object") return "";
-  const object = payload as Record<string, unknown>;
-  const choices = object.choices;
-  if (!Array.isArray(choices)) return "";
-
-  const parts: string[] = [];
-  for (const choice of choices) {
-    if (!choice || typeof choice !== "object") continue;
-    const item = choice as { delta?: { content?: unknown }; message?: { content?: unknown }; text?: unknown };
-    if (typeof item.delta?.content === "string") parts.push(item.delta.content);
-    else if (typeof item.message?.content === "string") parts.push(item.message.content);
-    else if (typeof item.text === "string") parts.push(item.text);
-  }
-  return parts.join("");
-}
-
-async function readStreamingText(response: Response): Promise<string> {
-  if (!response.body) {
-    const raw = await response.text();
-    let payload: unknown = raw;
-    try {
-      payload = JSON.parse(raw);
-    } catch {
-      payload = raw;
-    }
-    return extractText(payload) ?? raw;
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let output = "";
-
-  const consumeLine = (line: string): void => {
-    const trimmed = line.trim();
-    if (!trimmed.startsWith("data:")) return;
-    const data = trimmed.slice(5).trim();
-    if (!data || data === "[DONE]") return;
-    try {
-      output += extractStreamDelta(JSON.parse(data));
-    } catch {
-      output += data;
-    }
-  };
-
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split(/\r?\n/);
-    buffer = lines.pop() ?? "";
-    for (const line of lines) consumeLine(line);
-  }
-
-  const tail = decoder.decode();
-  if (tail) buffer += tail;
-  for (const line of buffer.split(/\r?\n/)) consumeLine(line);
-
-  return output.trim();
-}
-
 function compactError(payload: unknown, raw: string): string {
   if (payload && typeof payload === "object" && "error" in payload) {
     return JSON.stringify((payload as { error?: unknown }).error).slice(0, 900);
@@ -211,19 +135,13 @@ function jsonInstruction(request: HuggingFaceJsonRequest): string {
   return `${request.systemPrompt ?? "Return only valid JSON. Do not wrap the response in Markdown."}\nReturn one JSON object only. Do not use Markdown fences, comments, prose, or trailing text.`;
 }
 
-function requestBody(
-  request: HuggingFaceJsonRequest,
-  formatMode: HuggingFaceFormatMode,
-  endpoint = getEndpoint(),
-  model = env.HF_MODEL,
-  stream = false
-): Record<string, unknown> {
+function requestBody(request: HuggingFaceJsonRequest, formatMode: HuggingFaceFormatMode, endpoint = getEndpoint()): Record<string, unknown> {
   const instructions = jsonInstruction(request);
   const maxTokens = request.maxOutputTokens ?? env.LLM_MAX_NEW_TOKENS;
 
   if (usesResponsesEndpoint(endpoint)) {
     const body: Record<string, unknown> = {
-      model,
+      model: env.HF_MODEL,
       instructions,
       input: request.prompt,
       max_output_tokens: maxTokens,
@@ -247,7 +165,7 @@ function requestBody(
   }
 
   const body: Record<string, unknown> = {
-    model,
+    model: env.HF_MODEL,
     messages: [
       { role: "system", content: instructions },
       { role: "user", content: request.prompt }
@@ -255,11 +173,6 @@ function requestBody(
     max_tokens: maxTokens,
     temperature: 0.35
   };
-
-  if (stream) {
-    body.stream = true;
-    body.stream_options = { include_usage: false };
-  }
 
   if (formatMode === "schema" && request.schema) {
     body.response_format = {
@@ -278,13 +191,12 @@ function requestBody(
 }
 
 
-async function postHuggingFaceJson(request: HuggingFaceJsonRequest, formatMode: HuggingFaceFormatMode, model: string): Promise<HuggingFaceProviderResult> {
+async function postHuggingFaceJson(request: HuggingFaceJsonRequest, formatMode: HuggingFaceFormatMode): Promise<HuggingFaceProviderResult> {
   const controller = new AbortController();
   const requestTimeoutMs = request.timeoutMs ?? env.LLM_TIMEOUT_MS;
   const startedAt = Date.now();
   const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
-  const stream = !usesResponsesEndpoint(getEndpoint()) && formatMode === "plain_json";
-  debugLog("attempt_started", { formatMode, model, stream, timeoutMs: requestTimeoutMs, maxOutputTokens: request.maxOutputTokens ?? env.LLM_MAX_NEW_TOKENS, promptChars: request.prompt.length });
+  debugLog("attempt_started", { formatMode, model: env.HF_MODEL, timeoutMs: requestTimeoutMs, maxOutputTokens: request.maxOutputTokens ?? env.LLM_MAX_NEW_TOKENS, promptChars: request.prompt.length });
 
   try {
     const response = await fetch(getEndpoint(), {
@@ -294,50 +206,39 @@ async function postHuggingFaceJson(request: HuggingFaceJsonRequest, formatMode: 
         Authorization: `Bearer ${env.HF_TOKEN}`,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(requestBody(request, formatMode, getEndpoint(), model, stream))
+      body: JSON.stringify(requestBody(request, formatMode, getEndpoint()))
     });
 
+    const raw = await response.text();
+    let payload: unknown = raw;
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      payload = raw;
+    }
+
     if (!response.ok) {
-      const raw = await response.text();
-      let payload: unknown = raw;
-      try {
-        payload = JSON.parse(raw);
-      } catch {
-        payload = raw;
-      }
       return {
         ok: false,
-        error: `Hugging Face request failed (${formatMode}, ${Date.now() - startedAt} ms, ${model}): ${response.status} ${compactError(payload, raw)}`,
-        model
+        error: `Hugging Face request failed (${formatMode}, ${Date.now() - startedAt} ms): ${response.status} ${compactError(payload, raw)}`,
+        model: env.HF_MODEL
       };
     }
 
-    let text: string | undefined;
-    if (stream) {
-      text = await readStreamingText(response);
-    } else {
-      const raw = await response.text();
-      let payload: unknown = raw;
-      try {
-        payload = JSON.parse(raw);
-      } catch {
-        payload = raw;
-      }
-      text = extractText(payload);
-    }
+    const text = extractText(payload);
     if (!text) {
-      return { ok: false, error: `Hugging Face response did not contain generated text (${formatMode}, ${Date.now() - startedAt} ms)`, model };
+      return { ok: false, error: `Hugging Face response did not contain generated text (${formatMode}, ${Date.now() - startedAt} ms)`, model: env.HF_MODEL };
     }
 
     debugLog("attempt_completed", { formatMode, durationMs: Date.now() - startedAt, textChars: text.length });
-    return { ok: true, text, model };
+    return { ok: true, text, model: env.HF_MODEL };
   } catch (error) {
     const isAbort = error instanceof Error && error.name === "AbortError";
     const message = error instanceof Error ? error.message : String(error);
     return {
       ok: false,
       error: isAbort ? `Hugging Face request timed out after ${requestTimeoutMs} ms (${formatMode})` : `${message} (${formatMode}, ${Date.now() - startedAt} ms)`,
-      model
+      model: env.HF_MODEL
     };
   } finally {
     clearTimeout(timeout);
@@ -354,34 +255,30 @@ export async function runHuggingFaceAdvisor(prompt: string): Promise<HuggingFace
 }
 
 export async function runHuggingFaceJson(request: HuggingFaceJsonRequest): Promise<HuggingFaceProviderResult> {
-  const models = getModelCandidates();
   if (!env.HF_TOKEN) {
-    return { ok: false, error: "HF_TOKEN is not configured", model: models[0] ?? env.HF_MODEL };
+    return { ok: false, error: "HF_TOKEN is not configured", model: env.HF_MODEL };
   }
 
-  const attempts: HuggingFaceFormatMode[] = request.schema ? ["schema", "json_object", "plain_json"] : ["plain_json"];
+  const attempts: HuggingFaceFormatMode[] = request.formatModes ?? (request.schema ? ["schema", "json_object", "plain_json"] : ["plain_json", "json_object"]);
   const errors: string[] = [];
   const startedAt = Date.now();
   const totalBudgetMs = request.timeoutMs ?? env.LLM_TIMEOUT_MS;
-
-  for (const model of models) {
-    for (const attempt of attempts) {
-      const elapsedMs = Date.now() - startedAt;
-      const remainingMs = totalBudgetMs - elapsedMs;
-      if (remainingMs < 3500) {
-        errors.push(`Hugging Face ${attempt} attempt skipped because total request budget was exhausted`);
-        break;
-      }
-      const result = await postHuggingFaceJson({
-        ...request,
-        timeoutMs: Math.max(3500, Math.min(request.timeoutMs ?? env.LLM_TIMEOUT_MS, remainingMs))
-      }, attempt, model);
-      if (result.ok && result.text) {
-        return result;
-      }
-      errors.push(result.error ?? `Hugging Face ${attempt} attempt failed`);
+  for (const attempt of attempts) {
+    const elapsedMs = Date.now() - startedAt;
+    const remainingMs = totalBudgetMs - elapsedMs;
+    if (remainingMs < 3500) {
+      errors.push(`Hugging Face ${attempt} attempt skipped because total request budget was exhausted`);
+      break;
     }
+    const result = await postHuggingFaceJson({
+      ...request,
+      timeoutMs: Math.max(3500, Math.min(request.timeoutMs ?? env.LLM_TIMEOUT_MS, remainingMs))
+    }, attempt);
+    if (result.ok && result.text) {
+      return result;
+    }
+    errors.push(result.error ?? `Hugging Face ${attempt} attempt failed`);
   }
 
-  return { ok: false, error: errors.join(" | ").slice(0, 2000), model: models[0] ?? env.HF_MODEL };
+  return { ok: false, error: errors.join(" | ").slice(0, 1600), model: env.HF_MODEL };
 }
