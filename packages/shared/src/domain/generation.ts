@@ -97,8 +97,6 @@ export interface FileRelationshipNode {
   kind: string;
   module?: string;
   role?: string;
-  description?: string;
-  generatedBy?: string;
 }
 
 export interface FileRelationshipEdge {

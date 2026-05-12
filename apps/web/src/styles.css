@@ -2322,9 +2322,3 @@ pre {
 .health-card-head {
   align-items: flex-start;
 }
-
-.ai-contribution-summary {
-  min-height: 0 !important;
-  align-items: flex-start !important;
-  line-height: 1.45;
-}
