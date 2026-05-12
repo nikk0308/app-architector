@@ -190,8 +190,15 @@ function meaningfulArtifactDescription(value?: string): string | undefined {
   return weak.has(normalized) || /^.* artifact$/.test(normalized) ? undefined : value;
 }
 
-function inferDescription(path: string, type: "file" | "directory", language: "ua" | "en", artifact?: GeneratedArtifactSummary): string {
+function graphNodeDescription(path: string, graph: FileRelationshipGraph | undefined): string | undefined {
+  const nodes = graph?.graph?.nodes ?? [];
+  const matched = nodes.find((node) => pathsMatch(node.path, path));
+  return meaningfulArtifactDescription(matched?.description);
+}
+
+function inferDescription(path: string, type: "file" | "directory", language: "ua" | "en", artifact?: GeneratedArtifactSummary, graph?: FileRelationshipGraph): string {
   return localizedKnownDescription(path, type, language)
+    ?? graphNodeDescription(path, graph)
     ?? meaningfulArtifactDescription(artifact?.description)
     ?? (language === "ua" ? "Згенерований файл архітектурного пакета." : "Generated architecture package file.");
 }
@@ -520,7 +527,7 @@ export function FileTreeViewer({ nodes, artifacts, relationshipGraph, language, 
             <small>{labels.path}</small>
             <code>{selected.path}</code>
           </label>
-          <p>{inferDescription(selected.path, selected.type, language, selectedArtifact)}</p>
+          <p>{inferDescription(selected.path, selected.type, language, selectedArtifact, relationshipGraph)}</p>
           {visibleRelationships.length > 0 ? (
             <div className="relationship-panel">
               <div className="relationship-toolbar">

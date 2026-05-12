@@ -255,6 +255,41 @@ function contributionStats(
   };
 }
 
+function aiContributionNarrative(
+  run: RunComparison["runs"][number],
+  contribution: ReturnType<typeof contributionStats>,
+  text: RunComparisonPanelProps["text"],
+): string {
+  const ua = /[А-Яа-яІіЇїЄєҐґ]/.test(text.aiContribution);
+  if (contribution.isBaseline) {
+    return ua
+      ? "Контрольний baseline: стабільна базова структура без AI-розширення."
+      : "Control baseline: a stable starter structure without AI expansion.";
+  }
+  const parts = [
+    contribution.fileDelta > 0 ? `${contribution.fileDelta} ${ua ? "файлів" : "files"}` : undefined,
+    contribution.relationDelta > 0 ? `${contribution.relationDelta} ${ua ? "зв’язків" : "relationships"}` : undefined,
+    contribution.artifactDelta > 0 ? `${contribution.artifactDelta} ${ua ? "блоків плану" : "plan blocks"}` : undefined,
+  ].filter((item): item is string => Boolean(item));
+  const suffix = parts.length ? `: +${parts.join(", +")}.` : ".";
+  if (ua) {
+    if (run.mode === "commercial") return `GPT посилив архітектуру сервісними межами, інтеграційними точками, runtime-політиками та перевірками${suffix}`;
+    if (run.mode === "hf-open") return `Qwen зробив акцент на доменних межах, diagnostics, localization, delivery-рівні та щільнішому графі зв’язків${suffix}`;
+    if (run.mode === "hybrid") return `Hybrid поєднав стабільну базу з AI-розширенням blueprint і додав найширше міжмодульне покриття${suffix}`;
+    return `Цей запуск додав вимірювану структуру понад baseline${suffix}`;
+  }
+  if (run.mode === "commercial") {
+    return `GPT strengthened the architecture through service boundaries, integration points, runtime policies and verification coverage${suffix}`;
+  }
+  if (run.mode === "hf-open") {
+    return `Qwen focused on domain boundaries, diagnostics, localization, delivery structure and a denser relationship graph${suffix}`;
+  }
+  if (run.mode === "hybrid") {
+    return `Hybrid merged deterministic stability with AI blueprint expansion and added the broadest cross-module structure${suffix}`;
+  }
+  return `This run added measurable structure over the baseline${suffix}`;
+}
+
 function Icon({ type }: { type: "trophy" | "bolt" | "warning" }) {
   if (type === "bolt") {
     return (
@@ -628,6 +663,7 @@ export function RunComparisonPanel({
                     </span>
                   </div>
                 )}
+                <p className="ai-contribution-summary">{aiContributionNarrative(run, contribution, text)}</p>
               </div>
               <div className="health-notes-grid">
                 <div>

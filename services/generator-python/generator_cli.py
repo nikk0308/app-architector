@@ -335,6 +335,53 @@ def relation_priority(role: str) -> str:
     return "uses"
 
 
+
+def describe_graph_node(node: Dict[str, Any], outgoing: List[Dict[str, str]], incoming: List[Dict[str, str]]) -> str:
+    current = str(node.get("description") or "").strip()
+    weak = {"source artifact", "config artifact", "metadata artifact", "documentation artifact", "other artifact", "generated architecture package file"}
+    if current and current.lower() not in weak and not current.lower().endswith(" artifact"):
+        return current
+    path = str(node.get("path") or "")
+    module_name = str(node.get("module") or graph_module(path)).replace("-", " ")
+    role_name = str(node.get("role") or graph_role(path)).replace("-", " ")
+    kind_name = str(node.get("kind") or classify_graph_node(path)).replace("-", " ")
+    outgoing_names = [Path(edge.get("to", "")).name for edge in outgoing if edge.get("to")][:3]
+    incoming_names = [Path(edge.get("from", "")).name for edge in incoming if edge.get("from")][:3]
+    if kind_name == "documentation":
+        base = f"Documents the {module_name} boundary and keeps architectural decisions visible for implementation and review."
+    elif kind_name == "config":
+        base = f"Configures the {module_name} boundary for the generated starter architecture."
+    elif role_name == "manager":
+        base = f"Coordinates the {module_name} boundary and wires related services, state, resources and integration points."
+    elif role_name == "service":
+        base = f"Implements a service layer inside the {module_name} boundary and connects feature code with platform or backend behavior."
+    elif role_name == "repository":
+        base = f"Keeps {module_name} data access isolated from UI and orchestration code."
+    elif role_name == "contract":
+        base = f"Defines the contract used to keep the {module_name} boundary replaceable and testable."
+    elif role_name == "model":
+        base = f"Represents the data model exchanged inside the {module_name} boundary."
+    elif role_name == "state":
+        base = f"Stores or exposes state for the {module_name} flow without mixing it with UI rendering."
+    elif role_name == "view":
+        base = f"Renders the {module_name} user-facing flow and delegates logic to state or service files."
+    elif role_name == "test":
+        base = f"Checks the {module_name} boundary and protects the generated starter from regression."
+    elif role_name == "scene":
+        base = f"Bootstraps the generated application scene and connects initial runtime objects."
+    elif role_name == "prefab":
+        base = f"Provides a reusable Unity object for the generated {module_name} flow."
+    else:
+        base = f"Supports the {module_name} boundary as a {role_name or kind_name} file in the generated architecture."
+    links = []
+    if outgoing_names:
+        links.append("uses " + ", ".join(outgoing_names))
+    if incoming_names:
+        links.append("used by " + ", ".join(incoming_names))
+    if links:
+        return f"{base} It is connected through relationships: {'; '.join(links)}."
+    return base
+
 def build_relationship_graph(output_root: Path, payload: Dict[str, Any], diagnostics: Dict[str, Any]) -> Dict[str, Any]:
     tree = collect_file_tree(output_root)
     files = [entry["path"] for entry in tree if entry.get("type") == "file"]
@@ -620,6 +667,14 @@ def build_relationship_graph(output_root: Path, payload: Dict[str, Any], diagnos
             relation = str(relationship.get("relation") or "uses")
             reason = str(relationship.get("reason") or "AI blueprint relationship.")
             add_edge(source, target, relation, reason)
+
+    outgoing_by_path: Dict[str, List[Dict[str, str]]] = {}
+    incoming_by_path: Dict[str, List[Dict[str, str]]] = {}
+    for edge in edges:
+        outgoing_by_path.setdefault(edge["from"], []).append(edge)
+        incoming_by_path.setdefault(edge["to"], []).append(edge)
+    for node in nodes:
+        node["description"] = describe_graph_node(node, outgoing_by_path.get(node["id"], []), incoming_by_path.get(node["id"], []))
 
     connected_files = {edge["from"] for edge in edges} | {edge["to"] for edge in edges}
     relation_counts: Dict[str, int] = {}
