@@ -61,11 +61,6 @@ function advisorJsonSchema(): Record<string, unknown> {
 
 function getEndpoint(): string {
   if (env.HF_ENDPOINT) return env.HF_ENDPOINT;
-  // Qwen chat/instruct models on the Hugging Face router are more reliable
-  // through the OpenAI-compatible Chat Completions route than through
-  // /v1/responses with json_object. The responses route often returns a
-  // successful JSON envelope without output_text for routed Qwen requests,
-  // which previously looked like "response did not contain generated text".
   return "https://router.huggingface.co/v1/chat/completions";
 }
 
@@ -127,6 +122,11 @@ function compactError(payload: unknown, raw: string): string {
 
 type HuggingFaceFormatMode = "schema" | "json_object" | "plain_json";
 
+function debugLog(message: string, details: Record<string, unknown>): void {
+  if (env.LOG_LEVEL !== "debug") return;
+  console.info(`[ai:huggingface] ${message}`, details);
+}
+
 function jsonInstruction(request: HuggingFaceJsonRequest): string {
   return `${request.systemPrompt ?? "Return only valid JSON. Do not wrap the response in Markdown."}\nReturn one JSON object only. Do not use Markdown fences, comments, prose, or trailing text.`;
 }
@@ -170,9 +170,6 @@ function requestBody(request: HuggingFaceJsonRequest, formatMode: HuggingFaceFor
     temperature: 0.35
   };
 
-  // Chat Completions accepts response_format for many routed models, but Qwen
-  // can be picky. We try schema/json_object first and then plain_json without
-  // response_format, so generation still works instead of hard-failing.
   if (formatMode === "schema" && request.schema) {
     body.response_format = {
       type: "json_schema",
@@ -193,7 +190,9 @@ function requestBody(request: HuggingFaceJsonRequest, formatMode: HuggingFaceFor
 async function postHuggingFaceJson(request: HuggingFaceJsonRequest, formatMode: HuggingFaceFormatMode): Promise<HuggingFaceProviderResult> {
   const controller = new AbortController();
   const requestTimeoutMs = request.timeoutMs ?? env.LLM_TIMEOUT_MS;
+  const startedAt = Date.now();
   const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
+  debugLog("attempt_started", { formatMode, model: env.HF_MODEL, timeoutMs: requestTimeoutMs, maxOutputTokens: request.maxOutputTokens ?? env.LLM_MAX_NEW_TOKENS, promptChars: request.prompt.length });
 
   try {
     const response = await fetch(getEndpoint(), {
@@ -217,23 +216,24 @@ async function postHuggingFaceJson(request: HuggingFaceJsonRequest, formatMode: 
     if (!response.ok) {
       return {
         ok: false,
-        error: `Hugging Face request failed (${formatMode}): ${response.status} ${compactError(payload, raw)}`,
+        error: `Hugging Face request failed (${formatMode}, ${Date.now() - startedAt} ms): ${response.status} ${compactError(payload, raw)}`,
         model: env.HF_MODEL
       };
     }
 
     const text = extractText(payload);
     if (!text) {
-      return { ok: false, error: `Hugging Face response did not contain generated text (${formatMode})`, model: env.HF_MODEL };
+      return { ok: false, error: `Hugging Face response did not contain generated text (${formatMode}, ${Date.now() - startedAt} ms)`, model: env.HF_MODEL };
     }
 
+    debugLog("attempt_completed", { formatMode, durationMs: Date.now() - startedAt, textChars: text.length });
     return { ok: true, text, model: env.HF_MODEL };
   } catch (error) {
     const isAbort = error instanceof Error && error.name === "AbortError";
     const message = error instanceof Error ? error.message : String(error);
     return {
       ok: false,
-      error: isAbort ? `Hugging Face request timed out after ${requestTimeoutMs} ms (${formatMode})` : `${message} (${formatMode})`,
+      error: isAbort ? `Hugging Face request timed out after ${requestTimeoutMs} ms (${formatMode})` : `${message} (${formatMode}, ${Date.now() - startedAt} ms)`,
       model: env.HF_MODEL
     };
   } finally {

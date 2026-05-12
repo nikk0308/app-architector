@@ -20,9 +20,9 @@ function numberFromEnv(name: string, fallback: number): number {
 }
 
 const port = numberFromEnv("PORT", 3000);
-const apiRequestTimeoutMs = numberFromEnv("API_REQUEST_TIMEOUT_MS", 240_000);
+const apiRequestTimeoutMs = numberFromEnv("API_REQUEST_TIMEOUT_MS", 360_000);
 const requestBodyLimitBytes = numberFromEnv("REQUEST_BODY_LIMIT_BYTES", 1_048_576);
-const generatorTimeoutMs = numberFromEnv("GENERATOR_TIMEOUT_MS", 240_000);
+const generatorTimeoutMs = numberFromEnv("GENERATOR_TIMEOUT_MS", 360_000);
 const outputRoot = process.env.OUTPUT_ROOT
   ? path.resolve(process.env.OUTPUT_ROOT)
   : path.resolve(storageRoot, "generated");
@@ -50,6 +50,6 @@ export const env = {
   HF_TOKEN: process.env.HF_TOKEN ?? process.env.HUGGINGFACE_API_TOKEN ?? "",
   HF_MODEL: process.env.HF_MODEL ?? "Qwen/Qwen2.5-Coder-32B-Instruct",
   HF_ENDPOINT: process.env.HF_ENDPOINT ?? "",
-  LLM_TIMEOUT_MS: Math.max(numberFromEnv("LLM_TIMEOUT_MS", 90_000), 60_000),
-  LLM_MAX_NEW_TOKENS: Math.max(numberFromEnv("LLM_MAX_NEW_TOKENS", 12_000), 4_000)
+  LLM_TIMEOUT_MS: Math.max(numberFromEnv("LLM_TIMEOUT_MS", 300_000), 60_000),
+  LLM_MAX_NEW_TOKENS: Math.max(numberFromEnv("LLM_MAX_NEW_TOKENS", 14_000), 4_000)
 };

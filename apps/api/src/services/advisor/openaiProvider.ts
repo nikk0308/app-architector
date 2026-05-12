@@ -118,6 +118,11 @@ function advisorJsonSchema(): Record<string, unknown> {
 
 type OpenAIFormatMode = "schema" | "json_object" | "plain_json";
 
+function debugLog(message: string, details: Record<string, unknown>): void {
+  if (env.LOG_LEVEL !== "debug") return;
+  console.info(`[ai:openai] ${message}`, details);
+}
+
 function requestBody(request: OpenAIJsonRequest, formatMode: OpenAIFormatMode): Record<string, unknown> {
   const strictJsonInstruction = "Return one JSON object only. Do not use Markdown fences, comments, prose, or trailing text.";
   const body: Record<string, unknown> = {
@@ -157,7 +162,9 @@ function requestBody(request: OpenAIJsonRequest, formatMode: OpenAIFormatMode): 
 
 async function postOpenAIJson(request: OpenAIJsonRequest, formatMode: OpenAIFormatMode): Promise<OpenAIProviderResult> {
   const controller = new AbortController();
+  const startedAt = Date.now();
   const timeout = setTimeout(() => controller.abort(), env.LLM_TIMEOUT_MS);
+  debugLog("attempt_started", { formatMode, model: env.OPENAI_MODEL, timeoutMs: env.LLM_TIMEOUT_MS, maxOutputTokens: request.maxOutputTokens ?? env.LLM_MAX_NEW_TOKENS, promptChars: request.prompt.length });
 
   try {
     const response = await fetch("https://api.openai.com/v1/responses", {
@@ -181,23 +188,24 @@ async function postOpenAIJson(request: OpenAIJsonRequest, formatMode: OpenAIForm
     if (!response.ok) {
       return {
         ok: false,
-        error: `OpenAI request failed (${formatMode}): ${response.status} ${compactError(payload, raw)}`,
+        error: `OpenAI request failed (${formatMode}, ${Date.now() - startedAt} ms): ${response.status} ${compactError(payload, raw)}`,
         model: env.OPENAI_MODEL
       };
     }
 
     const text = extractOutputText(payload);
     if (!text) {
-      return { ok: false, error: `OpenAI response did not contain output text (${formatMode})`, model: env.OPENAI_MODEL };
+      return { ok: false, error: `OpenAI response did not contain output text (${formatMode}, ${Date.now() - startedAt} ms)`, model: env.OPENAI_MODEL };
     }
 
+    debugLog("attempt_completed", { formatMode, durationMs: Date.now() - startedAt, textChars: text.length });
     return { ok: true, text, model: env.OPENAI_MODEL };
   } catch (error) {
     const isAbort = error instanceof Error && error.name === "AbortError";
     const message = error instanceof Error ? error.message : String(error);
     return {
       ok: false,
-      error: isAbort ? `OpenAI request timed out after ${env.LLM_TIMEOUT_MS} ms (${formatMode})` : `${message} (${formatMode})`,
+      error: isAbort ? `OpenAI request timed out after ${env.LLM_TIMEOUT_MS} ms (${formatMode})` : `${message} (${formatMode}, ${Date.now() - startedAt} ms)`,
       model: env.OPENAI_MODEL
     };
   } finally {

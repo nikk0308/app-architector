@@ -590,7 +590,7 @@ function ensureUsefulAiBlueprint(
     });
   }
 
-  warnings.push(`AI blueprint was normalized and completed locally from the provider response to keep Qwen/GPT usable under production timeout limits (${stats.modules} modules/${stats.files} files/${stats.relationships} relationships -> ${modules.length} modules/${files.length} files/${relationships.length} relationships).`);
+  warnings.push(`AI blueprint was normalized and completed locally from the provider response while preserving the locked benchmark contract (${stats.modules} modules/${stats.files} files/${stats.relationships} relationships -> ${modules.length} modules/${files.length} files/${relationships.length} relationships).`);
 
   return {
     ...blueprint,
@@ -698,7 +698,7 @@ function architecturePatchSchema(baseline: ArchitectureSpec): Record<string, unk
           strategy: { type: "string" },
           modules: {
             type: "array",
-            minItems: 10,
+            minItems: 8,
             maxItems: 24,
             items: {
               type: "object",
@@ -744,7 +744,7 @@ function buildPrompt(answers: QuestionnaireAnswers, baseline: ArchitectureSpec, 
   const ext = extByProfile[platform] ?? "ts";
 
   const commonBenchmarkGoal = [
-    "Benchmark comparison mode is ON: GPT, Qwen and Hybrid receive the same locked baseline, the same user intent, the same schema and a comparable token budget.",
+    "Benchmark comparison mode is ON: GPT, Qwen and Hybrid receive the same locked baseline, the same user intent, the same requested JSON shape and a comparable token budget.",
     "The generated result must stay usable as a real starter architecture, not as an artificial benchmark artifact.",
     "Do not create a separate top-level application-name folder for AI additions. Place new files inside the existing platform architecture roots and existing domain buckets.",
     "The AI may change the generated file tree, file names, file responsibilities, relationships, documentation, risks and recommendations. It must NOT change the user's platform, architecture style, state management, navigation style, enabled core modules, package identity or selected publication target.",
@@ -754,24 +754,21 @@ function buildPrompt(answers: QuestionnaireAnswers, baseline: ArchitectureSpec, 
   const sampleSourceRoot = blueprintRootFor(baseline.profileId, "source", "Monetization", "service", "revenue");
   const sampleStateRoot = blueprintRootFor(baseline.profileId, "source", "Monetization", "state", "entitlement");
 
-  const modeGoal = mode === "commercial"
-    ? [
-      commonBenchmarkGoal,
-      "GPT mode should act like a senior product/platform architect for a production app: business-critical flows, store readiness, monetization boundaries, operational diagnostics, environment separation, failure handling and release checks.",
-      "Do not add arbitrary modules outside the selected architecture. Express these ideas as deeper files inside the existing architecture buckets."
-    ].join(" ")
-    : mode === "hf-open"
+  const equalAiModeGoal = [
+    commonBenchmarkGoal,
+    "Act like a senior mobile platform architect. Balance production readiness, clean code structure, domain boundaries, integration seams, offline/data quality, telemetry, testing, delivery and maintainability.",
+    "Do not add arbitrary modules outside the selected architecture. Express ideas as deeper files inside the existing architecture buckets.",
+    "GPT and Qwen are intentionally given this same objective; their differences should come from model reasoning, naming, responsibility splitting, relationship design and explanations, not from different instructions."
+  ].join(" ");
+
+  const modeGoal = mode === "commercial" || mode === "hf-open"
+    ? equalAiModeGoal
+    : mode === "hybrid"
       ? [
         commonBenchmarkGoal,
-        "Qwen/open-model mode should act like a code-structure and maintainability architect: clean contracts, domain boundaries, local-first/offline seams, testability, generated source clarity and readable module ownership.",
-        "Do not add arbitrary modules outside the selected architecture. Express these ideas as deeper files inside the existing architecture buckets."
+        "Hybrid mode should be the strongest combined mode: preserve deterministic structure, then add a broad AI blueprint that combines production readiness and code maintainability. It may be deeper than GPT-only or Qwen-only, but still must live inside the selected architecture roots."
       ].join(" ")
-      : mode === "hybrid"
-        ? [
-          commonBenchmarkGoal,
-          "Hybrid mode should be the strongest combined mode: preserve deterministic structure, then add a broad AI blueprint that covers production readiness and code maintainability together. It may be deeper than GPT-only or Qwen-only, but still must live inside the selected architecture roots."
-        ].join(" ")
-        : modeInstruction(mode, baseline);
+      : modeInstruction(mode, baseline);
 
   return [
     "You are producing an AI architecture blueprint for App Architector, a controlled starter-project generator used as a diploma laboratory stand for comparing AI generation.",
@@ -783,7 +780,7 @@ function buildPrompt(answers: QuestionnaireAnswers, baseline: ArchitectureSpec, 
     `Use the selected platform ${platform}. Source files should usually use .${ext}; tests may use source/test naming that is natural for the platform.`,
     "Each file must have a useful role and description, because the UI displays this in the generated tree. Avoid generic 'source artifact'.",
     "Relationships should reference file paths that appear in aiBlueprint.modules[].files[].path. Use relation labels like wires, uses, implements, configures, observes, routes-to, renders, persists-through, validates, tracks, documents, tests. Do not generate placeholder self-links; every relation must connect two different files.",
-    "Produce enough blueprint depth to make this AI mode visibly different from baseline and from the other AI provider while still respecting the selected architecture. This is a diploma benchmark: do not return a tiny blueprint. Target 45-85 additional AI blueprint files, at least 8 modules, and at least 2 relationships per blueprint file. Keep the response compact enough for production API timeouts; prefer concise descriptions over long prose.",
+    "Produce enough blueprint depth to make this AI mode visibly different from baseline and from the other AI provider while still respecting the selected architecture. This is a diploma benchmark: do not return a tiny blueprint. Target 45-85 additional AI blueprint files, at least 8 modules, and at least 2 relationships per blueprint file. Prefer concise descriptions over long prose so the response stays parseable, but do not downgrade the blueprint into a tiny seed.",
     "Hard minimum for a usable answer: 8 modules, 36 files, and 72 relationships. If you cannot meet it, still return the closest valid blueprint and explicitly explain the limitation in risks/warnings-style text.",
     "Do not put many files under a project-name dump folder. Keep files distributed inside the selected architecture roots and existing module boundaries: UI/screens, domain/models, data/repositories, services/integrations, runtime/config, tests/docs as appropriate for the selected platform.",
     "Keep all choices platform-safe and aligned with the user form. You may refine optional feature/product lists only when it improves the generated package; do not disable a user-requested feature just to be different.",
@@ -1022,13 +1019,7 @@ function isStrongAiBlueprint(blueprint?: ArchitectureSpec["aiBlueprint"]): boole
   return stats.modules >= 8 && stats.files >= 36 && stats.relationships >= 70;
 }
 
-function buildBlueprintRetryPrompt(basePrompt: string, provider: ProviderName, previousIssue: string): string {
-  const providerAngle = provider === "huggingface"
-    ? "Qwen should focus on open-source maintainability, explicit boundaries, offline/data quality, and testable runtime contracts."
-    : provider === "openai"
-      ? "GPT should focus on commercial delivery readiness, product/commerce flow depth, telemetry, release quality, and integration contracts."
-      : "Hybrid should combine deterministic structure with a stronger AI blueprint and integration/readiness depth.";
-
+function buildBlueprintRetryPrompt(basePrompt: string, _provider: ProviderName, previousIssue: string): string {
   return [
     basePrompt,
     "",
@@ -1037,7 +1028,7 @@ function buildBlueprintRetryPrompt(basePrompt: string, provider: ProviderName, p
     "The previous answer was not deep enough for the benchmark. Return a larger JSON object now.",
     "Minimum target for this retry: 8+ modules, 36+ files, and 72+ relationships inside aiBlueprint.",
     "Distribute files across clean architecture folders. Do not create one giant app-name folder with unrelated classes.",
-    providerAngle,
+    "Keep the same benchmark objective; do not switch platform, architecture style, state management, navigation, modules, package identity or publication target.",
     "Return only the JSON object."
   ].join("\n");
 }
@@ -1047,23 +1038,20 @@ async function runArchitectureProvider(
   prompt: string,
   baseline: ArchitectureSpec
 ) {
+  const maxOutputTokens = Math.max(env.LLM_MAX_NEW_TOKENS, 14000);
   return provider === "openai"
     ? await runOpenAIJson({
       prompt,
       schema: architecturePatchSchema(baseline),
       schemaName: "architecture_spec_patch",
       systemPrompt: "You generate controlled JSON patches for a mobile ArchitectureSpec. Return only valid JSON.",
-      maxOutputTokens: Math.max(env.LLM_MAX_NEW_TOKENS, 14000)
+      maxOutputTokens
     })
     : await runHuggingFaceJson({
       prompt,
-      // Qwen through the Hugging Face router is most reliable when the first
-      // attempt is plain JSON. Router-side json_object often delays or returns
-      // an envelope without generated text, which can push the whole /preview
-      // request into a gateway timeout before the useful attempt even starts.
       systemPrompt: "You generate controlled JSON patches for a mobile ArchitectureSpec. Return only one valid JSON object, no Markdown.",
-      maxOutputTokens: Math.min(Math.max(env.LLM_MAX_NEW_TOKENS, 6500), 8000),
-      timeoutMs: Math.min(env.LLM_TIMEOUT_MS, 110000)
+      maxOutputTokens,
+      timeoutMs: env.LLM_TIMEOUT_MS
     });
 }
 
