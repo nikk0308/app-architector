@@ -258,7 +258,7 @@ function contributionStats(
 function aiContributionNarrative(
   run: RunComparison["runs"][number],
   contribution: ReturnType<typeof contributionStats>,
-  text: RunComparisonPanelProps["text"],
+  text: ComparisonLabels,
 ): string {
   const ua = /[А-Яа-яІіЇїЄєҐґ]/.test(text.aiContribution);
   if (contribution.isBaseline) {
