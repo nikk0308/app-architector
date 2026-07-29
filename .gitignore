@@ -4,6 +4,8 @@ apps/*/dist/
 packages/*/dist/
 coverage
 .env
+.runtime.env
+.deploy.env
 artifacts/
 deploy-diagnostics/
 storage/
@@ -18,6 +20,9 @@ apps/api/data
 .DS_Store
 __pycache__
 *.pyc
+backups/
+compose.override.yaml
+.deploy/
 
 # Prevent emitted JavaScript from shadowing TypeScript sources.
 apps/*/src/**/*.js

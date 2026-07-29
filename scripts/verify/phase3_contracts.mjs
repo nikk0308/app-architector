@@ -192,7 +192,10 @@ try {
   const smokeGeneratedZipSource = read("scripts/smoke_generated_zip.mjs");
   const runtimeHealthSmokeSource = read("scripts/smoke_runtime_health.mjs");
   const cleanupStorageSource = read("scripts/cleanup_generated_storage.mjs");
-  const deployWorkflow = read(".github/workflows/03_deploy.yml");
+  const deployWorkflow = read(".github/workflows/deploy.yml");
+  const ciWorkflow = read(".github/workflows/ci.yml");
+  const composeSource = read("compose.yaml");
+  const remoteDeploySource = read("scripts/deploy/deploy-release.sh");
   const registry = readJson("config/artifact-registry.json");
 
   const legacyArchitectureManifest = scan(/\bArchitectureManifest\b/);
@@ -477,37 +480,35 @@ try {
   );
 
   check(
-    !contains(deployWorkflow, "actions/upload-artifact@v4") && !contains(deployWorkflow, "actions/upload-artifact@v6")
-      && contains(deployWorkflow, "actions/upload-artifact@v7"),
-    "workflow.node24-upload-artifact",
-    "Deploy workflow uses the Node 24 upload-artifact action line, not deprecated Node 20 action revisions."
+    contains(deployWorkflow, "docker/build-push-action@v6")
+      && contains(deployWorkflow, "steps.api.outputs.digest")
+      && contains(deployWorkflow, "steps.web.outputs.digest"),
+    "workflow.immutable-container-images",
+    "Deploy workflow builds both images and activates immutable image digests."
   );
 
   check(
-    contains(deployWorkflow, "if: ${{ always() }}") && contains(deployWorkflow, "path: deploy-diagnostics"),
-    "workflow.always-upload-diagnostics",
-    "Deploy workflow uploads diagnostics with if: always()."
+    contains(ciWorkflow, "npm run verify:release")
+      && contains(deployWorkflow, "uses: ./.github/workflows/ci.yml"),
+    "workflow.release-verification",
+    "Production deployment reuses the complete release verification workflow."
   );
 
   check(
-    contains(deployWorkflow, "build.log") && contains(deployWorkflow, "test.log") && contains(deployWorkflow, "advisor-smoke.log"),
-    "workflow.core-diagnostic-logs",
-    "Deploy workflow captures build, test and advisor smoke logs."
+    contains(composeSource, "127.0.0.1:3100:8080")
+      && contains(composeSource, "internal: true")
+      && !contains(composeSource, "3000:3000"),
+    "compose.private-api-boundary",
+    "Only the web entry point is bound to host loopback; the API stays on an internal network."
   );
 
   check(
-    contains(deployWorkflow, "secrets.OPENAI_API_KEY")
-      && contains(deployWorkflow, "secrets.HF_TOKEN")
-      && contains(deployWorkflow, "vars.OPENAI_MODEL")
-      && contains(deployWorkflow, "ai-runtime-env-summary.env"),
-    "workflow.ai-runtime-env",
-    "Deploy workflow maps GitHub AI secrets and variables into remote runtime env without logging secret values."
-  );
-
-  check(
-    (contains(deployWorkflow, "npm run verify:phase3") || contains(deployWorkflow, "node scripts/verify/phase3_contracts.mjs")),
-    "workflow.phase3-contract-step",
-    "Deploy workflow runs the fast phase 3 contract verifier before build."
+    contains(remoteDeploySource, "backup-sqlite.mjs")
+      && contains(remoteDeploySource, "scripts/deploy/smoke.py")
+      && contains(remoteDeploySource, "Rolling back")
+      && contains(remoteDeploySource, "/opt/docker-data/apparchitector"),
+    "deploy.backup-smoke-rollback",
+    "Remote deployment backs up SQLite, smoke-tests the candidate and restores previous images after failure."
   );
 
   const failed = checks.filter((item) => item.status === "failed");

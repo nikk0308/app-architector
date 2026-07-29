@@ -1,0 +1,16 @@
+.git
+.github
+.env
+.runtime.env
+.deploy.env
+node_modules
+**/node_modules
+**/dist
+storage
+artifacts
+deploy-diagnostics
+coverage
+backups
+*.zip
+*.log
+.DS_Store
