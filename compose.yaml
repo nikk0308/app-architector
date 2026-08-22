@@ -1,0 +1,75 @@
+name: apparchitector
+
+services:
+  api:
+    image: ${APP_API_IMAGE:?APP_API_IMAGE is required}
+    restart: unless-stopped
+    init: true
+    user: "10001:10001"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    env_file:
+      - path: ${RUNTIME_ENV_PATH:-.runtime.env}
+        required: true
+    environment:
+      HOST: 0.0.0.0
+      PORT: "3000"
+      DATABASE_PATH: /app/storage/app.db
+      OUTPUT_ROOT: /app/storage/generated
+      GENERATOR_PYTHON_BIN: python3
+    volumes:
+      - /opt/docker-data/apparchitector:/app/storage
+    networks:
+      - backend
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - scripts/container-healthcheck.mjs
+        - http://127.0.0.1:3000/api/health/ready
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  web:
+    image: ${APP_WEB_IMAGE:?APP_WEB_IMAGE is required}
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+      - /var/cache/nginx:size=32m
+      - /var/run:size=4m
+    ports:
+      - "127.0.0.1:3100:8080"
+    networks:
+      - edge
+      - backend
+    depends_on:
+      api:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -qO- http://127.0.0.1:8080/health | grep -q '"status":"ok"'
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+networks:
+  edge:
+    driver: bridge
+  backend:
+    driver: bridge
+    internal: true

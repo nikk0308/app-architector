@@ -1,0 +1,127 @@
+name: Deploy production
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: app-architector-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  verify:
+    uses: ./.github/workflows/ci.yml
+
+  images:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      api_image: ${{ steps.refs.outputs.api_image }}
+      web_image: ${{ steps.refs.outputs.web_image }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: names
+        shell: bash
+        run: |
+          repository="$(printf '%s' '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+          echo "api=ghcr.io/${repository}-api" >> "$GITHUB_OUTPUT"
+          echo "web=ghcr.io/${repository}-web" >> "$GITHUB_OUTPUT"
+          echo "tag=sha-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - id: api
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/api/Dockerfile
+          push: true
+          tags: ${{ steps.names.outputs.api }}:${{ steps.names.outputs.tag }}
+          cache-from: type=gha,scope=app-architector-api
+          cache-to: type=gha,mode=max,scope=app-architector-api
+
+      - id: web
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/web/Dockerfile
+          push: true
+          tags: ${{ steps.names.outputs.web }}:${{ steps.names.outputs.tag }}
+          cache-from: type=gha,scope=app-architector-web
+          cache-to: type=gha,mode=max,scope=app-architector-web
+
+      - id: refs
+        shell: bash
+        run: |
+          echo "api_image=${{ steps.names.outputs.api }}@${{ steps.api.outputs.digest }}" >> "$GITHUB_OUTPUT"
+          echo "web_image=${{ steps.names.outputs.web }}@${{ steps.web.outputs.digest }}" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: images
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Prepare SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Build release bundle
+        shell: bash
+        run: |
+          tar -czf /tmp/app-architector-release.tar.gz \
+            compose.yaml \
+            scripts/deploy/smoke.py \
+            scripts/deploy/rollback.sh
+
+      - name: Upload release
+        shell: bash
+        env:
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          SSH_USER: ${{ vars.DEPLOY_USER }}
+          SSH_PORT: ${{ vars.DEPLOY_PORT }}
+        run: |
+          set -euo pipefail
+          port="${SSH_PORT:-22}"
+          scp -P "$port" -i ~/.ssh/deploy_key \
+            /tmp/app-architector-release.tar.gz \
+            scripts/deploy/deploy-release.sh \
+            "$SSH_USER@$DEPLOY_HOST:/tmp/"
+
+      - name: Activate release
+        shell: bash
+        env:
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          SSH_USER: ${{ vars.DEPLOY_USER }}
+          SSH_PORT: ${{ vars.DEPLOY_PORT }}
+          API_IMAGE: ${{ needs.images.outputs.api_image }}
+          WEB_IMAGE: ${{ needs.images.outputs.web_image }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          port="${SSH_PORT:-22}"
+          printf '%s\n' "$GHCR_TOKEN" |
+            ssh -p "$port" -i ~/.ssh/deploy_key "$SSH_USER@$DEPLOY_HOST" \
+              "bash /tmp/deploy-release.sh 'sha-${GITHUB_SHA}' '/tmp/app-architector-release.tar.gz' '$API_IMAGE' '$WEB_IMAGE' '${{ github.actor }}'"
