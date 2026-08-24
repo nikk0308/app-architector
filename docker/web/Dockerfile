@@ -21,9 +21,7 @@ RUN npm run build -w @mag/shared \
 FROM nginx:1.29-alpine
 
 COPY docker/web/nginx.conf /etc/nginx/nginx.conf
-COPY --from=build /app/apps/web/dist /usr/share/nginx/html
-
-RUN chown -R nginx:nginx /usr/share/nginx/html /var/cache/nginx /var/run
+COPY --chown=nginx:nginx --from=build /app/apps/web/dist /usr/share/nginx/html
 
 USER nginx
 EXPOSE 8080
